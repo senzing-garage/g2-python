@@ -11,96 +11,112 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed in 2.6.0
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-2.6.0-21133.x86_64.rpm`
 
 ## [2.5.1] - 2021-05-06
 
 ### Changed in 2.5.1
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-2.5.1-21124.x86_64.rpm`
 
 ## [2.5.0] - 2021-04-15
 
 ### Changed in 2.5.0
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-2.5.0-21104.x86_64.rpm`
 
 ## [2.4.2] - 2021-04-07
 
 ### Changed in 2.4.2
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-2.4.2-21097.x86_64.rpm`
 
 ## [2.4.1] - 2021-03-10
 
 ### Changed in 2.4.1
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-2.4.1-21064.x86_64.rpm`
 
 ## [2.4.0] - 2021-02-24
 
 ### Changed in 2.4.0
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-2.4.0-21050.x86_64.rpm`
 
 ## [2.3.3] - 2021-02-19
 
 ### Changed in 2.3.3
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-2.3.3-21049.x86_64.rpm`
 
 ## [2.3.2] - 2021-02-10
 
 ### Changed in 2.3.2
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-2.3.2-21041.x86_64.rpm`
 
 ## [2.3.1] - 2020-12-26
 
 ### Changed in 2.3.1
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-2.3.1-21026.x86_64.rpm`
 
 ## [2.3.0] - 2020-12-15
 
 ### Changed in 2.3.0
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-2.3.0-20342.x86_64.rpm`
 
 ## [2.2.6] - 2020-12-07
 
 ### Changed in 2.2.6
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-2.2.6-20338.x86_64.rpm`
 
 ## [2.2.5] - 2020-11-17
 
 ### Changed in 2.2.5
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-2.2.5-20319.x86_64.rpm`
 
 ## [2.2.4] - 2020-10-29
 
 ### Changed in 2.2.4
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-2.2.4-20306.x86_64.rpm`
 
 ## [2.2.3] - 2020-10-29
 
 ### Changed in 2.2.3
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-2.2.3-20302.x86_64.rpm`
 
 ## [2.2.2] - 2020-10-23
 
 ### Changed in 2.2.2
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-2.2.2-2029.x86_64.rpm`
 
 ## [2.2.1] - 2020-09-30
 
 ### Changed in 2.2.1
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-2.2.1-20274.x86_64.rpm`
 
 ## [2.2.0] - 2020-09-29
 
@@ -113,193 +129,224 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed in 2.1.1
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-2.1.1-20266.x86_64.rpm`
 
 ## [2.1.0] - 2020-09-03
 
 ### Changed in 2.1.0
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-2.1.0-20246.x86_64.rpm`
 
 ## [2.0.1] - 2020-07-23
 
 ### Changed in 2.0.1
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-2.0.1-20205.x86_64.rpm`
 
 ## [2.0.0] - 2020-07-16
 
 ### Changed in 2.0.0
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-2.0.0-20197.x86_64.rpm`
 
 ## [1.15.6] - 2020-06-30
 
 ### Changed in 1.15.6
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.15.6-20182.x86_64.rpm`
 
 ## [1.15.5] - 2020-06-24
 
 ### Changed in 1.15.5
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.15.5-20176.x86_64.rpm`
 
 ## [1.15.4] - 2020-06-17
 
 ### Changed in 1.15.4
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.15.4-20168.x86_64.rpm`
 
 ## [1.15.3] - 2020-05-20
 
 ### Changed in 1.15.3
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.15.3-20141.x86_64.rpm`
 
 ## [1.15.2] - 2020-05-11
 
 ### Changed in 1.15.2
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.15.2-20127.x86_64.rpm`
 
 ## [1.15.1] - 2020-04-28
 
 ### Changed in 1.15.1
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.15.1-20119.x86_64.rpm`
 
 ## [1.15.0] - 2020-04-20
 
 ### Changed in 1.15.0
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.15.0-20106.x86_64.rpm`
 
 ## [1.14.8] - 2020-04-30
 
 ### Changed in 1.14.8
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.14.8-20120.x86_64.rpm`
 
 ## [1.14.7] - 2020-03-26
 
 ### Changed in 1.14.7
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.14.7-20086.x86_64.rpm`
 
 ## [1.14.6] - 2020-03-23
 
 ### Changed in 1.14.6
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.14.6-20083.x86_64.rpm`
 
 ## [1.14.5] - 2020-03-18
 
 ### Changed in 1.14.5
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.14.5-20078.x86_64.rpm`
 
 ## [1.14.4] - 2020-03-10
 
 ### Changed in 1.14.4
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.14.4-20070.x86_64.rpm`
 
 ## [1.14.3] - 2020-02-28
 
 ### Changed in 1.14.3
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.14.3-2005.x86_64.rpm`
 
 ## [1.14.2] - 2020-02-27
 
 ### Changed in 1.14.2
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.14.2-20058.x86_64.rpm`
 
 ## [1.14.1] - 2020-02-20
 
 ### Changed in 1.14.1
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.14.1-20050.x86_64.rpm`
 
 ## [1.14.0] - 2020-02-06
 
 ### Changed in 1.14.0
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.14.0-20032.x86_64.rpm`
 
 ## [1.13.7] - 2020-02-13
 
 ### Changed in 1.13.7
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.13.7-20044.x86_64.rpm`
 
 ## [1.13.6] - 2020-01-31
 
 ### Changed in 1.13.6
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.13.6-20029.x86_64.rpm`
 
 ## [1.13.5] - 2020-01-27
 
 ### Changed in 1.13.5
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.13.5-20024.x86_64.rpm`
 
 ## [1.13.4] - 2020-01-14
 
 ### Changed in 1.13.4
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.13.4-20013.x86_64.rpm`
 
 ## [1.13.3] - 2020-01-08
 
 ### Changed in 1.13.3
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.13.3-20007.x86_64.rpm`
 
 ## [1.13.2] - 2019-12-05
 
 ### Changed in 1.13.2
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.13.2-19339.x86_64.rpm`
 
 ## [1.13.1] - 2019-11-25
 
 ### Changed in 1.13.1
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.13.1-19329.x86_64.rpm`
 
 ## [1.13.0] - 2019-11-15
 
 ### Changed in 1.13.0
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.13.0-19319.x86_64.rpm`
 
 ## [1.12.2] - 2019-11-06
 
 ### Changed in 1.12.2
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.12.2-19310.x86_64.rpm`
 
 ## [1.12.1] - 2019-10-22
 
 ### Changed in 1.12.1
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.12.1-19295.x86_64.rpm`
 
 ## [1.12.0] - 2019-10-16
 
 ### Changed in 1.12.0
 
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.12.0-19287.x86_64.rpm`
 
 ## [1.11.0] - 2019-09-03
 
 ### Changed in 1.11.0
 
-- `19246`
 - See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-1.11.0-19246.x86_64.rpm`
 
 ## [1.10.4] - 2019-10-22
 

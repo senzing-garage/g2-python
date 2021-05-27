@@ -1,0 +1,3 @@
+[submodule "compressedfile"]
+	path = compressedfile
+	url = https://github.com/Senzing/compressedfile.git

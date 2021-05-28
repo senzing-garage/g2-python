@@ -1,5 +1,0 @@
-[
-{"DATA_SOURCE": "CUSTOMER", "FILE_FORMAT": "JSON", "FILE_NAME": "cust.json"},
-{"DATA_SOURCE": "OFAC", "FILE_FORMAT": "JSON", "FILE_NAME": "ofac.json"}
-]
-

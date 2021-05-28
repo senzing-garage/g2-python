@@ -40,3 +40,9 @@
 [submodule "g2configtool"]
 	path = g2configtool
 	url = https://github.com/Senzing/g2configtool.git
+[submodule "g2engine"]
+	path = g2engine
+	url = https://github.com/Senzing/g2engine.git
+[submodule "g2product"]
+	path = g2product
+	url = https://github.com/Senzing/g2product.git

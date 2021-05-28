@@ -512,6 +512,262 @@ class G2Module(object):
             raise TranslateG2ModuleException(tls_var.buf.value)
         return tls_var.buf.value.decode('utf-8')
 
+    def findPathByEntityID(self,startEntityID,endEntityID,maxDegree):
+        # type: (int) -> str
+        """ Find a path between two entities in the system.
+        Args:
+            startEntityID: The entity ID you want to find the path from
+            endEntityID: The entity ID you want to find the path to
+            maxDegree: The maximum path length to search for
+
+        Return:
+            str: JSON document with results
+        """
+
+        resize_return_buffer(None, 65535)
+        responseBuf = c_char_p(None)
+        responseSize = c_size_t(0)
+        self._lib_handle.G2_findPathByEntityID.restype = c_int
+        self._lib_handle.G2_findPathByEntityID.argtypes = [c_longlong, c_longlong, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_findPathByEntityID(startEntityID,endEntityID,maxDegree,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            self._lib_handle.G2_clearLastException()
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        return tls_var.buf.value.decode('utf-8')
+
+    def findNetworkByEntityID(self,entityList,maxDegree,buildOutDegree,maxEntities):
+        # type: (int) -> str
+        """ Find a network between entities in the system.
+        Args:
+            entityList: The entities to search for the network of
+            maxDegree: The maximum path length to search for between entities
+            buildOutDegree: The number of degrees to build out the surrounding network
+            maxEntities: The maximum number of entities to include in the result
+
+        Return:
+            str: JSON document with results
+        """
+
+        _entityList = self.prepareStringArgument(entityList)
+        resize_return_buffer(None, 65535)
+        responseBuf = c_char_p(None)
+        responseSize = c_size_t(0)
+        self._lib_handle.G2_findNetworkByEntityID.restype = c_int
+        self._lib_handle.G2_findNetworkByEntityID.argtypes = [c_char_p, c_int, c_int, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_findNetworkByEntityID(_entityList,maxDegree,buildOutDegree,maxEntities,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            self._lib_handle.G2_clearLastException()
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        return tls_var.buf.value.decode('utf-8')
+
+    def findPathByRecordID(self,startDsrcCode,startRecordId,endDsrcCode,endRecordId,maxDegree):
+        # type: (str,str) -> str
+        """ Find a path between two records in the system.
+        Args:
+            startDataSourceCode: The data source for the record you want to find the path from
+            startRecordID: The ID for the record you want to find the path from
+            endDataSourceCode: The data source for the record you want to find the path to
+            endRecordID: The ID for the record you want to find the path to
+            maxDegree: The maximum path length to search for
+
+        Return:
+            str: JSON document with results
+        """
+
+        _startDsrcCode = self.prepareStringArgument(startDsrcCode)
+        _startRecordId = self.prepareStringArgument(startRecordId)
+        _endDsrcCode = self.prepareStringArgument(endDsrcCode)
+        _endRecordId = self.prepareStringArgument(endRecordId)
+        resize_return_buffer(None, 65535)
+        responseBuf = c_char_p(None)
+        responseSize = c_size_t(0)
+        self._lib_handle.G2_findPathByRecordID.restype = c_int
+        self._lib_handle.G2_findPathByRecordID.argtypes = [c_char_p, c_char_p, c_char_p, c_char_p, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_findPathByRecordID(_startDsrcCode,_startRecordId,_endDsrcCode,_endRecordId,maxDegree,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            self._lib_handle.G2_clearLastException()
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        return responseBuf.value.decode('utf-8')
+
+    def findNetworkByRecordID(self,recordList,maxDegree,buildOutDegree,maxEntities):
+        # type: (str,str) -> str
+        """ Find a network between entities in the system.
+        Args:
+            recordList: The records to search for the network of
+            maxDegree: The maximum path length to search for between entities
+            buildOutDegree: The number of degrees to build out the surrounding network
+            maxEntities: The maximum number of entities to include in the result
+
+        Return:
+            str: JSON document with results
+        """
+
+        _recordList = self.prepareStringArgument(recordList)
+        resize_return_buffer(None, 65535)
+        responseBuf = c_char_p(None)
+        responseSize = c_size_t(0)
+        self._lib_handle.G2_findNetworkByRecordID.restype = c_int
+        self._lib_handle.G2_findNetworkByRecordID.argtypes = [c_char_p, c_int, c_int, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_findNetworkByRecordID(_recordList,maxDegree,buildOutDegree,maxEntities,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            self._lib_handle.G2_clearLastException()
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        return responseBuf.value.decode('utf-8')
+
+    def findPathExcludingByEntityID(self,startEntityID,endEntityID,maxDegree,excludedEntities,flags):
+        # type: (int) -> str
+        """ Find a path between two entities in the system.
+        Args:
+            startEntityID: The entity ID you want to find the path from
+            endEntityID: The entity ID you want to find the path to
+            maxDegree: The maximum path length to search for
+            excludedEntities: JSON document containing entities to exclude
+            flags: control flags
+
+        Return:
+            str: JSON document with results
+        """
+
+        _excludedEntities = self.prepareStringArgument(excludedEntities)
+        resize_return_buffer(None, 65535)
+        responseBuf = c_char_p(None)
+        responseSize = c_size_t(0)
+        self._lib_handle.G2_findPathExcludingByEntityID.restype = c_int
+        self._lib_handle.G2_findPathExcludingByEntityID.argtypes = [c_longlong, c_longlong, c_int, c_char_p, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_findPathExcludingByEntityID(startEntityID,endEntityID,maxDegree,_excludedEntities,flags,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            self._lib_handle.G2_clearLastException()
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        return tls_var.buf.value.decode('utf-8')
+
+    def findPathIncludingSourceByEntityID(self,startEntityID,endEntityID,maxDegree,excludedEntities,requiredDsrcs,flags):
+        # type: (int) -> str
+        """ Find a path between two entities in the system.
+        Args:
+            startEntityID: The entity ID you want to find the path from
+            endEntityID: The entity ID you want to find the path to
+            maxDegree: The maximum path length to search for
+            excludedEntities: JSON document containing entities to exclude
+            requiredDsrcs: JSON document containing data sources to require
+            flags: control flags
+
+        Return:
+            str: JSON document with results
+        """
+
+        _excludedEntities = self.prepareStringArgument(excludedEntities)
+        _requiredDsrcs = self.prepareStringArgument(requiredDsrcs)
+        resize_return_buffer(None, 65535)
+        responseBuf = c_char_p(None)
+        responseSize = c_size_t(0)
+        self._lib_handle.G2_findPathExcludingByEntityID.restype = c_int
+        self._lib_handle.G2_findPathExcludingByEntityID.argtypes = [c_longlong, c_longlong, c_int, c_char_p, c_char_p, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_findPathIncludingSourceByEntityID(startEntityID,endEntityID,maxDegree,_excludedEntities,_requiredDsrcs,flags,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            self._lib_handle.G2_clearLastException()
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        return tls_var.buf.value.decode('utf-8')
+
+    def findPathExcludingByRecordID(self,startDsrcCode,startRecordId,endDsrcCode,endRecordId,maxDegree,excludedEntities,flags):
+        # type: (str,str) -> str
+        """ Find a path between two records in the system.
+        Args:
+            startDataSourceCode: The data source for the record you want to find the path from
+            startRecordID: The ID for the record you want to find the path from
+            endDataSourceCode: The data source for the record you want to find the path to
+            endRecordID: The ID for the record you want to find the path to
+            maxDegree: The maximum path length to search for
+            excludedEntities: JSON document containing entities to exclude
+            flags: control flags
+
+        Return:
+            str: JSON document with results
+        """
+
+        _startDsrcCode = self.prepareStringArgument(startDsrcCode)
+        _startRecordId = self.prepareStringArgument(startRecordId)
+        _endDsrcCode = self.prepareStringArgument(endDsrcCode)
+        _endRecordId = self.prepareStringArgument(endRecordId)
+        _excludedEntities = self.prepareStringArgument(excludedEntities)
+        resize_return_buffer(None, 65535)
+        responseBuf = c_char_p(None)
+        responseSize = c_size_t(0)
+        self._lib_handle.G2_findPathExcludingByRecordID.restype = c_int
+        self._lib_handle.G2_findPathExcludingByRecordID.argtypes = [c_char_p, c_char_p, c_char_p, c_char_p, c_int, c_char_p, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_findPathExcludingByRecordID(_startDsrcCode,_startRecordId,_endDsrcCode,_endRecordId,maxDegree,
+                                                                 _excludedEntities,flags,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            self._lib_handle.G2_clearLastException()
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        return responseBuf.value.decode('utf-8')
+
+    def findPathIncludingSourceByRecordID(self,startDsrcCode,startRecordId,endDsrcCode,endRecordId,maxDegree,excludedEntities,requiredDsrcs,flags):
+        # type: (str,str) -> str
+        """ Find a path between two records in the system.
+        Args:
+            startDataSourceCode: The data source for the record you want to find the path from
+            startRecordID: The ID for the record you want to find the path from
+            endDataSourceCode: The data source for the record you want to find the path to
+            endRecordID: The ID for the record you want to find the path to
+            maxDegree: The maximum path length to search for
+            excludedEntities: JSON document containing entities to exclude
+            requiredDsrcs: JSON document containing data sources to require
+            flags: control flags
+
+        Return:
+            str: JSON document with results
+        """
+
+        _startDsrcCode = self.prepareStringArgument(startDsrcCode)
+        _startRecordId = self.prepareStringArgument(startRecordId)
+        _endDsrcCode = self.prepareStringArgument(endDsrcCode)
+        _endRecordId = self.prepareStringArgument(endRecordId)
+        _excludedEntities = self.prepareStringArgument(excludedEntities)
+        _requiredDsrcs = self.prepareStringArgument(requiredDsrcs)
+        resize_return_buffer(None, 65535)
+        responseBuf = c_char_p(None)
+        responseSize = c_size_t(0)
+        self._lib_handle.G2_findPathIncludingSourceByRecordID.restype = c_int
+        self._lib_handle.G2_findPathIncludingSourceByRecordID.argtypes = [c_char_p, c_char_p, c_char_p, c_char_p, c_int, c_char_p, c_char_p, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_findPathIncludingSourceByRecordID(_startDsrcCode,_startRecordId,_endDsrcCode,_endRecordId,maxDegree,
+                                                                 _excludedEntities,_requiredDsrcs,flags,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            self._lib_handle.G2_clearLastException()
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        return responseBuf.value.decode('utf-8')
+
     def getEntityByEntityID(self,entityID):
         # type: (int) -> str
         """ Find the entity with the given ID

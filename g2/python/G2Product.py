@@ -116,6 +116,34 @@ class G2Product(object):
         ret = self._lib_handle.G2Product_license()
         return str(ret.decode('utf-8'))
 
+    def validateLicenseFile(self,licenseFilePath):
+        # type: (int) -> str
+        """ Validates a license file.
+        Args:
+            licenseFilePath: The path of the license file to validate
+
+        Return:
+            str: 0 for successful validation, 1 for failure, negative value for errors
+        """
+
+        _licenseFilePath = self.prepareStringArgument(licenseFilePath)
+        resize_return_buffer(None, 65535)
+        responseBuf = c_char_p(None)
+        responseSize = c_size_t(0)
+        self._lib_handle.G2Product_validateLicenseFile.restype = c_int
+        self._lib_handle.G2Product_validateLicenseFile.argtypes = [c_char_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2Product_validateLicenseFile(_licenseFilePath,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2Product_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            self._lib_handle.G2Product_clearLastException()
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code < 0:
+            raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
+        return ret_code
+
     def version(self):
         # type: () -> object
         """ Retrieve the G2 version details

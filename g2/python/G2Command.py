@@ -34,6 +34,9 @@ class G2CmdShell(cmd.Cmd, object):
         processFile_parser = subparsers.add_parser('processFile', usage=argparse.SUPPRESS)
         processFile_parser.add_argument('inputFile')
 
+        validateLicenseFile_parser = subparsers.add_parser('validateLicenseFile', usage=argparse.SUPPRESS)
+        validateLicenseFile_parser.add_argument('licenseFilePath')
+
         inputFile_parser = subparsers.add_parser('inputFile', usage=argparse.SUPPRESS)
         inputFile_parser.add_argument('inputFile')
         inputFile_parser.add_argument('-o', '--outputFile', required=False)
@@ -67,6 +70,32 @@ class G2CmdShell(cmd.Cmd, object):
         getEntityByEntityID_parser = subparsers.add_parser('getEntityByEntityID', usage=argparse.SUPPRESS)
         getEntityByEntityID_parser.add_argument('entityID', type=int)
 
+        findPathByEntityID_parser = subparsers.add_parser('findPathByEntityID', usage=argparse.SUPPRESS)
+        findPathByEntityID_parser.add_argument('startEntityID', type=int)
+        findPathByEntityID_parser.add_argument('endEntityID', type=int)
+        findPathByEntityID_parser.add_argument('maxDegree', type=int)
+
+        findPathExcludingByEntityID_parser = subparsers.add_parser('findPathExcludingByEntityID', usage=argparse.SUPPRESS)
+        findPathExcludingByEntityID_parser.add_argument('startEntityID', type=int)
+        findPathExcludingByEntityID_parser.add_argument('endEntityID', type=int)
+        findPathExcludingByEntityID_parser.add_argument('maxDegree', type=int)
+        findPathExcludingByEntityID_parser.add_argument('excludedEntities')
+        findPathExcludingByEntityID_parser.add_argument('flags', type=int)
+
+        findPathIncludingSourceByEntityID_parser = subparsers.add_parser('findPathIncludingSourceByEntityID', usage=argparse.SUPPRESS)
+        findPathIncludingSourceByEntityID_parser.add_argument('startEntityID', type=int)
+        findPathIncludingSourceByEntityID_parser.add_argument('endEntityID', type=int)
+        findPathIncludingSourceByEntityID_parser.add_argument('maxDegree', type=int)
+        findPathIncludingSourceByEntityID_parser.add_argument('excludedEntities')
+        findPathIncludingSourceByEntityID_parser.add_argument('requiredDsrcs')
+        findPathIncludingSourceByEntityID_parser.add_argument('flags', type=int)
+
+        findNetworkByEntityID_parser = subparsers.add_parser('findNetworkByEntityID', usage=argparse.SUPPRESS)
+        findNetworkByEntityID_parser.add_argument('entityList')
+        findNetworkByEntityID_parser.add_argument('maxDegree', type=int)
+        findNetworkByEntityID_parser.add_argument('buildOutDegree', type=int)
+        findNetworkByEntityID_parser.add_argument('maxEntities', type=int)
+
         getUsedMatchKeys_parser = subparsers.add_parser('getUsedMatchKeys', usage=argparse.SUPPRESS)
         getUsedMatchKeys_parser.add_argument('fromDataSource')
         getUsedMatchKeys_parser.add_argument('toDataSource')
@@ -80,6 +109,38 @@ class G2CmdShell(cmd.Cmd, object):
         getEntityByRecordID_parser = subparsers.add_parser('getEntityByRecordID', usage=argparse.SUPPRESS)
         getEntityByRecordID_parser.add_argument('dataSourceCode')
         getEntityByRecordID_parser.add_argument('recordID')
+
+        findPathByRecordID_parser = subparsers.add_parser('findPathByRecordID', usage=argparse.SUPPRESS)
+        findPathByRecordID_parser.add_argument('startDataSourceCode')
+        findPathByRecordID_parser.add_argument('startRecordID')
+        findPathByRecordID_parser.add_argument('endDataSourceCode')
+        findPathByRecordID_parser.add_argument('endRecordID')
+        findPathByRecordID_parser.add_argument('maxDegree', type=int)
+
+        findPathExcludingByRecordID_parser = subparsers.add_parser('findPathExcludingByRecordID', usage=argparse.SUPPRESS)
+        findPathExcludingByRecordID_parser.add_argument('startDataSourceCode')
+        findPathExcludingByRecordID_parser.add_argument('startRecordID')
+        findPathExcludingByRecordID_parser.add_argument('endDataSourceCode')
+        findPathExcludingByRecordID_parser.add_argument('endRecordID')
+        findPathExcludingByRecordID_parser.add_argument('maxDegree', type=int)
+        findPathExcludingByRecordID_parser.add_argument('excludedEntities')
+        findPathExcludingByRecordID_parser.add_argument('flags', type=int)
+
+        findPathIncludingSourceByRecordID_parser = subparsers.add_parser('findPathIncludingSourceByRecordID', usage=argparse.SUPPRESS)
+        findPathIncludingSourceByRecordID_parser.add_argument('startDataSourceCode')
+        findPathIncludingSourceByRecordID_parser.add_argument('startRecordID')
+        findPathIncludingSourceByRecordID_parser.add_argument('endDataSourceCode')
+        findPathIncludingSourceByRecordID_parser.add_argument('endRecordID')
+        findPathIncludingSourceByRecordID_parser.add_argument('maxDegree', type=int)
+        findPathIncludingSourceByRecordID_parser.add_argument('excludedEntities')
+        findPathIncludingSourceByRecordID_parser.add_argument('requiredDsrcs')
+        findPathIncludingSourceByRecordID_parser.add_argument('flags', type=int)
+
+        findNetworkByRecordID_parser = subparsers.add_parser('findNetworkByRecordID', usage=argparse.SUPPRESS)
+        findNetworkByRecordID_parser.add_argument('recordList')
+        findNetworkByRecordID_parser.add_argument('maxDegree', type=int)
+        findNetworkByRecordID_parser.add_argument('buildOutDegree', type=int)
+        findNetworkByRecordID_parser.add_argument('maxEntities', type=int)
 
         outputOptional_parser = subparsers.add_parser('outputOptional',  usage=argparse.SUPPRESS)
         outputOptional_parser.add_argument('-o', '--outputFile', required=False)
@@ -435,6 +496,74 @@ class G2CmdShell(cmd.Cmd, object):
             print(err)
 
 
+    def do_findPathByEntityID(self, arg):
+        '\nFind path between two entities:  findPathByEntityID <startEntityID> <endEntityID> <maxDegree>\n'
+        try:
+            args = self.parser.parse_args(['findPathByEntityID'] + parse(arg))
+        except SystemExit:
+            print(self.do_findPathByEntityID.__doc__)
+            return
+        try: 
+            response = self.g2_module.findPathByEntityID(args.startEntityID,args.endEntityID,args.maxDegree)
+            if response:
+                printResponse(response)
+            else:
+                printWithNewLine('')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
+    def do_findNetworkByEntityID(self, arg):
+        '\nFind network between entities:  findNetworkByEntityID <entityList> <maxDegree> <buildOutDegree> <maxEntities>\n'
+        try:
+            args = self.parser.parse_args(['findNetworkByEntityID'] + parse(arg))
+        except SystemExit:
+            print(self.do_findNetworkByEntityID.__doc__)
+            return
+        try: 
+            response = self.g2_module.findNetworkByEntityID(args.entityList,args.maxDegree,args.buildOutDegree,args.maxEntities)
+            if response:
+                printResponse(response)
+            else:
+                printWithNewLine('')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
+    def do_findPathExcludingByEntityID(self, arg):
+        '\nFind path between two entities, with exclusions:  findPathExcludingByEntityID <startEntityID> <endEntityID> <maxDegree> <excludedEntities> <flags>\n'
+        try:
+            args = self.parser.parse_args(['findPathExcludingByEntityID'] + parse(arg))
+        except SystemExit:
+            print(self.do_findPathExcludingByEntityID.__doc__)
+            return
+        try: 
+            response = self.g2_module.findPathExcludingByEntityID(args.startEntityID,args.endEntityID,args.maxDegree,args.excludedEntities,args.flags)
+            if response:
+                printResponse(response)
+            else:
+                printWithNewLine('')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
+    def do_findPathIncludingSourceByEntityID(self, arg):
+        '\nFind path between two entities that includes a watched dsrc list, with exclusions:  findPathIncludingSourceByEntityID <startEntityID> <endEntityID> <maxDegree> <excludedEntities> <requiredDsrcs> <flags>\n'
+        try:
+            args = self.parser.parse_args(['findPathIncludingSourceByEntityID'] + parse(arg))
+        except SystemExit:
+            print(self.do_findPathIncludingSourceByEntityID.__doc__)
+            return
+        try: 
+            response = self.g2_module.findPathIncludingSourceByEntityID(args.startEntityID,args.endEntityID,args.maxDegree,args.excludedEntities,args.requiredDsrcs,args.flags)
+            if response:
+                printResponse(response)
+            else:
+                printWithNewLine('')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
     def do_getEntityByRecordID(self, arg):
         '\nGet entity by record ID:  getEntityByRecordID <dataSourceCode> <recordID>\n'
         try:
@@ -444,6 +573,73 @@ class G2CmdShell(cmd.Cmd, object):
             return
         try: 
             response = self.g2_module.getEntityByRecordID(args.dataSourceCode, args.recordID)
+            if response:
+                printResponse(response)
+            else:
+                printWithNewLine('')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_findPathByRecordID(self, arg):
+        '\nFind path between two records:  findPathByRecordID <startDataSourceCode> <startRecordID> <endDataSourceCode> <endRecordID> <maxDegree>\n'
+        try:
+            args = self.parser.parse_args(['findPathByRecordID'] + parse(arg))
+        except SystemExit:
+            print(self.do_findPathByRecordID.__doc__)
+            return
+        try: 
+            response = self.g2_module.findPathByRecordID(args.startDataSourceCode,args.startRecordID,args.endDataSourceCode,args.endRecordID,args.maxDegree)
+            if response:
+                printResponse(response)
+            else:
+                printWithNewLine('')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
+    def do_findNetworkByRecordID(self, arg):
+        '\nFind network between records:  findNetworkByRecordID <recordList> <maxDegree> <buildOutDegree> <maxEntities>\n'
+        try:
+            args = self.parser.parse_args(['findNetworkByRecordID'] + parse(arg))
+        except SystemExit:
+            print(self.do_findNetworkByRecordID.__doc__)
+            return
+        try: 
+            response = self.g2_module.findNetworkByRecordID(args.recordList,args.maxDegree,args.buildOutDegree,args.maxEntities)
+            if response:
+                printResponse(response)
+            else:
+                printWithNewLine('')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
+    def do_findPathExcludingByRecordID(self, arg):
+        '\nFind path between two records, with exclusions:  findPathExcludingByRecordID <startDataSourceCode> <startRecordID> <endDataSourceCode> <endRecordID> <maxDegree> <excludedEntities> <flags>\n'
+        try:
+            args = self.parser.parse_args(['findPathExcludingByRecordID'] + parse(arg))
+        except SystemExit:
+            print(self.do_findPathExcludingByRecordID.__doc__)
+            return
+        try: 
+            response = self.g2_module.findPathExcludingByRecordID(args.startDataSourceCode,args.startRecordID,args.endDataSourceCode,args.endRecordID,args.maxDegree,args.excludedEntities,args.flags)
+            if response:
+                printResponse(response)
+            else:
+                printWithNewLine('')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
+    def do_findPathIncludingSourceByRecordID(self, arg):
+        '\nFind path between two records that includes a watched dsrc list, with exclusions:  findPathIncludingSourceByRecordID <startDataSourceCode> <startRecordID> <endDataSourceCode> <endRecordID> <maxDegree> <excludedEntities> <requiredDsrcs> <flags>\n'
+        try:
+            args = self.parser.parse_args(['findPathIncludingSourceByRecordID'] + parse(arg))
+        except SystemExit:
+            print(self.do_findPathIncludingSourceByRecordID.__doc__)
+            return
+        try: 
+            response = self.g2_module.findPathIncludingSourceByRecordID(args.startDataSourceCode,args.startRecordID,args.endDataSourceCode,args.endRecordID,args.maxDegree,args.excludedEntities,args.requiredDsrcs,args.flags)
             if response:
                 printResponse(response)
             else:
@@ -661,6 +857,22 @@ class G2CmdShell(cmd.Cmd, object):
             response = json.dumps(self.g2_product_module.license())
             print('\nG2 license:')
             printWithNewLine(response)
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_validateLicenseFile(self,arg):
+        '\nValidate a license file:  validateLicenseFile <licenseFilePath>\n'
+        try:
+            args = self.parser.parse_args(['validateLicenseFile'] + parse(arg))
+        except SystemExit:
+            print(self.do_validateLicenseFile.__doc__)
+            return
+        try: 
+            returnCode = self.g2_product_module.validateLicenseFile(args.licenseFilePath)
+            if returnCode == 0:
+                printWithNewLine('License validated')
+            else:
+                printWithNewLine('Error encountered!  Return code = %s' % (returnCode))
         except G2Exception.G2Exception as err:
             print(err)
 

@@ -4,24 +4,27 @@ import sys
 import os
 import json
 import csv
-import glob 
+import glob
+import fnmatch
 from operator import itemgetter
 
 #--project classes
 from G2Exception import G2UnsupportedFileTypeException
 from G2Exception import G2InvalidFileTypeContentsException
 from CompressedFile import openPossiblyCompressedFile
+from G2S3 import G2S3
 
 #======================
 class G2Project:
 #======================
 
     #----------------------------------------
-    def __init__(self, attributeDict, projectFileName = None, projectFileUri = None):
+    def __init__(self, attributeDict, projectFileName = None, projectFileUri = None, tempFolderPath = None):
         """ open and validate a g2 generic configuration and project file """
 
         self.success = True 
         self.mappingCache = {}
+        self.tempFolderPath = tempFolderPath
 
         self.clearStatPack()
         self.loadAttributes(attributeDict)
@@ -397,10 +400,14 @@ class G2Project:
                 print('ERROR: File format must be either JSON, CSV UMF, TAB, TSV or PIPE to use the file specification!')
                 self.success = False
             else:
-                if fileSpec.upper().startswith('FILE://'):
-                    fileSpec = fileSpec[7:]
-                try: fileList = glob.glob(fileSpec)
-                except: fileList = []
+                if G2S3.isS3Uri(fileSpec):
+                    s3list = G2S3.ListOfS3UrisOfFilesInBucket(fileSpec, os.path.dirname(G2S3.getFilePathFromUri(fileSpec)))
+                    fileList = fnmatch.filter(s3list, fileSpec)
+                else:
+                    if fileSpec.upper().startswith('FILE://'):
+                        fileSpec = fileSpec[7:]
+                    try: fileList = glob.glob(fileSpec)
+                    except: fileList = []
                 if not fileList:
                     print('ERROR: file specification did not return any files!')
                     self.success = False
@@ -408,8 +415,8 @@ class G2Project:
                     self.projectFileName = 'n/a'
                     self.projectFilePath = os.path.dirname(os.path.abspath(fileList[0]))
                     for fileName in fileList:
-                        sourceDict = {}
-                        sourceDict['FILE_NAME'] = os.path.basename(fileName)
+                        sourceDict = {} 
+                        sourceDict['FILE_NAME'] = fileName
                         sourceDict['DATA_SOURCE'] = parmDict['DATA_SOURCE']
                         sourceDict['FILE_FORMAT'] = parmDict['FILE_FORMAT']
                         self.projectSourceList.append(sourceDict)
@@ -536,13 +543,21 @@ class G2Project:
                 fileDict['FILE_ORDER'] = 1
                 fileDict['FILE_FORMAT'] = sourceDict['FILE_FORMAT']
 
-                #--adjustment if they gave us full path as file name
-                if os.path.exists(sourceDict['FILE_NAME']):
+                if G2S3.isS3Uri(sourceDict['FILE_NAME']):
+                    #--an S3 path so download the file to the temp location
+                    downloader = G2S3(sourceDict['FILE_NAME'], self.tempFolderPath)
+                    downloader.downloadFile()
+                    fileDict['FILE_PATH'] = downloader.tempFilePath
+                    sourceDict['FILE_NAME'] = downloader.fileName
+                    sourceDict['FILE_SOURCE'] = "S3"
+                elif os.path.exists(sourceDict['FILE_NAME']):
+                    #--adjustment if they gave us full path as file name
                     fileDict['FILE_PATH'] = sourceDict['FILE_NAME']
-                    sourceDict['FILE_NAME'] = os.path.basename(fileDict['FILE_PATH'])    
+                    sourceDict['FILE_NAME'] = os.path.basename(fileDict['FILE_PATH'])
+                    sourceDict['FILE_SOURCE'] = 'local'
                 else:  #--append the project file path
-                    fileDict['FILE_PATH'] = self.projectFilePath + os.path.sep + sourceDict['FILE_NAME'] 
-
+                    fileDict['FILE_PATH'] = self.projectFilePath + os.path.sep + sourceDict['FILE_NAME']
+                    sourceDict['FILE_SOURCE'] = 'local'
                 if not os.path.exists(fileDict['FILE_PATH']):
                     print('ERROR: ' + fileDict['FILE_PATH'] + ' does not exist!')
                     self.success = False
@@ -649,13 +664,16 @@ class G2Project:
             print('ERROR: ' + fileDict['FILE_PATH'] + ' could not be opened as a ' + fileDict['FILE_FORMAT'] + ' file!')
             dataLooksLikeCSV = False
         else:
-            csvHeaders = [x.strip().upper() for x in next(csvReader)]
-            headerFieldCount = len(csvHeaders)
-            for columnName in csvHeaders:
-                nonCsvChars = set('{}:<>')
-                if any((c in nonCsvChars) for c in columnName):
-                    print('File %s is not CSV formatted (header invalid).' % (os.path.basename(fileDict['FILE_PATH'])))
-                    dataLooksLikeCSV = False
+            try:
+                csvHeaders = [x.strip().upper() for x in next(csvReader)]
+                headerFieldCount = len(csvHeaders)
+                for columnName in csvHeaders:
+                    nonCsvChars = set('{}:<>')
+                    if any((c in nonCsvChars) for c in columnName):
+                        raise ValueError()
+            except:
+                print('File %s is not CSV formatted (header invalid).' % (os.path.basename(fileDict['FILE_PATH'])))
+                dataLooksLikeCSV = False
             if dataLooksLikeCSV == True:
                 rowNum = 0
                 for csvRow in csvReader:

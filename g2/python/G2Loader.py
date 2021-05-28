@@ -1,5 +1,5 @@
 #--python imports
-import optparse
+import argparse
 try: import configparser
 except: import ConfigParser as configparser
 import sys
@@ -11,6 +11,7 @@ import os
 import json
 import csv
 import time
+import tempfile
 
 hasPsutil = True
 try: import psutil
@@ -82,9 +83,9 @@ def processRedo(q, processEverything=False):
 
         if allRows:
             passNum += 1
-            #print
-            #print 'Reviewing approximately %s resolutions in pass %s ...' % (len(allRows), passNum)
-
+            if redoMode:
+                print
+                print ('Reviewing approximately %s resolutions in pass %s ...' % (len(allRows), passNum))
         batchStartTime = time.time()
         for row in allRows:
             cntRows += 1
@@ -103,6 +104,9 @@ def processRedo(q, processEverything=False):
                     break
                 else:
                     execManyList = []
+                if redoMode:
+                    print('  %s rows processed, %s records per second' % (cntRows, int(float(sqlCommitSize) / (float(time.time() - batchStartTime if time.time() - batchStartTime != 0 else 1))))) 
+                    batchStartTime = time.time()
 
         if exitCode == 0 and passNum > 0:
             if execManyList:
@@ -149,6 +153,16 @@ def checkMiminumMemory():
         # Report a memory issue, and pause for a few seconds
         print('WARNING:  This machine has less than the minimum recommended memory available.')
         time.sleep(3)
+
+#---------------------------------------
+def runSetupProcess(doPurge):
+    #-- This may look weird but ctypes/ffi have problems with the native code and fork. Also, don't allow purge first or we lose redo queue
+    setupProcess = Process(target=startSetup, args=(doPurge , True, g2iniPath, debugTrace))
+    setupProcess.start()
+    setupProcess.join()
+    if setupProcess.exitcode != 0:
+        exitCode = 1
+        return
 
 #---------------------------------------
 def startSetup(doPurge, doLicense, g2iniPath, debugTrace):
@@ -206,8 +220,6 @@ def loadProject():
         actionStr = 'Testing'
     elif dsrcAction == 'D':
         actionStr = 'Deleting'
-    elif dsrcAction == 'S':
-        actionStr = 'Searching'
     else:
         actionStr = 'Loading'
 
@@ -222,25 +234,18 @@ def loadProject():
     for filename in glob('pyG2*') :
         os.remove(filename)
 
-    #-- This may look weird but ctypes/ffi have problems with the native code and fork
-    setupProcess = Process(target=startSetup, args=(purgeFirst and not testMode, True, g2iniPath, debugTrace))
-    setupProcess.start()
-    setupProcess.join()
-    if setupProcess.exitcode != 0:
-        exitCode = 1
-        return
+    runSetupProcess(purgeFirst and not testMode)
 
     #--start loading!
     for sourceDict in g2Project.sourceList:        
         dataSource = sourceDict['DATA_SOURCE'] 
-        if dsrcAction == 'S':
-            dataSource = 'SEARCH'
         entityType = sourceDict['ENTITY_TYPE'] 
         fileFormat = sourceDict['FILE_FORMAT']
         masterFileName = sourceDict['FILE_NAME']
         masterDict = sourceDict['FILE_LIST'][0]
         filePath = masterDict['FILE_PATH']
         fileMappings = masterDict['MAP']
+        fileSource = sourceDict['FILE_SOURCE']
 
         cntRows = 0
         cntBadParse = 0
@@ -266,32 +271,17 @@ def loadProject():
             csvHeaders = masterDict['CSV_HEADERS']
             fileReader = csv.reader(csvFile, fileFormat)
             next(fileReader) #--use previously stored header row, so get rid of this one
+                
+        #--drop to a single thread for files under 500k
+        if os.path.getsize(filePath) < (100000 if isCompressedFile(filePath) else 500000):
+            print(' dropping to single thread due to small file size')
+            transportThreadCount = 1
+        else:
+            transportThreadCount = defaultThreadCount
 
-        #--bypass threads if in test mode
-        if not testMode:
-
-            #--drop to a single thread for files under 500k
-            if os.path.getsize(filePath) < (100000 if isCompressedFile(filePath) else 500000):
-                print(' dropping to single thread due to small file size')
-                transportThreadCount = 1
-            else:
-                transportThreadCount = defaultThreadCount
-
-            #--start the transport threads
-            threadStop.value = 0
-
-            workQueue = Queue(transportThreadCount * 10)
-            numThreadsLeft=transportThreadCount;
-            threadList = []
-            threadId=0
-            while (numThreadsLeft>0):
-                threadId+=1
-                threadList.append(Process(target=sendToG2, args=(threadId, workQueue, min(maxThreadsPerProcess, numThreadsLeft), g2iniPath, debugTrace, threadStop, workloadStats, dsrcAction)))
-                numThreadsLeft-=maxThreadsPerProcess;
-            for thread in threadList:
-                thread.start()
-            if threadStop.value != 0:
-                return
+        threadList, workQueue = startLoaderProcessAndThreads(defaultThreadCount)
+        if threadStop.value != 0:
+            return exitCode
 
         #--start processing rows
         fileStartTime = time.time()
@@ -359,12 +349,13 @@ def loadProject():
 
             if cntRows % sqlCommitSize == 0:
 
-                #--process redo
                 redoStatDisplay = ''
-                if not testMode:
-                    redoError, redoMsg = processRedo(workQueue)
-                    if redoMsg:
-                        redoStatDisplay = ', ' + redoMsg
+                if cntRows % (100*sqlCommitSize) == 0:
+                    #--process redo
+                    if not testMode and processRedoQueue:
+                        redoError, redoMsg = processRedo(workQueue)
+                        if redoMsg:
+                            redoStatDisplay = ', ' + redoMsg
 
                 #--display current stats
                 print('  %s rows processed, %s records per second%s' % (cntRows, int(float(sqlCommitSize) / (float(time.time() - batchStartTime if time.time() - batchStartTime != 0 else 1))), redoStatDisplay)) 
@@ -375,7 +366,7 @@ def loadProject():
                 exitCode = threadStop.value
                 break
         
-        if threadStop.value == 0 and not testMode:
+        if threadStop.value == 0 and not testMode and processRedoQueue:
           redoError, redoMsg = processRedo(workQueue, True)
 
         #--close input files
@@ -384,17 +375,12 @@ def loadProject():
         else:
             csvFile.close()
 
-        #--stop the threads
-        if not testMode:
-            #--display if items still on the queue
-            if workQueue.qsize() and threadStop.value == 0:
-                print(' Finishing up ...') 
+        stopLoaderProcessAndThreads(threadList, workQueue)
 
-            #--stop the threads
-            threadStop.value = 1
-            for thread in threadList:
-              thread.join()
-
+        if fileSource == 'S3':
+            print(" Removing temporary file created by S3 download " +  filePath)
+            os.remove(filePath)
+        
         #--print the stats if not error or they pressed control-c
         if exitCode in (0, 9):
             elapsedSecs = time.time() - fileStartTime
@@ -435,6 +421,32 @@ def loadProject():
     return exitCode
 
 #---------------------------------------
+def loadRedoQueueAndProcess():
+    exitCode = 0
+    DumpStack.listen()
+    procStartTime = time.time()
+
+    threadList, workQueue = startLoaderProcessAndThreads(defaultThreadCount)
+    if threadStop.value != 0:
+        return exitCode
+
+    #--start processing queue
+    fileStartTime = time.time()
+    if threadStop.value == 0 and not testMode and processRedoQueue:
+      redoError, redoMsg = processRedo(workQueue, True)
+    
+    stopLoaderProcessAndThreads(threadList, workQueue)
+
+    print('')
+    elapsedMins = round((time.time() - procStartTime) / 60, 1)
+    if exitCode:
+        print('Redo processing cycle aborted after %s minutes' % elapsedMins)
+    else:
+        print('Redo processing cycle completed successfully in %s minutes' % elapsedMins)
+
+    return exitCode
+
+#---------------------------------------
 def prepareG2db():
 
     g2ConfigTables = G2ConfigTables(configTableFile,g2iniPath)	
@@ -460,6 +472,44 @@ def prepareG2db():
             return False
 
     return True
+
+#---------------------------------------
+def startLoaderProcessAndThreads(transportThreadCount):
+    threadList = []
+    workQueue = None
+    
+    #--bypass threads if in test mode
+    if not testMode:
+        #--start the transport threads
+        threadStop.value = 0
+
+        workQueue = Queue(transportThreadCount * 10)
+        numThreadsLeft=transportThreadCount;
+        threadId=0
+        while (numThreadsLeft>0):
+            threadId+=1
+            threadList.append(Process(target=sendToG2, args=(threadId, workQueue, min(maxThreadsPerProcess, numThreadsLeft), g2iniPath, debugTrace, threadStop, workloadStats, dsrcAction)))
+            numThreadsLeft-=maxThreadsPerProcess;
+        for thread in threadList:
+            thread.start()
+            
+    return threadList, workQueue
+
+#---------------------------------------
+def stopLoaderProcessAndThreads(threadList, workQueue):
+    #--stop the threads
+    if not testMode:
+        #--display if items still on the queue
+        if workQueue.qsize() and threadStop.value == 0:
+            print(' Finishing up ...') 
+
+        #--stop the threads
+        with threadStop.get_lock():
+           if threadStop.value == 0:
+               threadStop.value = 1
+
+        for thread in threadList:
+          thread.join()
 
 #---------------------------------------
 def sendToG2(threadId_, workQueue_, numThreads_, g2iniPath, debugTrace, threadStop, workloadStats, dsrcAction):
@@ -517,10 +567,7 @@ def g2Thread(threadId_, workQueue_, g2Engine_, threadStop, workloadStats, dsrcAc
           print(g2Engine_.stats())
 
         try: 
-            if dsrcAction == 'S':
-                ret = g2Engine_.processWithResponse(row)
-            else:
-                g2Engine_.process(row)
+            g2Engine_.process(row)
         except G2ModuleLicenseException as err:
             print(err)
             print('ERROR: G2Engine licensing error!')
@@ -600,6 +647,8 @@ if __name__ == '__main__':
     except: projectFileName = None
     try: projectFileSpec = iniParser.get('project', 'projectFileSpec')
     except: projectFileSpec = None
+    try: tempFolderPath = iniParser.get('project', 'tempFolderPath')
+    except: tempFolderPath = os.path.join(tempfile.gettempdir(), 'senzing', 'g2')
     try: defaultThreadCount = int(iniParser.get('transport', 'numThreads'))
     except: defaultThreadCount = 1
     try: sqlCommitSize = int(iniParser.get('report', 'sqlCommitSize'))
@@ -611,33 +660,40 @@ if __name__ == '__main__':
     testMode = False
     debugTrace = 0
     workloadStats = 0
+    processRedoQueue = True
+    redoMode = False
+    redoModeInterval = 60
     if len(sys.argv) > 1:
-        optParser = optparse.OptionParser()
-        optParser.add_option('-p', '--projectFile', dest='projectFileName', default='', help='the name of a g2 project csv or json file')
-        optParser.add_option('-f', '--fileSpec', dest='projectFileSpec', default='', help='the name of a file to load such as /data/*.json/?data_source=?,file_format=?')
-        optParser.add_option('-P', '--purgeFirst', dest='purgeFirst', action='store_true', default=False, help='purge the g2 repository first')
-        optParser.add_option('-T', '--testMode', dest='testMode', action='store_true', default=False, help='run in test mode to get stats without loading, ctrl-c anytime')
-        optParser.add_option('-D', '--delete', dest='deleteMode', action='store_true', default=False, help='run in delete mode')
-        optParser.add_option('-S', '--search', dest='searchMode', action='store_true', default=False, help='run in search mode')
-        optParser.add_option('-t', '--debugTrace', dest='debugTrace', action='store_true', default=False, help='output debug trace information')
-        optParser.add_option('-w', '--workloadStats', dest='workloadStats', action='store_true', default=False, help='output workload statistics information')
-        (options, args) = optParser.parse_args()
-        if options.projectFileName:
-            projectFileName = options.projectFileName
-        if options.projectFileSpec:
-            projectFileSpec = options.projectFileSpec
-        if options.purgeFirst:
-            purgeFirst = options.purgeFirst
-        if options.testMode:
-            testMode = options.testMode
-        if options.deleteMode:
+        argParser = argparse.ArgumentParser()
+        argParser.add_argument('-p', '--projectFile', dest='projectFileName', default='', help='the name of a g2 project csv or json file')
+        argParser.add_argument('-f', '--fileSpec', dest='projectFileSpec', default='', help='the name of a file to load such as /data/*.json/?data_source=?,file_format=?')
+        argParser.add_argument('-P', '--purgeFirst', dest='purgeFirst', action='store_true', default=False, help='purge the g2 repository first')
+        argParser.add_argument('-T', '--testMode', dest='testMode', action='store_true', default=False, help='run in test mode to get stats without loading, ctrl-c anytime')
+        argParser.add_argument('-D', '--delete', dest='deleteMode', action='store_true', default=False, help='run in delete mode')
+        argParser.add_argument('-t', '--debugTrace', dest='debugTrace', action='store_true', default=False, help='output debug trace information')
+        argParser.add_argument('-w', '--workloadStats', dest='workloadStats', action='store_true', default=False, help='output workload statistics information')
+        argParser.add_argument('-n', '--noRedo', dest='noRedo', action='store_false', default=True, help='disable redo processing')
+        argParser.add_argument('-R', '--redoMode', dest='redoMode', action='store_true', default=False, help='run in redo mode that only processes the redo queue')
+        argParser.add_argument('-i', '--redoModeInterval', dest='redoModeInterval', type=int, default=60, help='time to wait between redo processing runs, in seconds. Only used in redo mode')
+        args = argParser.parse_args()
+        if args.projectFileName:
+            projectFileName = args.projectFileName
+        if args.projectFileSpec:
+            projectFileSpec = args.projectFileSpec
+        if args.purgeFirst:
+            purgeFirst = args.purgeFirst
+        if args.testMode:
+            testMode = args.testMode
+        if args.deleteMode:
             dsrcAction = 'D'
-        if options.searchMode:
-            dsrcAction = 'S'
-        if options.debugTrace:
+        if args.debugTrace:
             debugTrace = 1
-        if options.workloadStats:
+        if args.workloadStats:
             workloadStats = 1
+        processRedoQueue = args.noRedo
+        if args.redoMode:
+            redoMode = args.redoMode
+        redoModeInterval = args.redoModeInterval
 
     #--validations
     if not g2dbUri:
@@ -656,27 +712,40 @@ if __name__ == '__main__':
         if projectFileSpec: #--file spec takes precendence over name
             projectFileName = None
 
-    #--attempt to open the g2 database
-    g2Dbo = G2Database(g2dbUri)
-    if not g2Dbo.success:
-        sys.exit(1)
-		
-    #-- Load the G2 configuration file
-    g2ConfigTables = G2ConfigTables(configTableFile,g2iniPath)
-
-    #--open the project
-    cfg_attr = g2ConfigTables.loadConfig('CFG_ATTR')
-    g2Project = G2Project(cfg_attr, projectFileName, projectFileSpec)
-    if not g2Project.success:
-        sys.exit(1)
-
-    g2Dbo.close()
-
     #--set globals for the g2 engine
     maxThreadsPerProcess=4
 
-    #--all good, lets start loading!
-    exitCode = loadProject()
+    if redoMode:
+        runSetupProcess(False) # no purge because we would purge the redo queue
+        while threadStop.value != 9 and exitCode == 0:
+            print("\nProcessing redo queue...")
+            exitCode = loadRedoQueueAndProcess()
+            if threadStop.value == 9 or exitCode != 0:
+                    break
+            print("Wating " + str(redoModeInterval) + " seconds for next cycle.")
+            # sleep in 1 second increments to respond to user input
+            for x in range (1, redoModeInterval):
+                if threadStop.value == 9:
+                    break
+                time.sleep(1.0)
+    else :
+        #--attempt to open the g2 database
+        g2Dbo = G2Database(g2dbUri)
+        if not g2Dbo.success:
+            sys.exit(1)
+            
+        #-- Load the G2 configuration file
+        g2ConfigTables = G2ConfigTables(configTableFile,g2iniPath)
+
+        #--open the project
+        cfg_attr = g2ConfigTables.loadConfig('CFG_ATTR')
+        g2Project = G2Project(cfg_attr, projectFileName, projectFileSpec, tempFolderPath)
+        if not g2Project.success:
+            sys.exit(1)
+
+        g2Dbo.close()
     
+        #--all good, lets start loading!
+        exitCode = loadProject()
 
     sys.exit(exitCode)

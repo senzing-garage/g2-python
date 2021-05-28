@@ -71,10 +71,10 @@ done
 
 cd ${GIT_REPOSITORY_DIR}
 git commit -a -m "#2 Update submodules for ${GITHUB_COMMENT}"
-
-cd ${GIT_REPOSITORY_DIR}
+git push
 git submodule update --init --recursive
 
+# Copy residual from 
 
 for SUBMODULE in ${SUBMODULES[@]};
 do

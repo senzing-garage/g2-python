@@ -37,6 +37,9 @@
 [submodule "g2module"]
 	path = g2module
 	url = https://github.com/Senzing/g2module.git
+[submodule "g2product"]
+    path = g2product
+    url = https://github.com/Senzing/g2product.git	
 [submodule "g2project"]
 	path = g2project
 	url = https://github.com/Senzing/g2project.git

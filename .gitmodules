@@ -46,3 +46,6 @@
 [submodule "g2product"]
 	path = g2product
 	url = https://github.com/Senzing/g2product.git
+[submodule "g2s3"]
+	path = g2s3
+	url = https://github.com/Senzing/g2s3.git

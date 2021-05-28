@@ -37,12 +37,6 @@
 [submodule "g2project"]
 	path = g2project
 	url = https://github.com/Senzing/g2project.git
-[submodule "g2report"]
-	path = g2report
-	url = https://github.com/Senzing/g2report.git
-[submodule "g2service"]
-	path = g2service
-	url = https://github.com/Senzing/g2service.git
-[submodule "g2vcompare"]
-	path = g2vcompare
-	url = https://github.com/Senzing/g2vcompare.git
+[submodule "g2configtool"]
+	path = g2configtool
+	url = https://github.com/Senzing/g2configtool.git

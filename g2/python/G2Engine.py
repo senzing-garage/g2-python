@@ -22,36 +22,40 @@ def resize_return_buffer(buf_, size_):
   return addressof(tls_var.buf)
 
 
-class G2Module(object):
-    """G2 module access library
+class G2Engine(object):
+    """G2 engine access library
 
     Attributes:
         _lib_handle: A boolean indicating if we like SPAM or not.
         _resize_func_def: resize function definiton
         _resize_func: resize function pointer
-        _module_name: CME module name
+        _engine_name: CME engine name
         _ini_file_name: name and location of .ini file
     """
-    def init(self):
+    def init(self, engine_name_, ini_file_name_, debug_=False, configID = 1):
         """  Initializes the G2 engine
         This should only be called once per process.  Currently re-initializing the G2 engin
         after a destroy requires unloaded the class loader used to load this class.
+        Args:
+            engineName: A short name given to this instance of the engine
+            iniFilename: A fully qualified path to the G2 engine INI file (often /opt/senzing/g2/python/G2Module.ini)
+            verboseLogging: Enable diagnostic logging which will print a massive amount of information to stdout
 
         Returns:
             int: 0 on success
         """
 
+        self._engine_name = engine_name_
+        self._ini_file_name = ini_file_name_
+        self._debug = debug_
         if self._debug:
-            print("Initializing G2 module")
+            print("Initializing G2 engine")
 
         resize_return_buffer(None, 65535)
 
-        p_module_name = self.prepareStringArgument(self._module_name)
-        p_ini_file_name = self.prepareStringArgument(self._ini_file_name)
-
         self._lib_handle.G2_init.argtypes = [c_char_p, c_char_p, c_int]
-        retval = self._lib_handle.G2_init(p_module_name,
-                                 p_ini_file_name,
+        retval = self._lib_handle.G2_init(self._engine_name.encode('utf-8'),
+                                 self._ini_file_name.encode('utf-8'),
                                  self._debug)
 
         if self._debug:
@@ -62,17 +66,29 @@ class G2Module(object):
             self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif retval < 0:
-            raise G2ModuleGenericException("Failed to initialize G2 Module")
-        return retval
+            raise G2ModuleGenericException("Failed to initialize G2 Engine")
+
+        if type(configID) == bytearray:
+            cID = c_longlong(0)
+            self._lib_handle.G2_getActiveConfigID.argtypes = [POINTER(c_longlong)]
+            ret_code = self._lib_handle.G2_getActiveConfigID(cID)
+            if ret_code == -2:
+                self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+                self._lib_handle.G2_clearLastException()
+                raise TranslateG2ModuleException(tls_var.buf.value)
+            elif ret_code < 0:
+                raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
+            for i in bytes(cID.value):
+                configID.append(i)
+        else:
+            ret_code = 0
+        return min(ret_code, retval)
 
 
-    def __init__(self, module_name_, ini_file_name_, debug_=False):
-        # type: (str, str, bool) -> None
-        """ G2Module class initialization
-        Args:
-            moduleName: A short name given to this instance of the engine
-            iniFilename: A fully qualified path to the G2 engine INI file (often /opt/senzing/g2/python/G2Module.ini)
-            verboseLogging: Enable diagnostic logging which will print a massive amount of information to stdout
+
+    def __init__(self):
+        # type: () -> None
+        """ G2Engine class initialization
         """
 
         try:
@@ -88,9 +104,19 @@ class G2Module(object):
 
         self._resize_func_def = CFUNCTYPE(c_char_p, c_char_p, c_size_t)
         self._resize_func = self._resize_func_def(resize_return_buffer)
-        self._module_name = module_name_
-        self._ini_file_name = ini_file_name_
-        self._debug = debug_
+
+    def primeEngine(self):
+        retval = self._lib_handle.G2_primeEngine()
+        if self._debug:
+            print("Initialization Status: " + str(retval))
+
+        if retval == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            self._lib_handle.G2_clearLastException()
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif retval < 0:
+            raise G2ModuleGenericException("Failed to initialize G2 Engine")
+        return retval
 
     def process(self, input_umf_):
         # type: (str) -> None
@@ -161,7 +187,7 @@ class G2Module(object):
             self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
-            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
 
         return responseBuf.value.decode('utf-8')
 
@@ -198,38 +224,9 @@ class G2Module(object):
             self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
-            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
 
         return responseBuf.value.decode('utf-8')
-
-    def getExportFlagsForMaxMatchLevel(self, max_match_level):
-        """ Converts a maximum match level into an appropriate export flag bitmask value.
-
-        Args:
-            max_match_level: The maximum match level to use in an export.
-
-        Return:
-            int: A bitmask flag representing the match-levels to include.
-        """
-        g2ExportFlags = 0
-        if max_match_level == 1:
-            # Include "resolved" relationships
-            g2ExportFlags = 4
-        elif max_match_level == 2:
-            # Include "possibly same" relationships
-            g2ExportFlags = 12
-        elif max_match_level == 3:
-            # Include "possibly related" relationships
-            g2ExportFlags = 28
-        elif max_match_level == 4:
-            # Include "name only" relationships
-            g2ExportFlags = 60
-        elif max_match_level == 5:
-            # Include "disclosed" relationships
-            g2ExportFlags = 125
-        else:
-            g2ExportFlags = 0
-        return g2ExportFlags
 
     def getExportHandle(self, exportType, max_match_level):
         # type: (str, int) -> c_void_p
@@ -245,15 +242,28 @@ class G2Module(object):
             exportType: CSV or JSON
             max_match_level: The match-level to specify what kind of entity resolves
                          and relations we want to see.
-                             1 -- "resolved" relationships
-                             2 -- "possibly same" relationships
-                             3 -- "possibly related" relationships
-                             4 -- "name only" relationships
-                             5 -- "disclosed" relationships
+                             1 -- same entities
+                             2 -- possibly same entities
+                             3 -- possibly related entities
+                             4 -- disclosed relationships
         Return:
             c_void_p: handle for the export
         """
-        g2ExportFlags = self.getExportFlagsForMaxMatchLevel(max_match_level)
+        g2ExportFlags = 0
+        if max_match_level == 1:
+            # Include match-level 1
+            g2ExportFlags = 4
+        elif max_match_level == 2:
+            # Include match-level 1,2
+            g2ExportFlags = 12
+        elif max_match_level == 3:
+            # Include match-level 1,2,3
+            g2ExportFlags = 28
+        elif max_match_level == 4:
+            # Include match-level 1,2,3,4
+            g2ExportFlags = 60
+        else:
+            g2ExportFlags = 0
         g2ExportFlags = g2ExportFlags | 3 
         if exportType == 'CSV':
             self._lib_handle.G2_exportCSVEntityReport.restype = c_void_p
@@ -263,7 +273,13 @@ class G2Module(object):
             exportHandle = self._lib_handle.G2_exportJSONEntityReport(g2ExportFlags)
         return exportHandle
 
-    def fetchExportRecord(self, exportHandle):
+    def exportCSVEntityReport(self, max_match_level):
+        return self.getExportHandle('CSV', max_match_level)
+
+    def exportJSONEntityReport(self, max_match_level):
+        return self.getExportHandle('JSON', max_match_level)
+
+    def fetchNext(self, exportHandle):
         # type: (c_void_p) -> str
         """ Fetch a record from an export
         Args:
@@ -288,7 +304,7 @@ class G2Module(object):
 
     def fetchCsvExportRecord(self, exportHandle, csvHeaders = None):
         # type: (c_void_p, str) -> str
-        """ Fetch a CSV record from an export
+        """ Fetch a CSV record from an export.
         Args:
             exportHandle: handle from generated export
             csvHeaders: CSV header record
@@ -297,7 +313,7 @@ class G2Module(object):
             dict: Record fetched using the csvHeaders as the keys.
                   None if no more data is available.
         """
-        resultString = self.fetchExportRecord(exportHandle)
+        resultString = self.fetchNext(exportHandle)
         if resultString:
             csvRecord = next(csvreader([resultString]))
             if csvHeaders:
@@ -306,88 +322,9 @@ class G2Module(object):
             csvRecord = None
         return csvRecord 
 
-    def exportCSVEntityReport(self, max_match_level, g2ExportFlags):
-        # type: (int, int) -> str
-        """ Generate a CSV Entity Report
-        This is used to export entity data from known entities.  This function
-        returns an export-handle that can be read from to get the export data
-        in CSV format.  The export-handle should be read using the "G2_fetchNext"
-        function, and closed when work is complete. Each output row contains the
-        exported entity data for a single resolved entity.
-   
-        Args:
-            max_match_level: The match-level to specify what kind of entity resolves
-                         and relations we want to see.
-                             1 -- "resolved" relationships
-                             2 -- "possibly same" relationships
-                             3 -- "possibly related" relationships
-                             4 -- "name only" relationships
-                             5 -- "disclosed" relationships
-            g2ExportFlags: A bit mask specifying other control flags, such as
-                           "G2_EXPORT_INCLUDE_SINGLETONS".  The default and recommended
-                           value is "G2_EXPORT_DEFAULT_REPORT_FLAGS".
 
-        Return:
-            c_void_p: handle for the export
-        """
-        resultString = b""
-        fullG2ExportFlags_ = self.getExportFlagsForMaxMatchLevel(max_match_level)
-        fullG2ExportFlags_ = fullG2ExportFlags_ | g2ExportFlags
-        self._lib_handle.G2_exportCSVEntityReport.restype = c_void_p
-        exportHandle = self._lib_handle.G2_exportCSVEntityReport(fullG2ExportFlags_)
-        rowCount = 0
-        resize_return_buffer(None,65535)
-        self._lib_handle.G2_fetchNext.argtypes = [c_void_p, c_char_p, c_size_t]
-        rowData = self._lib_handle.G2_fetchNext(c_void_p(exportHandle),tls_var.buf,sizeof(tls_var.buf))
-
-        while rowData:
-            rowCount = rowCount + 1
-            stringData = tls_var.buf
-            resultString += stringData.value
-            rowData = self._lib_handle.G2_fetchNext(c_void_p(exportHandle),tls_var.buf,sizeof(tls_var.buf))
+    def closeExport(self, exportHandle):
         self._lib_handle.G2_closeExport(c_void_p(exportHandle))
-        return resultString.decode('utf-8')
-
-    def exportJSONEntityReport(self,max_match_level,g2ExportFlags):
-        # type: (int, int) -> str
-        """ Generate a JSON Entity Report
-        This is used to export entity data from known entities.  This function
-        returns an export-handle that can be read from to get the export data
-        in JSON format.  The export-handle should be read using the "G2_fetchNext"
-        function, and closed when work is complete. Each output row contains the
-        exported entity data for a single resolved entity.
-   
-        Args:
-            max_match_level: The match-level to specify what kind of entity resolves
-                         and relations we want to see.
-                             1 -- "resolved" relationships
-                             2 -- "possibly same" relationships
-                             3 -- "possibly related" relationships
-                             4 -- "name only" relationships
-                             5 -- "disclosed" relationships
-            g2ExportFlags: A bit mask specifying other control flags, such as
-                           "G2_EXPORT_INCLUDE_SINGLETONS".  The default and recommended
-                           value is "G2_EXPORT_DEFAULT_REPORT_FLAGS".
-
-        Return:
-            c_void_p: handle for the export
-        """
-        resultString = b""
-        fullG2ExportFlags_ = self.getExportFlagsForMaxMatchLevel(max_match_level)
-        fullG2ExportFlags_ = fullG2ExportFlags_ | g2ExportFlags
-        self._lib_handle.G2_exportJSONEntityReport.restype = c_void_p
-        exportHandle = self._lib_handle.G2_exportJSONEntityReport(fullG2ExportFlags_)
-        rowCount = 0
-        resize_return_buffer(None,65535)
-        self._lib_handle.G2_fetchNext.argtypes = [c_void_p, c_char_p, c_size_t]
-        rowData = self._lib_handle.G2_fetchNext(c_void_p(exportHandle),tls_var.buf,sizeof(tls_var.buf))
-        while rowData:
-            rowCount = rowCount + 1
-            stringData = tls_var.buf
-            resultString += stringData.value
-            rowData = self._lib_handle.G2_fetchNext(c_void_p(exportHandle),tls_var.buf,sizeof(tls_var.buf))
-        self._lib_handle.G2_closeExport(c_void_p(exportHandle))
-        return resultString.decode('utf-8')
 
     def prepareStringArgument(self, stringToPrepare):
         # type: (str) -> str
@@ -431,6 +368,40 @@ class G2Module(object):
         elif ret_code < 0:
             raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
         return ret_code
+
+    def addRecordWithReturnedRecordID(self,dataSourceCode,recordID,jsonData,loadId=None):
+        # type: (str,str,str,str) -> int
+        """ Loads the JSON record
+        Args:
+            dataSourceCode: The data source for the observation.
+            recordID: A memory buffer for returning the recordID
+            jsonData: A JSON document containing the attribute information
+                   for the observation.
+            loadID: The observation load ID for the record, can be null and will default to dataSourceCode
+
+        Return:
+            int: 0 on success
+        """
+   
+        _dataSourceCode = self.prepareStringArgument(dataSourceCode)
+        _loadId = self.prepareStringArgument(loadId)
+        _jsonData = self.prepareStringArgument(jsonData)
+        resultString = ""
+        resize_return_buffer(None, 65535)
+        self._lib_handle.G2_addRecordWithReturnedRecordID.argtypes = [c_char_p, c_char_p, c_char_p, c_char_p, c_size_t]
+        ret_code = self._lib_handle.G2_addRecordWithReturnedRecordID(_dataSourceCode,_jsonData,_loadId, tls_var.buf, sizeof(tls_var.buf))
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            self._lib_handle.G2_clearLastException()
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code < 0:
+            raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
+        resultString = str(tls_var.buf.value.decode('utf-8'))
+        for i in resultString:
+            recordID.append(i)        
+        return ret_code
+
+
 
     def replaceRecord(self,dataSourceCode,recordId,jsonData,loadId=None):
         # type: (str,str,str,str) -> int
@@ -486,16 +457,15 @@ class G2Module(object):
         return ret_code
 
 
-    def searchByAttributes(self,jsonData):
-        # type: (str) -> str
+    def searchByAttributes(self,jsonData,response):
+        # type: (str,bytearray) -> int
         """ Find records matching the provided attributes
         Args:
             jsonData: A JSON document containing the attribute information to search.
-
+            response: A bytearray for returning the response document; if an error occurred, an error response is stored here.
         Return:
-            str: JSON document with results
+            int: 0 upon success, other for error.
         """
-
         _jsonData = self.prepareStringArgument(jsonData)
         resize_return_buffer(None, 65535)
         responseBuf = c_char_p(None)
@@ -505,22 +475,25 @@ class G2Module(object):
                                                                  pointer(responseBuf),
                                                                  pointer(responseSize),
                                                                  self._resize_func)
-
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
             self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
-        return tls_var.buf.value.decode('utf-8')
+        stringRet = str(tls_var.buf.value.decode('utf-8'))
+        for i in stringRet:
+            response.append(i)
+        return ret_code
 
-    def getEntityByEntityID(self,entityID):
-        # type: (int) -> str
+    def getEntityByEntityID(self,entityID,response):
+        # type: (int,bytearray) -> int
         """ Find the entity with the given ID
         Args:
             entityID: The entity ID you want returned.  Typically referred to as
                       ENTITY_ID in JSON results.
+            response: A bytearray for returning the response document; if an error occurred, an error response is stored here.
 
         Return:
-            str: JSON document with results
+            int: 0 upon success, other for error.
         """
 
         resize_return_buffer(None, 65535)
@@ -535,17 +508,21 @@ class G2Module(object):
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
             self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
-        return tls_var.buf.value.decode('utf-8')
+        stringRet = str(tls_var.buf.value.decode('utf-8'))
+        for i in stringRet:
+            response.append(i)
+        return ret_code
 
-    def getEntityByRecordID(self,dsrcCode,recordId):
-        # type: (str,str) -> str
+    def getEntityByRecordID(self,dsrcCode,recordId,response):
+        # type: (str,str,bytearray) -> int
         """ Get the entity containing the specified record
         Args:
             dataSourceCode: The data source for the observation.
             recordID: The ID for the record
+            response: A bytearray for returning the response document; if an error occurred, an error response is stored here.
 
         Return:
-            str: JSON document with results
+            int: 0 upon success, other for error.
         """
 
         _dsrcCode = self.prepareStringArgument(dsrcCode)
@@ -562,17 +539,21 @@ class G2Module(object):
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
             self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
-        return responseBuf.value.decode('utf-8')
+        stringRet = str(responseBuf.value.decode('utf-8'))
+        for i in stringRet:
+            response.append(i)
+        return ret_code
 
-    def getRecord(self,dsrcCode,recordId):
-        # type: (str,str) -> str
+    def getRecord(self,dsrcCode,recordId,response):
+        # type: (str,str,bytearray) -> int
         """ Get the specified record
         Args:
             dataSourceCode: The data source for the observation.
             recordID: The ID for the record
+            response: A bytearray for returning the response document; if an error occurred, an error response is stored here.
 
         Return:
-            str: JSON document with results
+            int: 0 upon success, other for error.
         """
 
         _dsrcCode = self.prepareStringArgument(dsrcCode)
@@ -589,7 +570,10 @@ class G2Module(object):
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
             self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
-        return responseBuf.value.decode('utf-8')
+        stringRet = str(responseBuf.value.decode('utf-8'))
+        for i in stringRet:
+            response.append(i)
+        return ret_code
 
     def stats(self):
         # type: () -> object
@@ -614,18 +598,32 @@ class G2Module(object):
             self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
-            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
 
-        return json.loads(responseBuf.value.decode('utf-8'))
+        return str(responseBuf.value.decode('utf-8'))
 
-    def exportConfig(self):
-        # type: () -> object
+    
+    def getLastException(self):
+        responseBuf = c_char_p(None)
+        responseSize = c_size_t(256)
+        ret_code = self._lib_handle.G2_getLastException(responseBuf, responseSize)
+        return str(responseBuf.value)
+
+    def getLastExceptionCode(self):
+        return self._lib_handle.G2_getLastExceptionCode(tls_var.buf, sizeof(tls_var.buf))
+
+    def clearLastException(self):
+        self._lib_handle.G2_clearLastException()        
+
+    def exportConfig(self,response, configID=1):
+        # type: (bytearray) -> int
         """ Retrieve the G2 engine configuration
 
         Args:
+            response: A bytearray for returning the response document; if an error occurred, an error response is stored here.
 
         Return:
-            object: JSON document with G2 engine configuration
+            int: 0 upon success, other for error.
         """
 
         resize_return_buffer(None, 65535)
@@ -641,37 +639,61 @@ class G2Module(object):
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code < 0:
             raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
-        return json.loads(responseBuf.value.decode('utf-8'))
+        stringRet = str(responseBuf.value.decode('utf-8'))
+        for i in stringRet:
+            response.append(i)
 
-    def getActiveConfigID(self):
-        # type: () -> object
+        if type(configID) == bytearray:
+            cID = c_longlong(0)
+            self._lib_handle.G2_getActiveConfigID.argtypes = [POINTER(c_longlong)]
+            ret_code2 = self._lib_handle.G2_getActiveConfigID(cID)
+            if ret_code2 == -2:
+                self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+                self._lib_handle.G2_clearLastException()
+                raise TranslateG2ModuleException(tls_var.buf.value)
+            elif ret_code2 < 0:
+                raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code2))
+            for i in bytes(cID.value):
+                configID.append(i)
+        else:
+            ret_code2 = 0
+        return min(ret_code, ret_code2)
+
+
+    def getActiveConfigID(self, configID):
+        # type: (bytearray) -> object
         """ Retrieve the active config ID for the G2 engine
 
         Args:
+            configID: A bytearray for returning the identifier value for the config
 
         Return:
-            object: The numeric active config ID
+            int: 0 upon success, other for error.
         """
 
-        configID = c_longlong(0)
+        cID = c_longlong(0)
         self._lib_handle.G2_getActiveConfigID.argtypes = [POINTER(c_longlong)]
-        ret_code = self._lib_handle.G2_getActiveConfigID(configID)
+        ret_code = self._lib_handle.G2_getActiveConfigID(cID)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
             self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code < 0:
             raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
-        return configID.value
+        for i in bytes(cID.value):
+            configID.append(i)
+        return ret_code
 
-    def getRepositoryLastModifiedTime(self):
-        # type: () -> object
+
+    def getRepositoryLastModifiedTime(self, lastModifiedTime):
+        # type: (bytearray) -> object
         """ Retrieve the last modified time stamp of the entity store repository
 
         Args:
+            lastModifiedTime: A bytearray for returning the last modified time of the data repository
 
         Return:
-            object: The last modified time stamp, as a numeric integer
+            int: 0 upon success, other for error.
         """
 
         lastModifiedTimeStamp = c_longlong(0)
@@ -683,7 +705,9 @@ class G2Module(object):
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code < 0:
             raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
-        return lastModifiedTimeStamp.value
+        for i in bytes(lastModifiedTimeStamp.value):
+            lastModifiedTime.append(i)
+        return ret_code
 
     def purgeRepository(self, reset_resolver_=True):
         # type: (bool) -> None
@@ -703,15 +727,17 @@ class G2Module(object):
             self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif retval == -1:
-            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
 
         if reset_resolver_ == True:
             self.restart()
 
     def restart(self):
         """  Internal function """
+        moduleName = self._engine_name
+        iniFilename = self._ini_file_name
         self.destroy()
-        self.init()
+        self.init(moduleName, iniFilename, False)
 
     def destroy(self):
         """ Uninitializes the engine
@@ -724,5 +750,5 @@ class G2Module(object):
             None
         """
 
-        self._lib_handle.G2_destroy()
+        return self._lib_handle.G2_destroy()
 

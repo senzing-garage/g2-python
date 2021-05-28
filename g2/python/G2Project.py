@@ -567,7 +567,7 @@ class G2Project:
                         raise G2UnsupportedFileTypeException('Unknown input file type: ' + sourceDict['FILE_FORMAT'])
 
                 #--ensure there is at least one feature mapped, unless this is raw UMF
-                if self.success and sourceDict['FILE_FORMAT'] is not 'UMF':
+                if self.success and sourceDict['FILE_FORMAT'] != 'UMF':
                     mappedFields = []
                     unmappedFields = []
                     for mappedColumn in fileDict['MAP']:
@@ -647,7 +647,7 @@ class G2Project:
         try: csvFile, csvReader = self.openCsv(fileDict['FILE_PATH'], fileDict['FILE_FORMAT'])
         except:
             print('ERROR: ' + fileDict['FILE_PATH'] + ' could not be opened as a ' + fileDict['FILE_FORMAT'] + ' file!')
-            dataLooksLikeCSV = False 
+            dataLooksLikeCSV = False
         else:
             csvHeaders = [x.strip().upper() for x in next(csvReader)]
             headerFieldCount = len(csvHeaders)
@@ -660,9 +660,16 @@ class G2Project:
                 rowNum = 0
                 for csvRow in csvReader:
                     if csvRow: #--skip blank lines
+                        csvRow = [c.strip() for c in csvRow]
+                        if len(csvRow) == 1 and csvRow[0] == '':
+                            continue
                         rowNum += 1
                         itemsInRow = len(list(zip(csvHeaders, csvRow)))
                         if headerFieldCount != itemsInRow:
+                            #### Join the list, replace all spaces, and check it's length. If it's a blank row, continue on...
+                            if len("".join(csvRow).replace(" ","")) == 0:
+                                rowNum -= 1 #--we don't count blank rows in the count
+                                continue
                             print('Row %d of file %s is not CSV formatted.' % (rowNum, os.path.basename(fileDict['FILE_PATH'])))
                             dataLooksLikeCSV = False
                             break

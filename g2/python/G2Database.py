@@ -2,12 +2,7 @@
 import optparse
 import sys
 import os
-
-#--optional imports
-try: import pyodbc
-except: pass
-try: import sqlite3
-except: pass
+from importlib import import_module
 
 #--project classes
 import G2Exception
@@ -26,6 +21,18 @@ class G2Database:
         except G2Exception.G2UnsupportedDatabaseType as err:
             print(err)
             return
+
+        #--import correct modules for DB type
+        if self.dbType in ('MYSQL', 'DB2'):
+            try:
+                self.pyodbc = import_module('pyodbc')
+            except ImportError as err:
+                raise ImportError('ERROR: could not import pyodbc module\n\nPlease check the Senzing help center: https://senzing.zendesk.com/hc/en-us/search?utf8=%E2%9C%93&query=pyodbc\n\t')
+        else:
+            try:
+                self.sqlite3 = import_module('sqlite3')
+            except ImportError as err:
+                raise ImportError('ERROR: could not import sqlite3 module\n\nPlease ensure the python sqlite3 module is available')
 
         #--attempt to open the database
         try:
@@ -65,22 +72,22 @@ class G2Database:
     def Connect(self):
         try:
             if self.dbType == 'MYSQL':
-                self.dbo = pyodbc.connect('DRIVER={' + self.dbType + '};SERVER=' + self.dsn + ';DATABASE=' + self.schema + ';UID=' + self.userId + '; PWD=' + self.password, autocommit = True)
+                self.dbo = self.pyodbc.connect('DRIVER={' + self.dbType + '};SERVER=' + self.dsn + ';PORT=' + self.port + ';DATABASE=' + self.schema + ';UID=' + self.userId + '; PWD=' + self.password, autocommit = True)
             elif self.dbType == 'SQLITE3':
                 if not os.path.isfile(self.dsn):
                     raise G2Exception.G2DBNotFound('ERROR: sqlite3 database file not found ' + self.dsn)
-                self.dbo = sqlite3.connect(self.dsn, isolation_level=None)
+                self.dbo = self.sqlite3.connect(self.dsn, isolation_level=None)
                 c = self.dbo.cursor()
                 c.execute("PRAGMA journal_mode=wal")
                 c.execute("PRAGMA synchronous=0")
             elif self.dbType == 'DB2':
-                self.dbo = pyodbc.connect('DSN=' + self.dsn + '; UID=' + self.userId + '; PWD=' + self.password, autocommit = True)
+                self.dbo = self.pyodbc.connect('DSN=' + self.dsn + '; UID=' + self.userId + '; PWD=' + self.password, autocommit = True)
             else:
                 print('ERROR: Unsupported DB Type: ' + self.dbType)
                 return False
         except Exception as err:
             raise self.TranslateException(err)
-        except sqlite3.DatabaseError as err:
+        except self.sqlite3.DatabaseError as err:
             raise self.TranslateException(err)
 
         return
@@ -105,7 +112,7 @@ class G2Database:
                 exec_cursor = self.dbo.cursor().execute(sql)
         except Exception as err:
             raise self.TranslateException(err)
-        except sqlite3.DatabaseError as err:
+        except self.sqlite3.DatabaseError as err:
             raise self.TranslateException(err)
         else:
             if exec_cursor:
@@ -122,7 +129,7 @@ class G2Database:
         try: cursor = self.dbo.cursor().executemany(sql, parmList)
         except Exception as err:
             raise self.TranslateException(err)
-        except sqlite3.DatabaseError as err:
+        except self.sqlite3.DatabaseError as err:
             raise self.TranslateException(err)
         else:
             execSuccess = True
@@ -299,10 +306,10 @@ class G2Database:
                 return G2Exception.G2DBUniqueConstraintViolation(errMessage)
 
         elif self.dbType == 'SQLITE3':
-            if type(ex) == sqlite3.OperationalError:
+            if type(ex) == self.sqlite3.OperationalError:
                 if errMessage.startswith('no such table'):
                     return G2Exception.G2TableNoExist(errMessage)
-            if type(ex) == sqlite3.IntegrityError:
+            if type(ex) == self.sqlite3.IntegrityError:
                 if 'not unique' in errMessage:
                     return G2Exception.G2DBUniqueConstraintViolation(errMessage)
         elif self.dbType == 'MYSQL':

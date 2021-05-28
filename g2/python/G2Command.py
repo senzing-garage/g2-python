@@ -4,11 +4,13 @@ import sys
 from G2Module import G2Module
 from G2AnonModule import G2AnonModule
 from G2AuditModule import G2AuditModule
+from G2ProductModule import G2ProductModule
 import G2Exception
 import json
 import shlex
 import argparse
 import os
+import csv
 
 class G2CmdShell(cmd.Cmd, object):
 
@@ -19,6 +21,7 @@ class G2CmdShell(cmd.Cmd, object):
         self.g2_module = G2Module('pyG2', 'G2Module.ini', False)
         self.g2_anon_module = G2AnonModule('pyG2Anon', 'G2Module.ini', False)
         self.g2_audit_module = G2AuditModule('pyG2Audit', 'G2Module.ini', False)
+        self.g2_product_module = G2ProductModule('pyG2Product', 'G2Module.ini', False)
         self.initialized = False
         self.__hidden_methods = ('do_shell', 'do_EOF')
 
@@ -40,7 +43,7 @@ class G2CmdShell(cmd.Cmd, object):
         processWithResponse_parser.add_argument('-o', '--outputFile', required=False)
 
         exportEntityReport_parser = subparsers.add_parser('exportEntityReport', usage=argparse.SUPPRESS)
-        exportEntityReport_parser.add_argument('-m', '--maximumMatchLevel', required=False, default=4, type=int)
+        exportEntityReport_parser.add_argument('-m', '--maximumMatchLevel', required=False, default=5, type=int)
         exportEntityReport_parser.add_argument('-f', '--flags', required=False, default=1, type=int)
         exportEntityReport_parser.add_argument('-o', '--outputFile', required=False)
 
@@ -93,6 +96,7 @@ class G2CmdShell(cmd.Cmd, object):
         self.g2_module.init()
         self.g2_anon_module.init()
         self.g2_audit_module.init()
+        self.g2_product_module.init()
         self.initialized = True
         print('\nWelcome to the G2 shell. Type help or ? to list commands.\n')
 
@@ -101,6 +105,7 @@ class G2CmdShell(cmd.Cmd, object):
             self.g2_module.destroy()
             self.g2_anon_module.destroy()
             self.g2_audit_module.destroy()
+            self.g2_product_module.destroy()
         self.initialized = False
 
     # ----- terminal operations -----
@@ -136,6 +141,33 @@ class G2CmdShell(cmd.Cmd, object):
             except TypeError as ex:
                 print("ERROR: " + str(ex))
 
+    # -----------------------------
+    def fileloop(self, fileName):
+        self.preloop()
+        if os.path.exists(fileName): 
+            with open(fileName) as data_in:
+                for line in data_in:
+                    line = line[:-1].strip() #--strips linefeed and spaces
+                    if len(line) > 0:
+                        print('-' * 50)
+                        print(line)
+
+                        if ' ' in line:
+                            cmd = 'do_' + line[0:line.find(' ')]
+                            parm = line[line.find(' ')+1:]
+                        else:
+                            cmd = 'do_' + line
+                            parm = ''
+
+                        if cmd not in dir(self):
+                            printWithNewLine('command %s not found' % cmd)
+                        else:
+                            execCmd = 'self.' + cmd + "('" + parm + "')"
+                            exec(execCmd)
+
+        else:
+            print('%s not found' % fileName)
+
 
     #Hide do_shell from list of APIs. Seperate help section for it
 
@@ -153,7 +185,8 @@ class G2CmdShell(cmd.Cmd, object):
               '             1 - Same entities\n' \
               '             2 - Possibly same entities\n' \
               '             3 - Possibly related entities\n' \
-              '             4 - Disclosed relationships\n\n' 
+              '             4 - Name-only related entities\n' \
+              '             Other appropriate values for disclosed relationships\n\n' 
               )
 
     def help_KnowledgeCenter(self):
@@ -195,13 +228,44 @@ class G2CmdShell(cmd.Cmd, object):
             print(self.do_processFile.__doc__)
             return
         try: 
-            with open(args.inputFile.split("?")[0]) as data_in:
-                for line in data_in:
-                    self.g2_module.process(line.strip())
-            printWithNewLine('')
+            dataSourceParm = None
+            if '/?' in args.inputFile:
+                fileName, dataSourceParm = args.inputFile.split("/?")
+                if dataSourceParm.upper().startswith('DATA_SOURCE='):
+                    dataSourceParm = dataSourceParm[12:]
+                dataSourceParm = dataSourceParm.upper()
+            else:
+                fileName = args.inputFile
+            dummy, fileExtension = os.path.splitext(fileName)
+            fileExtension = fileExtension[1:].upper()
+            
+            with open(fileName) as data_in:
+                if fileExtension != 'CSV':
+                    fileReader = data_in
+                else:
+                    fileReader = csv.reader(data_in)
+                    csvHeaders = [x.upper() for x in next(fileReader)]
+                cnt = 0
+                for line in fileReader:
+                    if fileExtension != 'CSV':
+                        jsonStr = line.strip()
+                    else:
+                        jsonObj = dict(list(zip(csvHeaders, line)))
+                        if dataSourceParm:
+                            jsonObj['DATA_SOURCE'] = dataSourceParm
+                            jsonObj['ENTITY_TYPE'] = dataSourceParm
+                        jsonStr = json.dumps(jsonObj)
+                  
+                    self.g2_module.process(jsonStr)
+                    cnt += 1
+                    if cnt % 1000 ==0:
+                        print('%s rows processed' % cnt)
+                print('%s rows processed, done!' % cnt)
+                        
+                printWithNewLine('')
         except G2Exception.G2Exception as err:
             print(err)
-
+    
     def do_processWithResponse(self, arg):
         '\nProcess a generic record, and print response:  processWithResponse <json_data> [-o <output_file>]\n'
         try:
@@ -422,6 +486,14 @@ class G2CmdShell(cmd.Cmd, object):
         except G2Exception.G2Exception as err:
             print(err)
 
+    def do_getSummaryDataDirect(self,arg):
+        '\nGet summary data with optimized speed:  getSummaryDataDirect\n'
+        try: 
+            response = json.dumps(self.g2_audit_module.getSummaryDataDirect())
+            printResponse(response)
+        except G2Exception.G2Exception as err:
+            print(err)
+
     def do_getUsedMatchKeys(self,arg):
         '\nGet usage statistics of match keys:  getUsedMatchKeys <fromDataSource> <toDataSource> <match_level>\n'
         try:
@@ -485,6 +557,22 @@ class G2CmdShell(cmd.Cmd, object):
                     json.dump(response,data_out)
             else:
                 printResponse(json.dumps(response))
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_getActiveConfigID(self,arg):
+        '\nGet the config identifier:  getActiveConfigID\n'    
+        try: 
+            response = self.g2_module.getActiveConfigID()
+            printResponse(str(response))
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_getRepositoryLastModifiedTime(self,arg):
+        '\nGet the last modified time of the datastore:  getRepositoryLastModifiedTime\n'    
+        try: 
+            response = self.g2_module.getRepositoryLastModifiedTime()
+            printResponse(str(response))
         except G2Exception.G2Exception as err:
             print(err)
 
@@ -570,14 +658,17 @@ class G2CmdShell(cmd.Cmd, object):
     def do_license(self,arg):
         '\nGet the license information:  license\n'
         try: 
-            response = json.dumps(self.g2_module.license())
-            print('\nG2 module license:')
-            print(response)
+            response = json.dumps(self.g2_product_module.license())
+            print('\nG2 license:')
+            printWithNewLine(response)
         except G2Exception.G2Exception as err:
             print(err)
+
+    def do_version(self,arg):
+        '\nGet the version information:  version\n'
         try: 
-            response = json.dumps(self.g2_anon_module.license())
-            print('\nG2 anonymizer module license:')
+            response = json.dumps(self.g2_product_module.version())
+            print('\nG2 version:')
             printWithNewLine(response)
         except G2Exception.G2Exception as err:
             print(err)
@@ -603,5 +694,12 @@ if __name__ == '__main__':
     if sys.version_info[:2] <= (2,7):
         userInput = raw_input
 
-    G2CmdShell().cmdloop()
+    #--execute a file of commands
+    if len(sys.argv) > 1:
+        G2CmdShell().fileloop(sys.argv[1])
 
+    # go into command shell 
+    else:
+        G2CmdShell().cmdloop()
+
+    sys.exit()

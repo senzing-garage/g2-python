@@ -365,8 +365,8 @@ if __name__ == '__main__':
     if not outputFilter:
         print('ERROR: Resume filter value must be specified')
         sys.exit(1)
-    if outputFilter not in (1,2,3,4):
-        print('ERROR: Resume filter must be 1, 2, 3 or 4')
+    if outputFilter not in (1,2,3,4,5):
+        print('ERROR: Resume filter must be 1, 2, 3, 4 or 5')
         sys.exit(1)
 
     #--adjust from default of csv to json if they did not change it themselves

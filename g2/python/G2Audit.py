@@ -22,7 +22,7 @@ def resize_return_buffer(buf_, size_):
   return addressof(tls_var.buf)
 
 
-class G2AuditModule(object):
+class G2Audit(object):
     """G2 audit module access library
 
     Attributes:
@@ -32,12 +32,20 @@ class G2AuditModule(object):
         _module_name: CME module name
         _ini_file_name: name and location of .ini file
     """
-    def init(self):
+    def init(self, module_name_, ini_file_name_, debug_=False):
         """  Initializes the G2 audit module engine
         This should only be called once per process.
+        Args:
+            moduleName: A short name given to this instance of the audit module
+            iniFilename: A fully qualified path to the G2 engine INI file (often /opt/senzing/g2/python/G2Module.ini)
+            verboseLogging: Enable diagnostic logging which will print a massive amount of information to stdout
         Returns:
             int: 0 on success
         """
+
+        self._module_name = module_name_
+        self._ini_file_name = ini_file_name_
+        self._debug = debug_
 
         if self._debug:
             print("Initializing G2 audit module")
@@ -61,13 +69,9 @@ class G2AuditModule(object):
         return retval
 
 
-    def __init__(self, module_name_, ini_file_name_, debug_=False):
+    def __init__(self):
         # type: (str, str, bool) -> None
         """ G2AuditModule class initialization
-        Args:
-            moduleName: A short name given to this instance of the audit module
-            iniFilename: A fully qualified path to the G2 engine INI file (often /opt/senzing/g2/python/G2Module.ini)
-            verboseLogging: Enable diagnostic logging which will print a massive amount of information to stdout
         """
 
         try:
@@ -83,9 +87,6 @@ class G2AuditModule(object):
 
         self._resize_func_def = CFUNCTYPE(c_char_p, c_char_p, c_size_t)
         self._resize_func = self._resize_func_def(resize_return_buffer)
-        self._module_name = module_name_
-        self._ini_file_name = ini_file_name_
-        self._debug = debug_
 
 
     def prepareStringArgument(self, stringToPrepare):
@@ -103,13 +104,20 @@ class G2AuditModule(object):
         #input is already a str
         return stringToPrepare
 
+    def openSession(self):
+        sessionHandle = self._lib_handle.G2Audit_openSession()
+        return sessionHandle
 
-    def getSummaryData(self):
+    def cancelSession(self, sessionHandle):
+        self._lib_handle.G2Audit_cancelSession(sessionHandle)
+
+    def closeSession(self, sessionHandle):
+        self._lib_handle.G2Audit_closeSession(sessionHandle)
+
+
+    def getSummaryData(self, sessionHandle, response):
         # type: () -> object
         """ Get the summary data for the G2 data repository.
-
-        Return:
-            object: JSON document with summary data
         """
 
         resize_return_buffer(None, 65535)
@@ -132,14 +140,14 @@ class G2AuditModule(object):
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
 
-        return json.loads(responseBuf.value.decode('utf-8'))
+        stringRet = str(responseBuf.value.decode('utf-8'))
+        for i in stringRet:
+            response.append(i)
+        return ret_code
 
-    def getSummaryDataDirect(self):
+    def getSummaryDataDirect(self, response):
         # type: () -> object
-        """ Get the summary data for the G2 data repository, using optimizations.
-
-        Return:
-            object: JSON document with summary data
+        """ Get the summary data for the G2 data repository, with optimizations.
         """
 
         resize_return_buffer(None, 65535)
@@ -158,9 +166,12 @@ class G2AuditModule(object):
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
 
-        return json.loads(responseBuf.value.decode('utf-8'))
+        stringRet = str(responseBuf.value.decode('utf-8'))
+        for i in stringRet:
+            response.append(i)
+        return ret_code
 
-    def getUsedMatchKeys(self,fromDataSource,toDataSource,matchLevel):
+    def getUsedMatchKeys(self,sessionHandle,fromDataSource,toDataSource,matchLevel,response):
         # type: (str,str,int) -> str
         """ Get the usage frequency of match keys
         Args:
@@ -178,23 +189,23 @@ class G2AuditModule(object):
         resize_return_buffer(None, 65535)
         responseBuf = c_char_p(None)
         responseSize = c_size_t(0)
-        self._lib_handle.G2Audit_openSession.restype = c_void_p
-        sessionHandle = self._lib_handle.G2Audit_openSession()
         self._lib_handle.G2Audit_getUsedMatchKeys.restype = c_int
         self._lib_handle.G2Audit_getUsedMatchKeys.argtypes = [c_void_p, c_char_p, c_char_p, c_longlong, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
         ret_code = self._lib_handle.G2Audit_getUsedMatchKeys(sessionHandle,_fromDataSource,_toDataSource,_matchLevel,
                                                                  pointer(responseBuf),
                                                                  pointer(responseSize),
                                                                  self._resize_func)
-        self._lib_handle.G2Audit_closeSession.argtypes = [c_void_p]
-        self._lib_handle.G2Audit_closeSession(sessionHandle)
         if ret_code == -2:
             self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
             self._lib_handle.G2Audit_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
-        return responseBuf.value.decode('utf-8')
+        stringRet = str(responseBuf.value.decode('utf-8'))
+        for i in stringRet:
+            response.append(i)
+        return ret_code
 
-    def getUsedPrinciples(self,fromDataSource,toDataSource,matchLevel):
+
+    def getUsedPrinciples(self,sessionHandle,fromDataSource,toDataSource,matchLevel,response):
         # type: (str,str,int) -> str
         """ Get the usage frequency of principles
         Args:
@@ -212,23 +223,23 @@ class G2AuditModule(object):
         resize_return_buffer(None, 65535)
         responseBuf = c_char_p(None)
         responseSize = c_size_t(0)
-        self._lib_handle.G2Audit_openSession.restype = c_void_p
-        sessionHandle = self._lib_handle.G2Audit_openSession()
         self._lib_handle.G2Audit_getUsedPrinciples.restype = c_int
         self._lib_handle.G2Audit_getUsedPrinciples.argtypes = [c_void_p, c_char_p, c_char_p, c_longlong, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
         ret_code = self._lib_handle.G2Audit_getUsedPrinciples(sessionHandle,_fromDataSource,_toDataSource,_matchLevel,
                                                                  pointer(responseBuf),
                                                                  pointer(responseSize),
                                                                  self._resize_func)
-        self._lib_handle.G2Audit_closeSession.argtypes = [c_void_p]
-        self._lib_handle.G2Audit_closeSession(sessionHandle)
         if ret_code == -2:
             self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
             self._lib_handle.G2Audit_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
-        return responseBuf.value.decode('utf-8')
+        stringRet = str(responseBuf.value.decode('utf-8'))
+        for i in stringRet:
+            response.append(i)
+        return ret_code
 
-    def getAuditReport(self,fromDataSource,toDataSource,matchLevel):
+
+    def getAuditReport(self,sessionHandle,fromDataSource,toDataSource,matchLevel):
         # type: (str,str,int) -> str
         """ Generate an Audit Report
         This is used to get audit entity data from known entities.
@@ -238,6 +249,10 @@ class G2AuditModule(object):
             toDataSource: The data source to compare against
             match_level: The match-level to specify what kind of entity resolves
                          and relations we want to see.
+                             1 -- same entities
+                             2 -- possibly same entities
+                             3 -- possibly related entities
+                             4 -- disclosed relationships
 
         Return:
             str: string of several JSON documents with results
@@ -246,33 +261,37 @@ class G2AuditModule(object):
         _fromDataSource = self.prepareStringArgument(fromDataSource)
         _toDataSource = self.prepareStringArgument(toDataSource)
         _matchLevel = matchLevel
-        self._lib_handle.G2Audit_openSession.restype = c_void_p
-        sessionHandle = self._lib_handle.G2Audit_openSession()
         self._lib_handle.G2Audit_getAuditReport.restype = c_void_p
-        auditHandle = self._lib_handle.G2Audit_getAuditReport(sessionHandle,_fromDataSource,_toDataSource,_matchLevel)
-        if auditHandle == None:
+        reportHandle = self._lib_handle.G2Audit_getAuditReport(sessionHandle,_fromDataSource,_toDataSource,_matchLevel)
+        return reportHandle
+
+    def fetchNext(self,reportHandle):
+        resultString = b""
+        if reportHandle == None:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
             self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
         rowCount = 0
         resize_return_buffer(None,65535)
         self._lib_handle.G2Audit_fetchNext.argtypes = [c_void_p, c_char_p, c_size_t]
-        rowData = self._lib_handle.G2Audit_fetchNext(c_void_p(auditHandle),tls_var.buf,sizeof(tls_var.buf))
+        rowData = self._lib_handle.G2Audit_fetchNext(c_void_p(reportHandle),tls_var.buf,sizeof(tls_var.buf))
 
         while rowData:
             rowCount = rowCount + 1
             stringData = tls_var.buf
             resultString += stringData.value
-            rowData = self._lib_handle.G2Audit_fetchNext(c_void_p(auditHandle),tls_var.buf,sizeof(tls_var.buf))
-        self._lib_handle.G2Audit_closeReport(c_void_p(auditHandle))
-        self._lib_handle.G2Audit_closeSession.argtypes = [c_void_p]
-        self._lib_handle.G2Audit_closeSession(sessionHandle)
+            rowData = self._lib_handle.G2Audit_fetchNext(c_void_p(reportHandle),tls_var.buf,sizeof(tls_var.buf))
         return resultString.decode('utf-8')
+
+    def closeReport(self, reportHandle):
+        self._lib_handle.G2Audit_closeReport(c_void_p(reportHandle))
 
     def restart(self):
         """  Internal function """
+        moduleName = self._engine_name
+        iniFilename = self._ini_file_name
         self.destroy()
-        self.init()
+        self.init(moduleName, iniFilename, False)
 
     def destroy(self):
         """ Uninitializes the engine
@@ -285,5 +304,18 @@ class G2AuditModule(object):
             None
         """
 
-        self._lib_handle.G2Audit_destroy()
+        return self._lib_handle.G2Audit_destroy()
+
+    def getLastException(self):
+        responseBuf = c_char_p(None)
+        responseSize = c_size_t(256)
+        ret_code = self._lib_handle.G2Audit_getLastException(responseBuf, responseSize)
+        return str(responseBuf.value)
+
+    def getLastExceptionCode(self):
+        return self._lib_handle.G2Audit_getLastExceptionCode(tls_var.buf, sizeof(tls_var.buf))
+
+    def clearLastException(self):
+        self._lib_handle.G2Audit_clearLastException()        
+
 

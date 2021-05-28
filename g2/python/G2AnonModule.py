@@ -1,4 +1,4 @@
-import ctypes
+from ctypes import *
 import json
 import os
 
@@ -28,7 +28,7 @@ class G2AnonModule(object):
         if self._debug:
             print("Initializing G2 module")
 
-        self._lib_handle.G2Anonymizer_init.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+        self._lib_handle.G2Anonymizer_init.argtypes = [c_char_p, c_char_p, c_int]
         retval = self._lib_handle.G2Anonymizer_init(self._module_name.encode('utf-8'),
                                  self._ini_file_name.encode('utf-8'),
                                  self._debug)
@@ -49,12 +49,12 @@ class G2AnonModule(object):
     def __init__(self, module_name_, ini_file_name_, debug_=False):
         try:
             if os.name == 'nt':
-              self._lib_handle = ctypes.cdll.LoadLibrary("G2Anonymizer.dll")
+              self._lib_handle = cdll.LoadLibrary("G2Anonymizer.dll")
             else:
-              self._lib_handle = ctypes.cdll.LoadLibrary("libG2Anonymizer.so")
+              self._lib_handle = cdll.LoadLibrary("libG2Anonymizer.so")
             self._return_buffer_size = 65535
-            self._return_buffer = ctypes.create_string_buffer(self._return_buffer_size)
-            self._resize_func_def = ctypes.CFUNCTYPE(ctypes.c_char_p, ctypes.c_int)
+            self._return_buffer = create_string_buffer(self._return_buffer_size)
+            self._resize_func_def = CFUNCTYPE(c_char_p, c_int)
             self._resize_func = self._resize_func_def(self.resize_return_buffer)
             self._anonimizerSupported = True
         except OSError:
@@ -70,8 +70,8 @@ class G2AnonModule(object):
             size_: size the return buffer needs to be
         """
         self._return_buffer_size = size_
-        self._return_buffer = ctypes.create_string_buffer('\000' * self._return_buffer_size)
-        address_of_new_buffer = ctypes.addressof(self._return_buffer)
+        self._return_buffer = create_string_buffer('\000' * self._return_buffer_size)
+        address_of_new_buffer = addressof(self._return_buffer)
         return address_of_new_buffer
 
     def prepareStringArgument(self, stringToPrepare):
@@ -121,13 +121,6 @@ class G2AnonModule(object):
         elif ret_code < 0:
             raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
         return self._return_buffer.value.decode('utf-8')
-
-    def license(self):
-        '''  gets license info from G2Anonymizer '''
-        if self._anonimizerSupported == False:
-            self.reportAnonymizationNotIncluded()
-        ret = self._lib_handle.G2Anonymizer_license()
-        return json.loads(ctypes.c_char_p(ret).value.decode('utf-8'))
 
     def restart(self):
         """  restarts G2 resolver """

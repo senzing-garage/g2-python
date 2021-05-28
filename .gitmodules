@@ -22,6 +22,9 @@
 [submodule "g2database"]
 	path = g2database
 	url = https://github.com/Senzing/g2database.git
+[submodule "g2engine"]
+    path = g2engine
+    url = https://github.com/Senzing/g2engine.git	
 [submodule "g2exception"]
 	path = g2exception
 	url = https://github.com/Senzing/g2exception.git

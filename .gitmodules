@@ -1,0 +1,48 @@
+[submodule "compressedfile"]
+	path = compressedfile
+	url = https://github.com/Senzing/compressedfile.git
+[submodule "dumpstack"]
+	path = dumpstack
+	url = https://github.com/Senzing/dumpstack.git
+[submodule "g2anon"]
+	path = g2anon
+	url = https://github.com/Senzing/g2anon.git
+[submodule "g2audit"]
+	path = g2audit
+	url = https://github.com/Senzing/g2audit.git
+[submodule "g2command"]
+	path = g2command
+	url = https://github.com/Senzing/g2command.git
+[submodule "g2config"]
+	path = g2config
+	url = https://github.com/Senzing/g2config.git
+[submodule "g2configtables"]
+	path = g2configtables
+	url = https://github.com/Senzing/g2configtables.git
+[submodule "g2database"]
+	path = g2database
+	url = https://github.com/Senzing/g2database.git
+[submodule "g2exception"]
+	path = g2exception
+	url = https://github.com/Senzing/g2exception.git
+[submodule "g2export"]
+	path = g2export
+	url = https://github.com/Senzing/g2export.git
+[submodule "g2loader"]
+	path = g2loader
+	url = https://github.com/Senzing/g2loader.git
+[submodule "g2module"]
+	path = g2module
+	url = https://github.com/Senzing/g2module.git
+[submodule "g2project"]
+	path = g2project
+	url = https://github.com/Senzing/g2project.git
+[submodule "g2report"]
+	path = g2report
+	url = https://github.com/Senzing/g2report.git
+[submodule "g2service"]
+	path = g2service
+	url = https://github.com/Senzing/g2service.git
+[submodule "g2vcompare"]
+	path = g2vcompare
+	url = https://github.com/Senzing/g2vcompare.git

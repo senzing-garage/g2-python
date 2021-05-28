@@ -70,7 +70,11 @@ done
 # Update submodules.
 
 cd ${GIT_REPOSITORY_DIR}
+git commit -a -m "#2 Update submodules for ${GITHUB_COMMENT}"
+
+cd ${GIT_REPOSITORY_DIR}
 git submodule update --init --recursive
+
 
 for SUBMODULE in ${SUBMODULES[@]};
 do

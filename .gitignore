@@ -1,3 +1,5 @@
 .DS_Store
 /g2.*
 /g2/python.*
+bin/00-user-variables.sh
+bin/03-submodules.sh

@@ -2,6 +2,22 @@
 
 SCRIPT_VERSION=1.0.0
 
+# Get absolute directory.
+
+GIT_REPOSITORY_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" > /dev/null 2>&1 && pwd )"
+
+# Read metadata.
+
+source ${GIT_REPOSITORY_DIR}/00-submodules.sh
+
+# Backup prior data.
+
+export OUTPUT_DIR=${GIT_REPOSITORY_DIR}/g2/python
+mv ${OUTPUT_DIR} ${OUTPUT_DIR}.$(date +%s)
+mkdir -p ${OUTPUT_DIR}
+
+# Process each entry.
+
 for SUBMODULE in ${SUBMODULES[@]};
 do
 

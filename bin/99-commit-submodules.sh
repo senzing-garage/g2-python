@@ -6,12 +6,6 @@ SCRIPT_VERSION=1.0.0
 
 GIT_REPOSITORY_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" > /dev/null 2>&1 && pwd )"
 
-# Backup prior data.
-
-export OUTPUT_DIR=${GIT_REPOSITORY_DIR}/g2/python
-mv ${OUTPUT_DIR} ${OUTPUT_DIR}.$(date +%s)
-mkdir -p ${OUTPUT_DIR}
-
 # Read metadata.
 
 source ${GIT_REPOSITORY_DIR}/00-submodules.sh

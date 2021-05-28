@@ -33,7 +33,7 @@ GIT_REPOSITORY_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" > /dev/null 2>&1 &&
 
 export OUTPUT_DIR=${GIT_REPOSITORY_DIR}/g2/python
 mv ${OUTPUT_DIR} ${OUTPUT_DIR}.$(date +%s)
-mkdir -P ${OUTPUT_DIR}
+mkdir -p ${OUTPUT_DIR}
 
 # Read metadata.
 
@@ -63,7 +63,6 @@ do
     
     cd ${GIT_REPOSITORY_DIR}/${SUBMODULE_NAME}
     git checkout main
-    git checkout master
     git pull
     git checkout ${SUBMODULE_VERSION}
 done
@@ -94,9 +93,11 @@ do
     
 done    
 
+exit
+
 # Tag the current version of the collection.
 
 cd ${GIT_REPOSITORY_DIR}
 git add ${OUTPUT_DIR}/*
-git commit -a -m ${GITHUB_COMMENT}
+git commit -a -m "#2 ${GITHUB_COMMENT}"
 git push

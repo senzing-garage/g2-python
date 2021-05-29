@@ -12,11 +12,7 @@ import json
 import csv
 import time
 import tempfile
-
-hasPsutil = True
-try: import psutil
-except:
-    hasPsutil = False
+import math
 
 from datetime import timedelta
 from glob import glob
@@ -32,6 +28,7 @@ from G2Database import G2Database
 from G2ConfigTables import G2ConfigTables
 from G2Project import G2Project
 from G2Engine import G2Engine
+from G2Diagnostic import G2Diagnostic
 from G2Product import G2Product
 from G2Exception import G2ModuleException, G2ModuleResolveMissingResEnt, G2ModuleLicenseException
 from CompressedFile import openPossiblyCompressedFile, isCompressedFile
@@ -42,6 +39,10 @@ try: import pyodbc
 except: pass
 try: import sqlite3
 except: pass
+
+#--set globals for the g2 engine
+maxThreadsPerProcess=16
+defaultThreadCount=4
 
 #---------------------------------------------------------------------
 #--G2Loader
@@ -129,30 +130,77 @@ def processRedo(q, processEverything=False):
     return exitCode, resultStr
 
 #---------------------------------------
-def checkMiminumMemory():
-    if not hasPsutil:
-        print('WARNING: psutil not installed.  Unable to check available memory.')
-        print('WARNING: Try typing "sudo pip install psutil" or installing the OS python psutil package')
-        print('WARNING: Continuing without checking available memory.')
-        time.sleep(3)
-        return
+def checkResources():
 
-    memoryRequirementsSatisfied = True
+    diag = G2Diagnostic()
+    diag.init('pyG2Diagnostic', g2iniPath, debugTrace)
 
-    # Check for 8GB of physial memory
-    totalPhysicalMemory = psutil.virtual_memory().total
-    if totalPhysicalMemory < (8000000000):
-        memoryRequirementsSatisfied = False;
+    physicalCores = diag.getPhysicalCores()
+    logicalCores = diag.getLogicalCores()
+    availableMem = diag.getAvailableMemory()/1024/1024/1024.0
 
-    # Check for 6GB of available memory
-    totalPhysicalMemoryAvailable = psutil.virtual_memory().available
-    if totalPhysicalMemoryAvailable < (6000000000):
-        memoryRequirementsSatisfied = False;
+    print('System Resources:')
+    print('   Physical cores  : %d' % physicalCores)
+    if physicalCores != logicalCores:
+      print('   Logical cores   : %d' % logicalCores)
+    print('   Total Memory    : %.1fGB' % (diag.getTotalSystemMemory()/1024/1024/1024.0))
+    print('   Available Memory: %.1fGB' % availableMem)
+    print('')
 
-    if memoryRequirementsSatisfied != True:
-        # Report a memory issue, and pause for a few seconds
-        print('WARNING:  This machine has less than the minimum recommended memory available.')
-        time.sleep(3)
+    minRecommendedCores = math.ceil(defaultThreadCount/4+1)
+    # 2.5GB per process
+    # .5GB per thread
+    numProcesses = math.ceil(defaultThreadCount/maxThreadsPerProcess);
+    minRecommendedMemory = (numProcesses*2.5+defaultThreadCount*.5)
+    
+    print('Resource requested:')
+    print('   maxThreadsPerProcess      : %d' % maxThreadsPerProcess)
+    print('   numThreads                : %d' % defaultThreadCount)
+    print('   Minimum recommended cores : %d' % minRecommendedCores)
+    print('   Minimum recommended memory: %.1fGB' % minRecommendedMemory)
+    print('')
+
+    print('Performing database performance tests...')
+    perfInfo = json.loads(diag.checkDBPerf(3))
+
+    timePerInsert=999
+    maxTimePerInsert=4
+
+    if 'numRecordsInserted' in perfInfo:
+      numRecordsInserted = perfInfo['numRecordsInserted']
+      insertTime = perfInfo['insertTime']
+      if numRecordsInserted > 0:
+        timePerInsert = 1.0*insertTime/numRecordsInserted
+
+      print('  %d records inserted in %dms with an avg of %.1fms per insert' % (numRecordsInserted,insertTime,timePerInsert));
+    else:
+      print(' ERROR: Database performance tests failed')
+    print('')
+
+    criticalError = False
+    warningIssued = False
+
+    if timePerInsert > maxTimePerInsert:
+      warningIssued = True
+      print('WARNING: Database performance of %.1fms per insert is slower than the recommended minimum performance of %.1fms per insert' % (timePerInsert,maxTimePerInsert))
+      print('WARNING: For tuning your Database please refer to: https://senzing.zendesk.com/hc/en-us/sections/360000386433-Technical-Database')
+
+    if physicalCores < minRecommendedCores:
+      warningIssued = True
+      print('WARNING: System has fewer (%d) than the minimum recommended cores (%d) for this configuration' % (physicalCores,minRecommendedCores))
+
+    if minRecommendedMemory > availableMem:
+      criticalError = True
+      print('!!!!!CRITICAL WARNING: SYSTEM HAS LESS MEMORY AVAILABLE (%.fGB) THAN THE MINIMUM RECOMMENDED (%.fGB) !!!!!' % (availableMem,minRecommendedMemory))
+
+    if criticalError:
+      time.sleep(10)
+      print('')
+    elif warningIssued:
+      time.sleep(3)
+      print('')
+
+
 
 #---------------------------------------
 def runSetupProcess(doPurge):
@@ -166,8 +214,7 @@ def runSetupProcess(doPurge):
 
 #---------------------------------------
 def startSetup(doPurge, doLicense, g2iniPath, debugTrace):
-    #--check for minimum system memory
-    checkMiminumMemory()
+    checkResources()
 
     #--check the product version and license
     try:
@@ -713,8 +760,6 @@ if __name__ == '__main__':
         print('ERROR: A G2 setup configuration file is not specified')
         sys.exit(1)
 
-    #--set globals for the g2 engine
-    maxThreadsPerProcess=8
 
     if redoMode:
         runSetupProcess(False) # no purge because we would purge the redo queue

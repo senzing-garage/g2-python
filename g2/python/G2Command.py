@@ -5,6 +5,7 @@ from G2Module import G2Module
 from G2AnonModule import G2AnonModule
 from G2AuditModule import G2AuditModule
 from G2ProductModule import G2ProductModule
+from G2Diagnostic import G2Diagnostic
 import G2Exception
 import json
 import shlex
@@ -22,6 +23,7 @@ class G2CmdShell(cmd.Cmd, object):
         self.g2_anon_module = G2AnonModule('pyG2Anon', 'G2Module.ini', False)
         self.g2_audit_module = G2AuditModule('pyG2Audit', 'G2Module.ini', False)
         self.g2_product_module = G2ProductModule('pyG2Product', 'G2Module.ini', False)
+        self.g2_diagnostic_module = G2Diagnostic()
         self.initialized = False
         self.__hidden_methods = ('do_shell', 'do_EOF')
 
@@ -98,6 +100,32 @@ class G2CmdShell(cmd.Cmd, object):
         findNetworkByEntityID_parser.add_argument('buildOutDegree', type=int)
         findNetworkByEntityID_parser.add_argument('maxEntities', type=int)
 
+        getEntityDetails_parser = subparsers.add_parser('getEntityDetails', usage=argparse.SUPPRESS)
+        getEntityDetails_parser.add_argument('-e', '--entityID', required=True, type=int, default=0)
+        getEntityDetails_parser.add_argument('-d', '--includeDerivedFeatures', action='store_true', required=False, default=False)
+
+        getRelationshipDetails_parser = subparsers.add_parser('getRelationshipDetails', usage=argparse.SUPPRESS)
+        getRelationshipDetails_parser.add_argument('-r', '--relationshipID', required=True, type=int, default=0)
+        getRelationshipDetails_parser.add_argument('-d', '--includeDerivedFeatures', action='store_true', required=False, default=False)
+
+        getMappingStatistics_parser = subparsers.add_parser('getMappingStatistics', usage=argparse.SUPPRESS)
+        getMappingStatistics_parser.add_argument('-d', '--includeDerivedFeatures', action='store_true', required=False, default=False)
+
+        getGenericFeatures_parser = subparsers.add_parser('getGenericFeatures', usage=argparse.SUPPRESS)
+        getGenericFeatures_parser.add_argument('-t', '--featureType', required=True)
+        getGenericFeatures_parser.add_argument('-m', '--maximumEstimatedCount', required=False, type=int, default=1000)
+
+        getEntitySizeBreakdown_parser = subparsers.add_parser('getEntitySizeBreakdown', usage=argparse.SUPPRESS)
+        getEntitySizeBreakdown_parser.add_argument('-m', '--minimumEntitySize', required=True, type=int)
+        getEntitySizeBreakdown_parser.add_argument('-d', '--includeDerivedFeatures', action='store_true', required=False, default=False)
+
+        getEntityResume_parser = subparsers.add_parser('getEntityResume', usage=argparse.SUPPRESS)
+        getEntityResume_parser.add_argument('entityID', type=int)
+
+        getEntityListBySize_parser = subparsers.add_parser('getEntityListBySize', usage=argparse.SUPPRESS)
+        getEntityListBySize_parser.add_argument('-s', '--entitySize', type=int)
+        getEntityListBySize_parser.add_argument('-o', '--outputFile', required=False)
+
         getUsedMatchKeys_parser = subparsers.add_parser('getUsedMatchKeys', usage=argparse.SUPPRESS)
         getUsedMatchKeys_parser.add_argument('fromDataSource')
         getUsedMatchKeys_parser.add_argument('toDataSource')
@@ -160,6 +188,7 @@ class G2CmdShell(cmd.Cmd, object):
         self.g2_anon_module.init()
         self.g2_audit_module.init()
         self.g2_product_module.init()
+        self.g2_diagnostic_module.init('pyG2Diagnostic', 'G2Module.ini', False)
         self.initialized = True
         print('\nWelcome to the G2 shell. Type help or ? to list commands.\n')
 
@@ -169,6 +198,7 @@ class G2CmdShell(cmd.Cmd, object):
             self.g2_anon_module.destroy()
             self.g2_audit_module.destroy()
             self.g2_product_module.destroy()
+            self.g2_diagnostic_module.destroy()
         self.initialized = False
 
     # ----- terminal operations -----
@@ -724,6 +754,126 @@ class G2CmdShell(cmd.Cmd, object):
             print(err)
 
 
+    def do_getEntityDetails(self, arg):
+        '\nGet the profile of a resolved entity:  getEntityDetails -e <entityID> [-d]\n'
+        try:
+            args = self.parser.parse_args(['getEntityDetails'] + parse(arg))
+        except SystemExit:
+            print(self.do_getEntityDetails.__doc__)
+            return
+        try: 
+            response = self.g2_diagnostic_module.getEntityDetails(args.entityID,args.includeDerivedFeatures)
+            if response:
+                printResponse(response)
+            else:
+                printWithNewLine('')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_getRelationshipDetails(self, arg):
+        '\nGet the profile of a relationship:  getRelationshipDetails -r <relationshipID> [-d]\n'
+        try:
+            args = self.parser.parse_args(['getRelationshipDetails'] + parse(arg))
+        except SystemExit:
+            print(self.do_getRelationshipDetails.__doc__)
+            return
+        try: 
+            response = self.g2_diagnostic_module.getRelationshipDetails(args.relationshipID,args.includeDerivedFeatures)
+            if response:
+                printResponse(response)
+            else:
+                printWithNewLine('')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_getEntityResume(self, arg):
+        '\nGet the related records for a resolved entity:  getEntityResume <entityID>\n'
+        try:
+            args = self.parser.parse_args(['getEntityResume'] + parse(arg))
+        except SystemExit:
+            print(self.do_getEntityResume.__doc__)
+            return
+        try: 
+            response = self.g2_diagnostic_module.getEntityResume(args.entityID)
+            if response:
+                printResponse(response)
+            else:
+                printWithNewLine('')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_getEntityListBySize(self, arg):
+        '\nGet list of resolved entities of specified size:  getEntityListBySize -s <entitySize> [-o <output_file>]\n'
+        try:
+            args = self.parser.parse_args(['getEntityListBySize'] + parse(arg))
+        except SystemExit:
+            print(self.do_getEntityListBySize.__doc__)
+            return
+        try: 
+            response = self.g2_diagnostic_module.getEntityListBySize(args.entitySize)
+            if args.outputFile:
+                with open(args.outputFile, 'w') as data_out:
+                    data_out.write(response)
+            else:
+                printResponse(response)
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_getDataSourceCounts(self,arg):
+        '\nGet record counts by data source and entity type:  getDataSourceCounts\n'
+        try: 
+            response = json.dumps(json.loads(self.g2_diagnostic_module.getDataSourceCounts()))
+            printResponse(response)
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_getMappingStatistics(self,arg):
+        '\nGet data source mapping statistics:  getMappingStatistics [-d]\n'
+        try:
+            args = self.parser.parse_args(['getMappingStatistics'] + parse(arg))
+        except SystemExit:
+            print(self.do_getMappingStatistics.__doc__)
+            return
+        try: 
+            response = json.dumps(json.loads(self.g2_diagnostic_module.getMappingStatistics(args.includeDerivedFeatures)))
+            printResponse(response)
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_getGenericFeatures(self,arg):
+        '\nGet a list of generic values for a feature type:  getGenericFeatures [-t <featureType>] [-m <maximumEstimatedCount>]\n'
+        try:
+            args = self.parser.parse_args(['getGenericFeatures'] + parse(arg))
+        except SystemExit:
+            print(self.do_getGenericFeatures.__doc__)
+            return
+        try: 
+            response = json.dumps(json.loads(self.g2_diagnostic_module.getGenericFeatures(args.featureType,args.maximumEstimatedCount)))
+            printResponse(response)
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_getEntitySizeBreakdown(self,arg):
+        '\nGet the number of entities of each entity size:  getEntitySizeBreakdown [-m <minimumEntitySize>] [-d]\n'
+        try:
+            args = self.parser.parse_args(['getEntitySizeBreakdown'] + parse(arg))
+        except SystemExit:
+            print(self.do_getEntitySizeBreakdown.__doc__)
+            return
+        try: 
+            response = json.dumps(json.loads(self.g2_diagnostic_module.getEntitySizeBreakdown(args.minimumEntitySize,args.includeDerivedFeatures)))
+            printResponse(response)
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_getResolutionStatistics(self,arg):
+        '\nGet resolution statistics:  getResolutionStatistics\n'
+        try: 
+            response = json.dumps(json.loads(self.g2_diagnostic_module.getResolutionStatistics()))
+            printResponse(response)
+        except G2Exception.G2Exception as err:
+            print(err)
+
     def do_stats(self,arg):
         '\nGet engine workload statistics for last process:  stats\n'
         try: 
@@ -781,7 +931,7 @@ class G2CmdShell(cmd.Cmd, object):
             print(err)
 
     def do_getAuditReport(self, arg):
-        '\nExport repository contents as CSV:  getAuditReport -f <from_data_source> -t <to_data_source> -m <match_level> [-o <output_file>]\n'
+        '\nGet an audit report:  getAuditReport -f <from_data_source> -t <to_data_source> -m <match_level> [-o <output_file>]\n'
         try:
             args = self.parser.parse_args(['getAuditReport'] + parse(arg))
         except SystemExit:

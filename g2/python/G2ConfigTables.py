@@ -20,10 +20,11 @@ class G2ConfigTables:
 
 
     #----------------------------------------
-    def __init__(self, configFile,g2iniPath):
+    def __init__(self, configFile,g2iniPath,configuredDatasourcesOnly=False):
         self.configFileName = configFile
         self.g2iniPath = g2iniPath
         self.success = True
+        self.configuredDatasourcesOnly = configuredDatasourcesOnly
 
 		
     #----------------------------------------
@@ -86,12 +87,15 @@ class G2ConfigTables:
             for dsrcNode in dsrcListNode:
                 if dsrcNode.upper() == dataSource:
                     dsrcExists = True
-            if dsrcExists == False:
-                g2_config_module.addDataSource(configHandle,dataSource)
-                newConfig = g2_config_module.save(configHandle)
-                with open(self.configFileName, 'w') as data_file2:
-                    json.dump(json.loads(newConfig),data_file2, indent=4)
-                returnCode = 1
+            if dsrcExists == False :
+                if self.configuredDatasourcesOnly == False:
+                    g2_config_module.addDataSource(configHandle,dataSource)
+                    newConfig = g2_config_module.save(configHandle)
+                    with open(self.configFileName, 'w') as data_file2:
+                        json.dump(json.loads(newConfig),data_file2, indent=4)
+                    returnCode = 1
+                else:
+                    raise G2Exception.UnconfiguredDataSourceException(dataSource)
             g2_config_module.close(configHandle)
             g2_config_module.destroy()
             del g2_config_module

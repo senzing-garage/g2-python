@@ -46,8 +46,10 @@ class G2CmdShell(cmd.Cmd, object):
         processWithResponse_parser.add_argument('-o', '--outputFile', required=False)
 
         exportEntityReport_parser = subparsers.add_parser('exportEntityReport', usage=argparse.SUPPRESS)
-        exportEntityReport_parser.add_argument('-m', '--maximumMatchLevel', required=False, default=5, type=int)
-        exportEntityReport_parser.add_argument('-f', '--flags', required=False, default=1, type=int)
+        exportEntityReport_parser.add_argument('-m', '--maximumMatchLevel', required=False, default=0, type=int)
+        exportEntityReport_parser.add_argument('-s', '--includeSingletons', action='store_true', required=False, default=False)
+        exportEntityReport_parser.add_argument('-c', '--includeExtraCols', action='store_true', required=False, default=False)
+        exportEntityReport_parser.add_argument('-f', '--flags', required=False, default=0, type=int)
         exportEntityReport_parser.add_argument('-o', '--outputFile', required=False)
 
         getAuditReport_parser = subparsers.add_parser('getAuditReport', usage=argparse.SUPPRESS)
@@ -238,16 +240,35 @@ class G2CmdShell(cmd.Cmd, object):
     # ----- Misc Help -----
 
     def help_Arguments(self):
-        print ('\nArguments: Optional arguments are surrounded with [ ] e.g. [-o output_file]\n')
-
-    def help_MatchLevels(self):
         print (
-              '\nMatch Level: Specify the level of entity resolves and relations to return\n' \
-              '             1 - Same entities\n' \
-              '             2 - Possibly same entities\n' \
-              '             3 - Possibly related entities\n' \
-              '             4 - Name-only related entities\n' \
-              '             Other appropriate values for disclosed relationships\n\n' 
+            '\nOptional arguments are surrounded with [ ] \n' \
+            'Argument values to specify are surrounded with < >\n\n' \
+            '\t[-o <output_file>]\n' \
+            '\t\t-o = is an optional argument\n' \
+            '\t\t<output_file> = replace with the path and/or filename to output to\n'
+            )
+
+    ###
+    def help_MatchLevels_vs_Flags(self):
+        print (
+              '\nThe core export API uses a flag to determine the level of entity resolution details to include in an export. This flag\n' \
+              'is an additive integer that maps to the requested details to export.\n\n' \
+              'For example:\n' \
+              '\t4  = export only resolved entities\n' \
+              '\t16 = export only possibly related entities\n' \
+              '\t20 = export both resolved AND possibly related entities (4 + 16)\n\n' \
+              'This provides great flexibility but isn\'t always convenient.\n\n' \
+              'In addition to the flag (-f) G2Command allows you to provide a simpler match level (-m) providing cumulative levels\n' \
+              'of the details to return.\n\n' \
+             'For example:\n' \
+             '\t1 = Return resolved entities\n' \
+             '\t2 = Return resolved AND possibly same entities\n' \
+             '\t3 = Return resolved AND possibly same AND possibly related entities\n' \
+             '\t4 = Return resolved AND possibly same AND possibly related AND disclosed relationship entities\n\n' \
+              'When using -m you can also use the -c and -s arguments:\n\n' \
+              '\t-s = Include singleton entities (Those that have not resolved or related)\n' \
+              '\t-c = Include additional details in the export\n\n' \
+              'The -f and -m are mutually exclusive. For further details see: http://docs.senzing.com/?c#entity-export-flags\n' \
               )
 
     def help_KnowledgeCenter(self):
@@ -372,14 +393,28 @@ class G2CmdShell(cmd.Cmd, object):
             print(err)
 
     def do_exportCSVEntityReport(self, arg):
-        '\nExport repository contents as CSV:  exportCSVEntityReport [-m <maximum_match_level>] [-f <flags>] [-o <output_file>]\n'
+        '\nExport repository contents as CSV:  exportCSVEntityReport [ -m <match_level> [-s] [-c] | -f <flags> ] [-o <output_file>]\n' \
+        '\nSee also \'help MatchLevels_vs_Flags\' for the difference between -m and -f  \n'
+
+        missingDetails = False
+
         try:
             args = self.parser.parse_args(['exportEntityReport'] + parse(arg))
         except SystemExit:
             print(self.do_exportCSVEntityReport.__doc__)
             return
+        else:
+            if args.maximumMatchLevel and args.flags:
+                print('\nThe -f and -m arguments are mutually exclusive, use only one!\n')
+                return
+            if args.maximumMatchLevel == 0 and args.flags == 0:
+                args.flags = 4
+                missingDetails = True
+            if args.flags and (args.includeSingletons or args.includeExtraCols):
+                print('\nThe -c and -s arguments are only used with -m, ignoring!\n')
+
         try: 
-            response = self.g2_module.exportCSVEntityReport(args.maximumMatchLevel, args.flags)
+            (response, recCnt) = self.g2_module.exportCSVEntityReport(args.maximumMatchLevel, args.flags, args.includeSingletons, args.includeExtraCols)
             if args.outputFile:
                 with open(args.outputFile, 'w') as data_out:
                     data_out.write(response)
@@ -387,17 +422,36 @@ class G2CmdShell(cmd.Cmd, object):
                 printResponse(response)
         except G2Exception.G2Exception as err:
             print(err)
+        else:
+            #Remove 1 for the header on CSV
+            print('Number of exported records = %s\n' % (recCnt-1) )
+            if missingDetails:
+                print('Exporting resolved entities (match level and flags using default values.)\n')
 
 
     def do_exportJSONEntityReport(self, arg):
-        'Export repository contents as JSON:  exportJSONEntityReport [-m <maximum_match_level>] [-f <flags>] [-o <output_file>]\n'
+        '\nExport repository contents as JSON:  exportJSONEntityReport [ -m <match_level> [-s] [-c] | -f <flags> ] [-o <output_file>]\n' \
+        '\nSee also \'help MatchLevels_vs_Flags\' for the difference between -m and -f  \n'
+
+        missingDetails = False
+
         try:
             args = self.parser.parse_args(['exportEntityReport'] + parse(arg))
         except SystemExit:
             print(self.do_exportJSONEntityReport.__doc__)
             return
+        else:
+            if args.maximumMatchLevel and args.flags:
+                print('\nThe -f and -m arguments are mutually exclusive, use only one!\n')
+                return
+            if args.maximumMatchLevel == 0 and args.flags == 0:
+                args.flags = 4
+                missingDetails = True
+            if args.flags and (args.includeSingletons or args.includeExtraCols):
+                print('\nThe -c and -s arguments are only used with -m, ignoring!\n')
+
         try: 
-            response = self.g2_module.exportJSONEntityReport(args.maximumMatchLevel,args.flags)
+            (response, recCnt) = self.g2_module.exportJSONEntityReport(args.maximumMatchLevel, args.flags, args.includeSingletons, args.includeExtraCols)
             if args.outputFile:
                 with open(args.outputFile, 'w') as data_out:
                     data_out.write(response)
@@ -405,6 +459,10 @@ class G2CmdShell(cmd.Cmd, object):
                 printResponse(response)
         except G2Exception.G2Exception as err:
             print(err)
+        else:
+            print('Number of exported records = %s\n' % recCnt )
+            if missingDetails:
+                print('Exporting resolved entities (match level and flags using default values.)\n')
 
     def do_addRecord(self, arg):
         '\nAdd record:  addRecord <dataSourceCode> <recordID> <jsonData> [-l <loadID>]\n'
@@ -669,7 +727,7 @@ class G2CmdShell(cmd.Cmd, object):
     def do_stats(self,arg):
         '\nGet engine workload statistics for last process:  stats\n'
         try: 
-            response = json.dumps(self.g2_module.stats())
+            response = json.dumps(json.loads(self.g2_module.stats()))
             printResponse(response)
         except G2Exception.G2Exception as err:
             print(err)
@@ -747,7 +805,7 @@ class G2CmdShell(cmd.Cmd, object):
             print(self.do_exportConfig.__doc__)
             return
         try: 
-            response = self.g2_module.exportConfig()
+            response = json.loads(self.g2_module.exportConfig())
             if args.outputFile:
                 with open(args.outputFile, 'w') as data_out:
                     json.dump(response,data_out)
@@ -854,7 +912,7 @@ class G2CmdShell(cmd.Cmd, object):
     def do_license(self,arg):
         '\nGet the license information:  license\n'
         try: 
-            response = json.dumps(self.g2_product_module.license())
+            response = json.dumps(json.loads(self.g2_product_module.license()))
             print('\nG2 license:')
             printWithNewLine(response)
         except G2Exception.G2Exception as err:
@@ -879,7 +937,7 @@ class G2CmdShell(cmd.Cmd, object):
     def do_version(self,arg):
         '\nGet the version information:  version\n'
         try: 
-            response = json.dumps(self.g2_product_module.version())
+            response = json.dumps(json.loads(self.g2_product_module.version()))
             print('\nG2 version:')
             printWithNewLine(response)
         except G2Exception.G2Exception as err:

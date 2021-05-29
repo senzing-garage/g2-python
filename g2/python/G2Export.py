@@ -345,7 +345,7 @@ if __name__ == '__main__':
     if len(sys.argv) > 1:
         optParser = optparse.OptionParser()
         optParser.add_option('-o', '--output-file', dest='outputFileName', default=outputFileName, help='the name of a file to write the output to')
-        optParser.add_option('-f', '--outputFilter', dest='outputFilter', type='int', default=3, help='1=Resolved Entities only; 2=add possible matches; 3=add relationships')
+        optParser.add_option('-f', '--outputFilter', dest='outputFilter', type='int', default=3, help='1=Resolved Entities only; 2=add possible matches; 3=add relationships; 4=add disclosed relationships')
         optParser.add_option('-F', '--outputFormat', dest='outputFormat', default=outputFormat, help='json or csv style')
         (options, args) = optParser.parse_args()
         if options.outputFileName:

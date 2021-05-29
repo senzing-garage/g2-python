@@ -8,6 +8,9 @@ source 11-submodules.sh
 # Populate submodules.
 
 cd ${GIT_REPOSITORY_DIR}
+git checkout main
+git pull
+git checkout ${GIT_REPOSITORY_BRANCH}
 git submodule update --init --recursive
 
 # Process each entry.
@@ -35,6 +38,7 @@ done
 # Update submodules.
 
 cd ${GIT_REPOSITORY_DIR}
+git checkout ${GIT_REPOSITORY_BRANCH}
 git commit -a -m "#2 Update submodules for SenzingAPI ${SENZING_VERSION}"
 git push
 git submodule update --init --recursive

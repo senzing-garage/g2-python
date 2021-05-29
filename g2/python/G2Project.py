@@ -11,23 +11,36 @@ from operator import itemgetter
 #--project classes
 from G2Exception import G2UnsupportedFileTypeException
 from G2Exception import G2InvalidFileTypeContentsException
-from CompressedFile import openPossiblyCompressedFile
+from CompressedFile import openPossiblyCompressedFile, fileRowParser
 from G2S3 import G2S3
+
+try: from dateutil.parser import parse as dateParser
+except: pass
+
+try: from nameparser import HumanName as nameParser
+except: pass
 
 #======================
 class G2Project:
 #======================
 
     #----------------------------------------
-    def __init__(self, attributeDict, projectFileName = None, projectFileUri = None, tempFolderPath = None):
+    def __init__(self, g2ConfigTables, projectFileName = None, projectFileUri = None, tempFolderPath = None):
         """ open and validate a g2 generic configuration and project file """
+
+        self.projectSourceList = []             
+        self.mappingFiles = {}
+
+        self.attributeDict = g2ConfigTables.loadConfig('CFG_ATTR')
+        self.dataSourceDict = g2ConfigTables.loadConfig('CFG_DSRC')
+        self.entityTypeDict = g2ConfigTables.loadConfig('CFG_ETYPE')
 
         self.success = True 
         self.mappingCache = {}
         self.tempFolderPath = tempFolderPath
 
         self.clearStatPack()
-        self.loadAttributes(attributeDict)
+        self.loadAttributes()
         if self.success and projectFileName:
             self.loadProjectFile(projectFileName)
         elif self.success and projectFileUri:
@@ -40,11 +53,11 @@ class G2Project:
     #-----------------------------
 
     #----------------------------------------
-    def loadAttributes(self, attributeDict):
+    def loadAttributes(self):
         ''' creates a feature/element structure out of the flat attributes in the mapping file '''
-        self.attributeDict = attributeDict
 
         #--create the list of elements per feature so that we can validate the mappings
+        attributeDict = self.attributeDict
         self.featureDict = {}
         for configAttribute in attributeDict:
             if attributeDict[configAttribute]['FTYPE_CODE']:
@@ -130,7 +143,7 @@ class G2Project:
 
     #----------------------------------------
     def mapJsonRecord(self, jsonDict):
-        '''create umf from a json dictionary '''
+        '''checks for mapping errors'''
         mappingErrors = []
         mappedAttributeList = []
         valuesByClass = {}
@@ -365,9 +378,8 @@ class G2Project:
     #----------------------------------------
     def loadProjectUri(self, fileSpec):
         ''' creates a project dictionary from a file spec '''
-        self.projectSourceList = []
+        parmDict = {}
         if '/?' in fileSpec:
-            parmDict = {}
             parmString = fileSpec.split('/?')[1]
             fileSpec = fileSpec.split('/?')[0]
             parmList = parmString.split(',')
@@ -377,56 +389,42 @@ class G2Project:
                     parmValue = parm.split('=')[1].strip().replace('"','').replace("'",'').upper()
                     parmDict[parmType] = parmValue
 
-            #--try to determine file_format
-            if 'FILE_FORMAT' not in parmDict:
-                if 'FILE_TYPE' in parmDict:
-                    parmDict['FILE_FORMAT'] = parmDict['FILE_TYPE']
-                else:
-                    dummy, fileExtension = os.path.splitext(fileSpec)
-                    parmDict['FILE_FORMAT'] = fileExtension.replace('.','').upper()
+        #--try to determine file_format
+        if 'FILE_FORMAT' not in parmDict:
+            if 'FILE_TYPE' in parmDict:
+                parmDict['FILE_FORMAT'] = parmDict['FILE_TYPE']
+            else:
+                dummy, fileExtension = os.path.splitext(fileSpec)
+                parmDict['FILE_FORMAT'] = fileExtension.replace('.','').upper()
 
-            #--convert TSV to TAB
-            if parmDict['FILE_FORMAT'] == 'TSV':
-                parmDict['FILE_FORMAT'] = 'TAB'
-
-            #--ensure we have all we need
-            if 'DATA_SOURCE' not in parmDict:
-                print('ERROR: must include "data_source=?" in the /? parameters to use the file specification!')
-                self.success = False 
-            elif 'FILE_FORMAT' not in parmDict:
-                print('ERROR: file_format=? must be included in the /? parameters to use the file specification!')
-                self.success = False
-            elif parmDict['FILE_FORMAT'] not in ('JSON', 'CSV', 'UMF', 'TAB', 'TSV', 'PIPE'):
-                print('ERROR: File format must be either JSON, CSV UMF, TAB, TSV or PIPE to use the file specification!')
+        if parmDict['FILE_FORMAT'] not in ('JSON', 'CSV', 'UMF', 'TAB', 'TSV', 'PIPE'):
+            print('ERROR: File format must be either JSON, CSV UMF, TAB, TSV or PIPE to use the file specification!')
+            self.success = False
+        else:
+            if G2S3.isS3Uri(fileSpec):
+                s3list = G2S3.ListOfS3UrisOfFilesInBucket(fileSpec, os.path.dirname(G2S3.getFilePathFromUri(fileSpec)))
+                fileList = fnmatch.filter(s3list, fileSpec)
+            else:
+                if fileSpec.upper().startswith('FILE://'):
+                    fileSpec = fileSpec[7:]
+                try: fileList = glob.glob(fileSpec)
+                except: fileList = []
+            if not fileList:
+                print('ERROR: file specification did not return any files!')
                 self.success = False
             else:
-                if G2S3.isS3Uri(fileSpec):
-                    s3list = G2S3.ListOfS3UrisOfFilesInBucket(fileSpec, os.path.dirname(G2S3.getFilePathFromUri(fileSpec)))
-                    fileList = fnmatch.filter(s3list, fileSpec)
-                else:
-                    if fileSpec.upper().startswith('FILE://'):
-                        fileSpec = fileSpec[7:]
-                    try: fileList = glob.glob(fileSpec)
-                    except: fileList = []
-                if not fileList:
-                    print('ERROR: file specification did not return any files!')
-                    self.success = False
-                else:
-                    self.projectFileName = 'n/a'
-                    self.projectFilePath = os.path.dirname(os.path.abspath(fileList[0]))
-                    for fileName in fileList:
-                        sourceDict = {} 
-                        sourceDict['FILE_NAME'] = fileName
-                        sourceDict['DATA_SOURCE'] = parmDict['DATA_SOURCE']
-                        sourceDict['FILE_FORMAT'] = parmDict['FILE_FORMAT']
-                        self.projectSourceList.append(sourceDict)
+                self.projectFileName = 'n/a'
+                self.projectFilePath = os.path.dirname(os.path.abspath(fileList[0]))
+                for fileName in fileList:
+                    sourceDict = {} 
+                    sourceDict['FILE_NAME'] = fileName
+                    sourceDict['FILE_FORMAT'] = parmDict['FILE_FORMAT']
+                    if 'DATA_SOURCE' in parmDict:
+                        sourceDict['DATA_SOURCE'] = parmDict['DATA_SOURCE'] 
+                    self.projectSourceList.append(sourceDict)
 
-                    self.prepareSourceFiles()
+                self.prepareSourceFiles()
 
-        else:
-            print('ERROR: must include /?data_source=?,file_format=? to use the file specification!')
-            self.success = False 
-        
         return
 
     #----------------------------------------
@@ -440,17 +438,18 @@ class G2Project:
             fileName, fileExtension = os.path.splitext(projectFileName)
             if fileExtension.upper() == '.JSON':
                 self.projectFileFormat = 'JSON'
-            elif fileExtension.upper() in ('.CSV', '.TAB', '.PIPE'):
+            elif fileExtension.upper() in ('.CSV', '.TSV', '.TAB', '.PIPE'):
                 self.projectFileFormat = fileExtension[1:].upper()
             else:
                 print('ERROR: Invalid project file extension [%s]' % fileExtension)
-                print(' Supported project file extensions include: .json, .csv, .tab, and .pipe')
+                print(' Supported project file extensions include: .json, .csv, .tsv, .tab, and .pipe')
                 self.success = False 
                 return
 
             #--load a json project file
             if self.projectFileFormat == 'JSON':
                 self.loadJsonProject()
+
             #--its gotta be a csv dialect
             else:
                 self.loadCsvProject()
@@ -464,352 +463,346 @@ class G2Project:
         return
 
     #----------------------------------------
+    def dictKeysUpper(self, in_dict):
+        if type(in_dict) is dict:
+            out_dict = {}
+            for key, item in in_dict.items():
+                out_dict[key.upper()] = self.dictKeysUpper(item)
+            return out_dict
+        elif type(in_dict) is list:
+            return [self.dictKeysUpper(obj) for obj in in_dict]
+        else:
+            return in_dict
+
+    #----------------------------------------
     def loadJsonProject(self):
         ''' validates and loads a json project file into memory '''
-        try: self.projectSourceList = json.load(open(self.projectFileName), encoding="utf-8")
-        except:
-            print('ERROR: project file ' + self.projectFileName + ' could not be opened as a json file!')
+        try: projectData = json.load(open(self.projectFileName), encoding="utf-8")
+        except Exception as err:
+            print('ERROR: project file ' + repr(err))
             self.success = False 
         else:
-            sourceRow = 0
-            for sourceDict in self.projectSourceList:
-                sourceRow += 1
-                if not 'DATA_SOURCE' in sourceDict:
-                    print('ERROR: project file entry ' + str(sourceRow) + ' does not contain an entry for DATA_SOURCE!')
-                    self.success = False
-                    break
-                elif not 'FILE_NAME' in sourceDict:
-                    print('ERROR: project file entry ' + str(sourceRow) + ' does not contain an entry for FILE_NAME!')
-                    self.success = False
-                    break
+            projectData = self.dictKeysUpper(projectData)
+            if type(projectData) == list:
+                projectData = {"DATA_SOURCES": projectData}
+
+            if "DATA_SOURCES" in projectData:
+                sourceRow = 0
+                for sourceDict in projectData['DATA_SOURCES']:
+                    sourceRow += 1
+                    if 'FILE_NAME' not in sourceDict:
+                        print('ERROR: project file entry ' + str(sourceRow) + ' does not contain an entry for FILE_NAME!')
+                        self.success = False
+                        break
+                    self.projectSourceList.append(sourceDict)             
+
+        if len(self.projectSourceList) == 0:
+            print('ERROR: project file does not contain any data sources!')
+
         return
 
     #----------------------------------------
     def loadCsvProject(self):
-        try: csvFile, csvReader = self.openCsv(self.projectFileName, self.projectFileFormat)
-        except:
-            print('ERROR: project file ' + self.projectFileName + ' could not be opened as a ' + self.projectFileFormat + ' file!')
-            self.success = False 
-        else:
-            csvRows = []
-            csvHeaders = [x.strip().upper() for x in next(csvReader)]
-            if not 'DATA_SOURCE' in csvHeaders:
-                print('ERROR: project file does not contain a column for DATA_SOURCE!')
-                print(' Please ensure the file extension matches the delimiters.')
-                print(' Supported file extensions include: .csv, .tab, and .pipe')
-                self.success = False
-            elif not 'FILE_NAME' in csvHeaders:
-                print('ERROR: project file does not contain a column for FILE_NAME!')
-                self.success = False
-            else:
-                self.projectSourceList = []
-                for csvRow in csvReader:
-                    if csvRow: #--skip blank lines
-                        sourceDict = dict(list(zip(csvHeaders, csvRow)))
-                        self.projectSourceList.append(sourceDict)
+        fileData = {}
+        fileData['FILE_NAME'] = self.projectFileName
+        fileData['FILE_FORMAT'] = self.projectFileFormat
+        if self.projectFileFormat == 'CSV':
+            fileData['DELIMITER'] = ','
+        elif self.projectFileFormat in ('TSV', 'TAB'):
+            fileData['DELIMITER'] = '\t'
+        elif self.projectFileFormat == 'PIPE':
+            fileData['DELIMITER'] = '|'
 
-            csvFile.close()
+        csvFile = openPossiblyCompressedFile(self.projectFileName, 'r')
+        fileData['HEADER_ROW'] = [x.strip().upper() for x in fileRowParser(next(csvFile), fileData)]
+        if not(fileData['HEADER_ROW']):
+            print('ERROR: project file does not contain a header row!')
+            self.success = False
+        elif not 'FILE_NAME' in fileData['HEADER_ROW']:
+            print('ERROR: project file does not contain a column for FILE_NAME!')
+            self.success = False
+        else:
+
+            for line in csvFile:
+                rowData = fileRowParser(line, fileData) 
+                if rowData: #--skip blank lines
+                    self.projectSourceList.append(rowData)
+        csvFile.close()
 
         return
 
     #----------------------------------------
     def prepareSourceFiles(self):
         ''' ensure project files referenced exist and are valid '''
+        print('')
         self.sourceList = []
         sourceRow = 0
         for sourceDict in self.projectSourceList:
             sourceRow += 1
 
-            #--validate source record
-            sourceDict['DATA_SOURCE'] = sourceDict['DATA_SOURCE'].strip().upper()
-            sourceDict['FILE_NAME'] = sourceDict['FILE_NAME'].strip()
-            if 'FILE_FORMAT' not in sourceDict:
-                sourceDict['FILE_FORMAT'] = self.projectFileFormat
-            else:
-                sourceDict['FILE_FORMAT'] = sourceDict['FILE_FORMAT'].upper()
+            #--bypass if disabled
+            if 'ENABLED' in sourceDict and str(sourceDict['ENABLED']).upper() in ('0', 'N','NO'):
+                continue
 
-            if len(sourceDict['DATA_SOURCE']) == 0:
-                print('ERROR: project file entry ' + str(sourceRow) + ' does not contain an DATA_SOURCE!')
-                self.success = False
+            #--validate source file
+            sourceDict['FILE_NAME'] = sourceDict['FILE_NAME'].strip()
             if len(sourceDict['FILE_NAME']) == 0:
                 print('ERROR: project file entry ' + str(sourceRow) + ' does not contain a FILE_NAME!')
                 self.success = False
 
+            if 'DATA_SOURCE' in sourceDict:
+                sourceDict['DATA_SOURCE'] = sourceDict['DATA_SOURCE'].strip().upper()
+                if 'ENTITY_TYPE' not in sourceDict:
+                    sourceDict['ENTITY_TYPE'] = sourceDict['DATA_SOURCE']
+
+            if 'FILE_FORMAT' not in sourceDict:
+                fileName, fileExtension = os.path.splitext(sourceDict['FILE_NAME'])
+                sourceDict['FILE_FORMAT'] = fileExtension[1:].upper()
+            else:
+                sourceDict['FILE_FORMAT'] = sourceDict['FILE_FORMAT'].upper()
+
+            if sourceDict['FILE_FORMAT'] not in ('JSON', 'CSV', 'TSV', 'TAB', 'PIPE'):
+                print('ERROR: project file entry ' + str(sourceRow) + ' does not contain a valid file format!')
+                self.success = False
+
+            #--csv stuff
+            sourceDict['ENCODING'] = sourceDict['ENCODING'] if 'ENCODING' in sourceDict else 'utf-8'
+            sourceDict['DELIMITER'] = sourceDict['DELIMITER'] if 'DELIMITER' in sourceDict else None
+            if not sourceDict['DELIMITER']:
+                if sourceDict['FILE_FORMAT'] == 'CSV':
+                    sourceDict['DELIMITER'] = ','
+                elif sourceDict['FILE_FORMAT'] in ('TSV', 'TAB'):
+                    sourceDict['DELIMITER'] = '\t'
+                elif sourceDict['FILE_FORMAT'] == 'PIPE':
+                    sourceDict['DELIMITER'] = '|'
+            sourceDict['QUOTECHAR'] = sourceDict['QUOTECHAR'] if 'QUOTECHAR' in sourceDict else None
+
+            #--csv mapping stuff
+            if 'MAPPING_FILE' in sourceDict:
+                if not os.path.exists(sourceDict['MAPPING_FILE']):
+                    sourceDict['MAPPING_FILE'] = self.projectFilePath + os.path.sep + sourceDict['MAPPING_FILE']
+                if sourceDict['MAPPING_FILE'] not in self.mappingFiles:
+                    if not os.path.exists(sourceDict['MAPPING_FILE']):
+                        print('ERROR: Mapping file %s does not exist for project file entry %s' % (sourceDict['MAPPING_FILE'], str(sourceRow)))
+                        self.success = False
+                    else:
+                        try: mappingFileDict = json.load(open(sourceDict['MAPPING_FILE']))
+                        except ValueError as err: 
+                            print('ERROR: Invalid json in mapping file  %s' % (sourceDict['MAPPING_FILE']))
+                            print(err)
+                            self.success = False
+                        else:
+                            self.mappingFiles[sourceDict['MAPPING_FILE']] = self.dictKeysUpper(mappingFileDict)
+            else:
+                sourceDict['MAPPING_FILE'] = None
+
             #--validate and map the files for this source
             if self.success:
-                if 'ENTITY_TYPE' not in sourceDict:
-                    sourceDict['ENTITY_TYPE'] = sourceDict['DATA_SOURCE'] 
-                else:
-                    sourceDict['ENTITY_TYPE'] = sourceDict['ENTITY_TYPE'].upper() 
-
-                #--currently file name cannot contain wildcards.  We should add support for this in the future
-                sourceDict['FILE_LIST'] = []
-                fileDict = {}
-                fileDict['FILE_ORDER'] = 1
-                fileDict['FILE_FORMAT'] = sourceDict['FILE_FORMAT']
-
                 if G2S3.isS3Uri(sourceDict['FILE_NAME']):
                     #--an S3 path so download the file to the temp location
                     downloader = G2S3(sourceDict['FILE_NAME'], self.tempFolderPath)
                     downloader.downloadFile()
-                    fileDict['FILE_PATH'] = downloader.tempFilePath
+                    sourceDict['FILE_PATH'] = downloader.tempFilePath
                     sourceDict['FILE_NAME'] = downloader.fileName
                     sourceDict['FILE_SOURCE'] = "S3"
                 elif os.path.exists(sourceDict['FILE_NAME']):
                     #--adjustment if they gave us full path as file name
-                    fileDict['FILE_PATH'] = sourceDict['FILE_NAME']
-                    sourceDict['FILE_NAME'] = os.path.basename(fileDict['FILE_PATH'])
+                    sourceDict['FILE_PATH'] = sourceDict['FILE_NAME']
+                    sourceDict['FILE_NAME'] = os.path.basename(sourceDict['FILE_PATH'])
                     sourceDict['FILE_SOURCE'] = 'local'
                 else:  #--append the project file path
-                    fileDict['FILE_PATH'] = self.projectFilePath + os.path.sep + sourceDict['FILE_NAME']
+                    sourceDict['FILE_PATH'] = self.projectFilePath + os.path.sep + sourceDict['FILE_NAME']
                     sourceDict['FILE_SOURCE'] = 'local'
-                if not os.path.exists(fileDict['FILE_PATH']):
-                    print('ERROR: ' + fileDict['FILE_PATH'] + ' does not exist!')
+
+                print('Validating %s ...' % sourceDict['FILE_PATH'])
+
+                if not os.path.exists(sourceDict['FILE_PATH']):
+                    print(' ERROR: File does not exist!')
                     self.success = False
                 else:
-                    if sourceDict['FILE_FORMAT'] == 'JSON':
-                        if self.verifyJsonFile(fileDict) == False:
-                            raise G2InvalidFileTypeContentsException('File %s contents appear invalid for file type: %s' % (fileDict['FILE_PATH'],sourceDict['FILE_FORMAT']))
-                        self.mapJsonFile(fileDict)
-                    elif sourceDict['FILE_FORMAT'] == 'CSV':
-                        if self.verifyCsvFile(fileDict) == False:
-                            raise G2InvalidFileTypeContentsException('File %s contents appear invalid for file type: %s' % (fileDict['FILE_PATH'],sourceDict['FILE_FORMAT']))
-                        self.mapCsvFile(fileDict)
-                    elif sourceDict['FILE_FORMAT'] == 'TAB':
-                        if self.verifyCsvFile(fileDict) == False:
-                            raise G2InvalidFileTypeContentsException('File %s contents appear invalid for file type: %s' % (fileDict['FILE_PATH'],sourceDict['FILE_FORMAT']))
-                        self.mapCsvFile(fileDict)
-                    elif sourceDict['FILE_FORMAT'] == 'UMF':
-                        if self.verifyUmfFile(fileDict) == False:
-                            raise G2InvalidFileTypeContentsException('File %s contents appear invalid for file type: %s' % (fileDict['FILE_PATH'],sourceDict['FILE_FORMAT']))
-                        self.mapUmfFile(fileDict)
-                    else:
-                        raise G2UnsupportedFileTypeException('Unknown input file type: ' + sourceDict['FILE_FORMAT'])
 
-                #--ensure there is at least one feature mapped, unless this is raw UMF
-                if self.success and sourceDict['FILE_FORMAT'] != 'UMF':
-                    mappedFields = []
-                    unmappedFields = []
-                    for mappedColumn in fileDict['MAP']:
-                        if fileDict['MAP'][mappedColumn]['FTYPE_CODE'] != 'IGNORE':
-                            mappedFields.append(mappedColumn)
-                        else:
-                            unmappedFields.append(mappedColumn)
+                    #--test first 100 rows
+                    rowCnt = 0
+                    badCnt = 0
+                    fileReader = openPossiblyCompressedFile(sourceDict['FILE_PATH'], 'r', sourceDict['ENCODING'])
 
-                    fileDict['MAPPED_FIELDS'] = mappedFields 
-                    fileDict['UNMAPPED_FIELDS'] = unmappedFields 
+                    #--get header row if csv
+                    if sourceDict['FILE_FORMAT'] not in ('JSON', 'UMF'):
+                        sourceDict['HEADER_ROW'] = [x.strip().upper() for x in fileRowParser(next(fileReader), sourceDict)]
 
-                    #--ensure there is at least one feature mapped
-                    if len(mappedFields) == 0:
-                        print('ERROR: No valid mappings for file %s' % sourceDict['FILE_NAME'])
+                    for row in fileReader:
+                        rowCnt += 1
+                        if rowCnt > 100:
+                            rowCnt -= 1
+                            break
+
+                        rowData = fileRowParser(row, sourceDict, rowCnt)
+                        if not rowData:
+                            badCnt += 1
+                            continue
+
+                        if sourceDict['FILE_FORMAT'] == 'UMF':
+                            if not (rowData.upper().startswith('<UMF_DOC') and rowData.upper().endswith('/UMF_DOC>')):
+                                print(' WARNING: invalid UMF in row %s (%s)' % (rowCnt, rowData[0:50]))
+                                badCnt += 1
+                        else: #--json or csv
+
+                            #--perform csv mapping if needed
+                            if not sourceDict['MAPPING_FILE']:
+                                recordList = [rowData]
+                            else:
+                                rowData['_MAPPING_FILE'] = sourceDict['MAPPING_FILE']
+                                recordList, errorCount = self.csvMapper(rowData)
+                                if errorCount:
+                                    badCnt += 1
+                                    recordList = []
+
+                            #--ensure output(s) have mapped features
+                            for rowData in recordList:
+                                if 'DATA_SOURCE' not in rowData and 'DATA_SOURCE' not in sourceDict:
+                                    print(' WARNING: data source missing in row %s and not specified at the file level' % rowCnt)
+                                    badCnt += 1
+                                elif 'DATA_SOURCE' in rowData and rowData['DATA_SOURCE'] not in self.dataSourceDict:
+                                    print(' WARNING: invalid data_source in row %s (%s)' % (rowCnt, rowData['DATA_SOURCE']))
+                                    badCnt += 1
+                                elif 'ENTITY_TYPE' in rowData and rowData['ENTITY_TYPE'] not in self.entityTypeDict:
+                                    print(' WARNING: invalid entity_type in row %s (%s)' % (rowCnt, rowData['ENTITY_TYPE']))
+                                    badCnt += 1
+                                elif 'DSRC_ACTION' in rowData and rowData['DSRC_ACTION'].upper() == 'X':
+                                    pass
+                                else:
+                                    #--other mapping errors
+                                    mappingResponse = self.mapJsonRecord(rowData)
+                                    if mappingResponse[0]:
+                                        badCnt += 1
+                                        for mappingError in mappingResponse[0]:
+                                            print(' WARNING: mapping error in row %s (%s)' % (rowCnt, mappingError))
+
+                    #--fails if too many bad records (more than 10 of 100 or all bad)
+                    if badCnt >= 10 or badCnt == rowCnt:
+                        print(' ERROR: Pre-test failed %s bad records in first %s' % (badCnt, rowCnt))
                         self.success = False
-                sourceDict['FILE_LIST'].append(fileDict)
+
+                    fileReader.close()
 
             self.sourceList.append(sourceDict)
         return
 
     #----------------------------------------
-    def verifyJsonFile(self, fileDict, sampleSize = 100):
-        ''' opens a file to verify it is JSON '''
-        dataLooksLikeJSON = True
-        try: jsonFile = openPossiblyCompressedFile(fileDict['FILE_PATH'], 'r')
-        except:
-            print('ERROR: ' + fileDict['FILE_PATH'] + ' could not be opened!')
-            dataLooksLikeJSON = False 
-        else:
-            #--test the first several lines to make sure it looks like JSON data
-            rowNum = 0
-            for N in range(sampleSize):
-                jsonString = jsonFile.readline()
-                if jsonString: #--skip blank lines
-                    jsonString = jsonString.strip()
-                    if len(jsonString) == 0:
-                        continue
-                    rowNum += 1
-                    try: jsonDict = json.loads(jsonString, encoding="utf-8")
-                    except:
-                        print('Row %d of file %s is not JSON formatted.' % (rowNum, os.path.basename(fileDict['FILE_PATH'])))
-                        dataLooksLikeJSON = False
-                    if dataLooksLikeJSON == False:
-                        break
-            jsonFile.close()
-        return dataLooksLikeJSON
+    def csvMapper(self, rowData):
+        outputRows = []
 
-    def verifyUmfFile(self, fileDict, sampleSize = 100):
-        ''' opens a file to verify it is UMF '''
-        dataLooksLikeUMF = True
-        try: umfFile = openPossiblyCompressedFile(fileDict['FILE_PATH'], 'r')
-        except:
-            print('ERROR: ' + fileDict['FILE_PATH'] + ' could not be opened!')
-            dataLooksLikeUMF = False 
-        else:
-            #--test the first several lines to make sure it looks like UMF data
-            rowNum = 0
-            for N in range(sampleSize):
-                umfString = umfFile.readline()
-                if umfString: #--skip blank lines
-                    umfString = umfString.strip()
-                    if len(umfString) == 0:
-                        continue
-                    rowNum += 1
-                    if umfString.startswith('<') == False:
-                        dataLooksLikeUMF = False
-                    if umfString.endswith('>') == False:
-                        dataLooksLikeUMF = False
-                    if dataLooksLikeUMF == False:
-                        break
-            umfFile.close()
-        return dataLooksLikeUMF
-
-    def verifyCsvFile(self, fileDict, sampleSize = 100):
-        ''' opens a file to verify it is CSV '''
-        dataLooksLikeCSV = True
-        try: csvFile, csvReader = self.openCsv(fileDict['FILE_PATH'], fileDict['FILE_FORMAT'])
-        except:
-            print('ERROR: ' + fileDict['FILE_PATH'] + ' could not be opened as a ' + fileDict['FILE_FORMAT'] + ' file!')
-            dataLooksLikeCSV = False
-        else:
+        #--clean garbage values
+        for key in rowData:
             try:
-                csvHeaders = [x.strip().upper() for x in next(csvReader)]
-                headerFieldCount = len(csvHeaders)
-                for columnName in csvHeaders:
-                    nonCsvChars = set('{}:<>')
-                    if any((c in nonCsvChars) for c in columnName):
-                        raise ValueError()
-            except:
-                print('File %s is not CSV formatted (header invalid).' % (os.path.basename(fileDict['FILE_PATH'])))
-                dataLooksLikeCSV = False
-            if dataLooksLikeCSV == True:
-                rowNum = 0
-                for csvRow in csvReader:
-                    if csvRow: #--skip blank lines
-                        csvRow = [c.strip() for c in csvRow]
-                        if len(csvRow) == 1 and csvRow[0] == '':
-                            continue
-                        rowNum += 1
-                        itemsInRow = len(list(zip(csvHeaders, csvRow)))
-                        if headerFieldCount != itemsInRow:
-                            #### Join the list, replace all spaces, and check it's length. If it's a blank row, continue on...
-                            if len("".join(csvRow).replace(" ","")) == 0:
-                                rowNum -= 1 #--we don't count blank rows in the count
-                                continue
-                            print('Row %d of file %s is not CSV formatted.' % (rowNum, os.path.basename(fileDict['FILE_PATH'])))
-                            dataLooksLikeCSV = False
-                            break
-                        if rowNum >= sampleSize:
-                            break
-            csvFile.close()
-        return dataLooksLikeCSV
+                if rowData[key].upper() in ('NULL', 'NONE', 'N/A', '\\N'):
+                    rowData[key] = ''
+            except: pass
 
-    #----------------------------------------
-    def mapUmfFile(self, fileDict):
-        ''' requisite operations for UMF input file '''
-        fileDict['MAP'] = None
+        mappingErrors = 0
+        csvMap = self.mappingFiles[rowData['_MAPPING_FILE']]
 
-    #----------------------------------------
-    def mapCsvFile(self, fileDict):
-        ''' opens a csv file to validate mappings '''
-        try: csvFile, csvReader = self.openCsv(fileDict['FILE_PATH'], fileDict['FILE_FORMAT'])
-        except:
-            print('ERROR: ' + fileDict['FILE_PATH'] + ' could not be opened as a ' + fileDict['FILE_FORMAT'] + ' file!')
-            self.success = False 
+        if 'CALCULATIONS' in csvMap:
+
+            if type(csvMap['CALCULATIONS']) == dict:
+                for newField in csvMap['CALCULATIONS']:
+                    try: rowData[newField] = eval(csvMap['CALCULATIONS'][newField])
+                    except Exception as e: 
+                        print('  error: %s [%s]' % (newField, e)) 
+                        mappingErrors += 1
+
+            elif type(csvMap['CALCULATIONS']) == list:
+                for calcDict in csvMap['CALCULATIONS']:
+                    try: rowData[calcDict['NAME']] = eval(calcDict['EXPRESSION'])
+                    except Exception as e: 
+                        print('  error: %s [%s]' % (calcDict['NAME'], e)) 
+                        mappingErrors += 1
+
+        #--for each mapping (output record)
+        for mappingData in csvMap['MAPPINGS']:
+            mappedData = {}
+            for columnName in mappingData:
+
+                #--perform the mapping
+                try: columnValue = mappingData[columnName] % rowData
+                except: 
+                    print('  error: could not map %s' % mappingData[columnName]) 
+                    mappingErrors += 1
+                    columnValue = ''
+
+                #--clear nulls
+                if not columnValue or columnValue.upper() in ('NONE', 'NULL', '\\N'):
+                    columnValue = ''
+
+                #--dont write empty tags
+                if columnValue: 
+                    mappedData[columnName] = columnValue
+
+            outputRows.append(mappedData)
+
+        return outputRows, mappingErrors
+
+#--------------------
+#--utility functions
+#--------------------
+
+#----------------------------------------
+def pause(question = None):
+    if not question:
+        v_wait = input("PRESS ENTER TO CONTINUE ... ")
+    else:
+        v_wait = input(question)
+    return v_wait
+
+#----------------------------------------
+def containsOnly(seq, aset):
+    ''' Check whether sequence seq contains ONLY items in aset '''
+    for c in seq:
+        if c not in aset: return False
+    return True
+
+#----------------------------------------
+def calcNameKey(fullNameStr, keyType):
+
+    if type(fullNameStr) == list:
+        newStr = ''
+        for namePart in fullNameStr:
+            if namePart:
+                newStr += (' ' + namePart)
+        fullNameStr = newStr.strip()
+
+    try: 
+        values = []
+        parsedName = nameParser(fullNameStr)
+        if keyType.upper() == 'FULL':
+            if len(parsedName.last) != 0:
+                values.append(parsedName.last)
+            if len(parsedName.first) != 0:
+                values.append(parsedName.first)
+            if len(parsedName.middle) != 0:
+                values.append(parsedName.middle)
         else:
-            columnMappings = {}            
-            csvRows = []
-            csvHeaders = [x.strip().upper() for x in next(csvReader)]
-            for columnName in csvHeaders:
-                if len(columnName) == 0:
-                    print('ERROR: file ' + fileDict['FILE_NAME'] + ' is missing a column header!')
-                    self.success = False 
-                else:
-                    if columnName not in columnMappings:
-                        columnMappings[columnName] = self.lookupAttribute(columnName)
+            if len(parsedName.last) != 0 and len(parsedName.first) != 0 and len(parsedName.middle) != 0:
+                values = [parsedName.last, parsedName.first]
+    except:
+        values = fullNameStr.upper().replace('.',' ').replace(',',' ').split()
 
-            if self.success:
-                fileDict['CSV_HEADERS'] = csvHeaders
-                fileDict['MAP'] = columnMappings
+    return '|'.join(sorted([x.upper() for x in values]))
 
-            csvFile.close()
-        return
+#----------------------------------------
+def calcOrgKey(fullNameStr):
+    values = fullNameStr.upper().replace('.',' ').replace(',',' ').split()
+    return ' '.join(values)
 
-    #----------------------------------------
-    def mapJsonFile(self, fileDict, sampleSize = 100):
-        ''' opens a json file to validate mappings '''
-        try: jsonFile = openPossiblyCompressedFile(fileDict['FILE_PATH'], 'r')
-        except:
-            print('ERROR: ' + fileDict['FILE_PATH'] + ' could not be opened!')
-            self.success = False 
+#----------------------------------------
+def compositeKeyBuilder(rowData, keyList):
+    values = []
+    for key in keyList:
+        if key in rowData and rowData[key]:
+            values.append(str(rowData[key]))
         else:
-
-            #--test the first 5 lines as not all tags used on every row 
-            #--its ok if not, they will be added as used, 
-            #--but for performance catch as many as you can 
-            columnMappings = {}            
-            rowNum = 0
-            for N in range(sampleSize):
-                jsonString = jsonFile.readline()
-                if jsonString: #--skip blank lines
-                    jsonString = jsonString.strip()
-                    if len(jsonString) == 0:
-                        continue
-                    rowNum += 1
-                    jsonErrors, jsonDict, jsonMappings = self.validateJsonMessage(jsonString)
-                    for message in jsonErrors:
-                        print(message + ' in row %d of file %s' % (rowNum, os.path.basename(fileDict['FILE_PATH'])))
-                    if jsonErrors:
-                        self.success = False 
-                        break
-                    else:
-                        #self.mapJsonRecord(jsonDict, jsonMappings)  #--debug test
-                        #--add to the column map for the file
-                        for columnName in jsonMappings:
-                            if columnName not in columnMappings:
-                                columnMappings[columnName] = jsonMappings[columnName]
-
-            if self.success:
-                fileDict['MAP'] = columnMappings
-
-            jsonFile.close()
-        return
-
-    #--------------------
-    #--utility functions
-    #--------------------
-
-    #----------------------------------------
-    def openCsv(self, fileName, fileFormat):
-        ''' chooses best dialect to open a csv with (comma, tab, quoted or not) '''
-        csvFile = openPossiblyCompressedFile(fileName, 'r')
-        if fileFormat in ('CSV', 'TAB', 'PIPE'):
-            csv.register_dialect('CSV', delimiter = ',', quotechar = '"')
-            csv.register_dialect('TAB', delimiter = '\t', quotechar = '"')
-            csv.register_dialect('PIPE', delimiter = '|', quotechar = '"')
-        else: #--let csv module figure it out
-            fileFormat = csv.Sniffer().sniff(csvFile.read(1024))
-            csvFile.seek(0)
-        csvReader = csv.reader(csvFile, fileFormat)
-        return csvFile, csvReader
-
-    #----------------------------------------
-    def pause(self, question = None):
-        if not question:
-            v_wait = input("PRESS ENTER TO CONTINUE ... ")
-        else:
-            v_wait = input(question)
-        return v_wait
-
-    #----------------------------------------
-    def containsOnly(self, seq, aset):
-        ''' Check whether sequence seq contains ONLY items in aset '''
-        for c in seq:
-            if c not in aset: return False
-        return True
-
-    #----------------------------------------
-    def xmlEscape(self, rawValue):
-        ''' escape xml values '''
-        return rawValue.replace('&', '&amp;').replace('<','&lt;').replace('>','&gt;').encode(encoding='UTF-8') #--,errors='strict'
-
+            return ''
+    return '|'.join(values)
 
 #----------------------------------------
 if __name__ == "__main__":

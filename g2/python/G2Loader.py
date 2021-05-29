@@ -712,12 +712,6 @@ if __name__ == '__main__':
     if not configTableFile:
         print('ERROR: A G2 setup configuration file is not specified')
         sys.exit(1)
-    if (not projectFileName) and (not projectFileSpec):
-        print('ERROR: A project file name or file specification must be specified!')
-        sys.exit(1)
-    else:
-        if projectFileSpec: #--file spec takes precendence over name
-            projectFileName = None
 
     #--set globals for the g2 engine
     maxThreadsPerProcess=8
@@ -736,6 +730,13 @@ if __name__ == '__main__':
                     break
                 time.sleep(1.0)
     else :
+        # More validation specific to this mode.        
+        if (not projectFileName) and (not projectFileSpec):
+            print('ERROR: A project file name or file specification must be specified!')
+            sys.exit(1)
+        else:
+            if projectFileSpec: #--file spec takes precendence over name
+                projectFileName = None
         #--attempt to open the g2 database
         g2Dbo = G2Database(g2dbUri)
         if not g2Dbo.success:

@@ -225,8 +225,11 @@ class G2Module(object):
             # Include possibly related relationships in addition to resolved entities & possibly same
             g2ExportFlags = 28
         elif max_match_level == 4:
-            # Include disclosed relationships in addition to resolved entities & possibly same & possibly related
-            g2ExportFlags = 92
+            # Include name-only relationships in addition to resolved entities & possibly same & possibly related
+            g2ExportFlags = 60
+        elif max_match_level == 5:
+            # Include disclosed relationships in addition to resolved entities & possibly same & possibly related & name-only
+            g2ExportFlags = 124
         else:
             g2ExportFlags = 0
 
@@ -238,6 +241,15 @@ class G2Module(object):
             g2ExportFlags = g2ExportFlags + 2 
 
         return g2ExportFlags
+
+    def getExportHandleFromFlags(self, exportType, g2ExportFlags):
+        if exportType == 'CSV':
+            self._lib_handle.G2_exportCSVEntityReport.restype = c_void_p
+            exportHandle = self._lib_handle.G2_exportCSVEntityReport(g2ExportFlags)
+        else:
+            self._lib_handle.G2_exportJSONEntityReport.restype = c_void_p
+            exportHandle = self._lib_handle.G2_exportJSONEntityReport(g2ExportFlags)
+        return exportHandle
 
     def getExportHandle(self, exportType, max_match_level):
         # type: (str, int) -> c_void_p
@@ -333,7 +345,7 @@ class G2Module(object):
                              5 -- "disclosed" relationships
             g2ExportFlags: A bit mask specifying other control flags, such as
                            "G2_EXPORT_INCLUDE_SINGLETONS".  The default and recommended
-                           value is "G2_EXPORT_DEFAULT_REPORT_FLAGS".
+                           value is "G2_EXPORT_DEFAULT_FLAGS".
             includeSingletons: Also include singletons
             includeExtraCols: Also include extra export output
 
@@ -380,7 +392,7 @@ class G2Module(object):
                              5 -- "disclosed" relationships
             g2ExportFlags: A bit mask specifying other control flags, such as
                            "G2_EXPORT_INCLUDE_SINGLETONS".  The default and recommended
-                           value is "G2_EXPORT_DEFAULT_REPORT_FLAGS".
+                           value is "G2_EXPORT_DEFAULT_FLAGS".
             includeSingletons: Also include singletons
             includeExtraCols: Also include extra export output
 
@@ -529,6 +541,34 @@ class G2Module(object):
             raise TranslateG2ModuleException(tls_var.buf.value)
         return tls_var.buf.value.decode('utf-8')
 
+    def searchByAttributesV2(self,jsonData,flags):
+        # type: (str) -> str
+        """ Find records matching the provided attributes
+        Args:
+            jsonData: A JSON document containing the attribute information to search.
+            flags: control flags.
+
+        Return:
+            str: JSON document with results
+        """
+
+        _jsonData = self.prepareStringArgument(jsonData)
+        resize_return_buffer(None, 65535)
+        responseBuf = c_char_p(None)
+        responseSize = c_size_t(0)
+        self._lib_handle.G2_searchByAttributes_V2.restype = c_int
+        self._lib_handle.G2_searchByAttributes_V2.argtypes = [c_char_p, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_searchByAttributes_V2(_jsonData,flags,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            self._lib_handle.G2_clearLastException()
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        return tls_var.buf.value.decode('utf-8')
+
     def findPathByEntityID(self,startEntityID,endEntityID,maxDegree):
         # type: (int) -> str
         """ Find a path between two entities in the system.
@@ -547,6 +587,34 @@ class G2Module(object):
         self._lib_handle.G2_findPathByEntityID.restype = c_int
         self._lib_handle.G2_findPathByEntityID.argtypes = [c_longlong, c_longlong, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
         ret_code = self._lib_handle.G2_findPathByEntityID(startEntityID,endEntityID,maxDegree,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            self._lib_handle.G2_clearLastException()
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        return tls_var.buf.value.decode('utf-8')
+
+    def findPathByEntityIDV2(self,startEntityID,endEntityID,maxDegree,flags):
+        # type: (int) -> str
+        """ Find a path between two entities in the system.
+        Args:
+            startEntityID: The entity ID you want to find the path from
+            endEntityID: The entity ID you want to find the path to
+            maxDegree: The maximum path length to search for
+            flags: control flags.
+
+        Return:
+            str: JSON document with results
+        """
+
+        resize_return_buffer(None, 65535)
+        responseBuf = c_char_p(None)
+        responseSize = c_size_t(0)
+        self._lib_handle.G2_findPathByEntityID_V2.restype = c_int
+        self._lib_handle.G2_findPathByEntityID_V2.argtypes = [c_longlong, c_longlong, c_int, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_findPathByEntityID_V2(startEntityID,endEntityID,maxDegree,flags,
                                                                  pointer(responseBuf),
                                                                  pointer(responseSize),
                                                                  self._resize_func)
@@ -576,6 +644,36 @@ class G2Module(object):
         self._lib_handle.G2_findNetworkByEntityID.restype = c_int
         self._lib_handle.G2_findNetworkByEntityID.argtypes = [c_char_p, c_int, c_int, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
         ret_code = self._lib_handle.G2_findNetworkByEntityID(_entityList,maxDegree,buildOutDegree,maxEntities,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            self._lib_handle.G2_clearLastException()
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        return tls_var.buf.value.decode('utf-8')
+
+    def findNetworkByEntityIDV2(self,entityList,maxDegree,buildOutDegree,maxEntities,flags):
+        # type: (int) -> str
+        """ Find a network between entities in the system.
+        Args:
+            entityList: The entities to search for the network of
+            maxDegree: The maximum path length to search for between entities
+            buildOutDegree: The number of degrees to build out the surrounding network
+            maxEntities: The maximum number of entities to include in the result
+            flags: control flags.
+
+        Return:
+            str: JSON document with results
+        """
+
+        _entityList = self.prepareStringArgument(entityList)
+        resize_return_buffer(None, 65535)
+        responseBuf = c_char_p(None)
+        responseSize = c_size_t(0)
+        self._lib_handle.G2_findNetworkByEntityID_V2.restype = c_int
+        self._lib_handle.G2_findNetworkByEntityID_V2.argtypes = [c_char_p, c_int, c_int, c_int, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_findNetworkByEntityID_V2(_entityList,maxDegree,buildOutDegree,maxEntities,flags,
                                                                  pointer(responseBuf),
                                                                  pointer(responseSize),
                                                                  self._resize_func)
@@ -618,6 +716,40 @@ class G2Module(object):
             raise TranslateG2ModuleException(tls_var.buf.value)
         return responseBuf.value.decode('utf-8')
 
+    def findPathByRecordIDV2(self,startDsrcCode,startRecordId,endDsrcCode,endRecordId,maxDegree,flags):
+        # type: (str,str) -> str
+        """ Find a path between two records in the system.
+        Args:
+            startDataSourceCode: The data source for the record you want to find the path from
+            startRecordID: The ID for the record you want to find the path from
+            endDataSourceCode: The data source for the record you want to find the path to
+            endRecordID: The ID for the record you want to find the path to
+            maxDegree: The maximum path length to search for
+            flags: control flags.
+
+        Return:
+            str: JSON document with results
+        """
+
+        _startDsrcCode = self.prepareStringArgument(startDsrcCode)
+        _startRecordId = self.prepareStringArgument(startRecordId)
+        _endDsrcCode = self.prepareStringArgument(endDsrcCode)
+        _endRecordId = self.prepareStringArgument(endRecordId)
+        resize_return_buffer(None, 65535)
+        responseBuf = c_char_p(None)
+        responseSize = c_size_t(0)
+        self._lib_handle.G2_findPathByRecordID_V2.restype = c_int
+        self._lib_handle.G2_findPathByRecordID_V2.argtypes = [c_char_p, c_char_p, c_char_p, c_char_p, c_int, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_findPathByRecordID_V2(_startDsrcCode,_startRecordId,_endDsrcCode,_endRecordId,maxDegree,flags,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            self._lib_handle.G2_clearLastException()
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        return responseBuf.value.decode('utf-8')
+
     def findNetworkByRecordID(self,recordList,maxDegree,buildOutDegree,maxEntities):
         # type: (str,str) -> str
         """ Find a network between entities in the system.
@@ -638,6 +770,36 @@ class G2Module(object):
         self._lib_handle.G2_findNetworkByRecordID.restype = c_int
         self._lib_handle.G2_findNetworkByRecordID.argtypes = [c_char_p, c_int, c_int, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
         ret_code = self._lib_handle.G2_findNetworkByRecordID(_recordList,maxDegree,buildOutDegree,maxEntities,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            self._lib_handle.G2_clearLastException()
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        return responseBuf.value.decode('utf-8')
+
+    def findNetworkByRecordIDV2(self,recordList,maxDegree,buildOutDegree,maxEntities,flags):
+        # type: (str,str) -> str
+        """ Find a network between entities in the system.
+        Args:
+            recordList: The records to search for the network of
+            maxDegree: The maximum path length to search for between entities
+            buildOutDegree: The number of degrees to build out the surrounding network
+            maxEntities: The maximum number of entities to include in the result
+            flags: control flags.
+
+        Return:
+            str: JSON document with results
+        """
+
+        _recordList = self.prepareStringArgument(recordList)
+        resize_return_buffer(None, 65535)
+        responseBuf = c_char_p(None)
+        responseSize = c_size_t(0)
+        self._lib_handle.G2_findNetworkByRecordID_V2.restype = c_int
+        self._lib_handle.G2_findNetworkByRecordID_V2.argtypes = [c_char_p, c_int, c_int, c_int, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_findNetworkByRecordID_V2(_recordList,maxDegree,buildOutDegree,maxEntities,flags,
                                                                  pointer(responseBuf),
                                                                  pointer(responseSize),
                                                                  self._resize_func)
@@ -810,6 +972,33 @@ class G2Module(object):
             raise TranslateG2ModuleException(tls_var.buf.value)
         return tls_var.buf.value.decode('utf-8')
 
+    def getEntityByEntityIDV2(self,entityID,flags):
+        # type: (int) -> str
+        """ Find the entity with the given ID
+        Args:
+            entityID: The entity ID you want returned.  Typically referred to as
+                      ENTITY_ID in JSON results.
+            flags: control flags.
+
+        Return:
+            str: JSON document with results
+        """
+
+        resize_return_buffer(None, 65535)
+        responseBuf = c_char_p(None)
+        responseSize = c_size_t(0)
+        self._lib_handle.G2_getEntityByEntityID_V2.restype = c_int
+        self._lib_handle.G2_getEntityByEntityID_V2.argtypes = [c_longlong, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_getEntityByEntityID_V2(entityID,flags,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            self._lib_handle.G2_clearLastException()
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        return tls_var.buf.value.decode('utf-8')
+
     def getEntityByRecordID(self,dsrcCode,recordId):
         # type: (str,str) -> str
         """ Get the entity containing the specified record
@@ -837,6 +1026,35 @@ class G2Module(object):
             raise TranslateG2ModuleException(tls_var.buf.value)
         return responseBuf.value.decode('utf-8')
 
+    def getEntityByRecordIDV2(self,dsrcCode,recordId,flags):
+        # type: (str,str) -> str
+        """ Get the entity containing the specified record
+        Args:
+            dataSourceCode: The data source for the observation.
+            recordID: The ID for the record
+            flags: control flags.
+
+        Return:
+            str: JSON document with results
+        """
+
+        _dsrcCode = self.prepareStringArgument(dsrcCode)
+        _recordId = self.prepareStringArgument(recordId)
+        resize_return_buffer(None, 65535)
+        responseBuf = c_char_p(None)
+        responseSize = c_size_t(0)
+        self._lib_handle.G2_getEntityByRecordID_V2.restype = c_int
+        self._lib_handle.G2_getEntityByRecordID_V2.argtypes = [c_char_p, c_char_p, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_getEntityByRecordID_V2(_dsrcCode,_recordId,flags,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            self._lib_handle.G2_clearLastException()
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        return responseBuf.value.decode('utf-8')
+
     def getRecord(self,dsrcCode,recordId):
         # type: (str,str) -> str
         """ Get the specified record
@@ -855,6 +1073,35 @@ class G2Module(object):
         responseSize = c_size_t(0)
         self._lib_handle.G2_getRecord.argtypes = [c_char_p, c_char_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
         ret_code = self._lib_handle.G2_getRecord(_dsrcCode,_recordId,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            self._lib_handle.G2_clearLastException()
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        return responseBuf.value.decode('utf-8')
+
+    def getRecordV2(self,dsrcCode,recordId,flags):
+        # type: (str,str) -> str
+        """ Get the specified record
+        Args:
+            dataSourceCode: The data source for the observation.
+            recordID: The ID for the record
+            flags: control flags.
+
+        Return:
+            str: JSON document with results
+        """
+
+        _dsrcCode = self.prepareStringArgument(dsrcCode)
+        _recordId = self.prepareStringArgument(recordId)
+        resize_return_buffer(None, 65535)
+        responseBuf = c_char_p(None)
+        responseSize = c_size_t(0)
+        self._lib_handle.G2_getRecord_V2.restype = c_int
+        self._lib_handle.G2_getRecord_V2.argtypes = [c_char_p, c_char_p, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_getRecord_V2(_dsrcCode,_recordId,flags,
                                                                  pointer(responseBuf),
                                                                  pointer(responseSize),
                                                                  self._resize_func)

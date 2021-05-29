@@ -33,6 +33,10 @@ class G2CmdShell(cmd.Cmd, object):
         jsonOnly_parser = subparsers.add_parser('jsonOnly', usage=argparse.SUPPRESS)
         jsonOnly_parser.add_argument('jsonData')
 
+        searchByAttributesV2_parser = subparsers.add_parser('searchByAttributesV2', usage=argparse.SUPPRESS)
+        searchByAttributesV2_parser.add_argument('jsonData')
+        searchByAttributesV2_parser.add_argument('flags', type=int)
+
         processFile_parser = subparsers.add_parser('processFile', usage=argparse.SUPPRESS)
         processFile_parser.add_argument('inputFile')
 
@@ -74,10 +78,20 @@ class G2CmdShell(cmd.Cmd, object):
         getEntityByEntityID_parser = subparsers.add_parser('getEntityByEntityID', usage=argparse.SUPPRESS)
         getEntityByEntityID_parser.add_argument('entityID', type=int)
 
+        getEntityByEntityIDV2_parser = subparsers.add_parser('getEntityByEntityIDV2', usage=argparse.SUPPRESS)
+        getEntityByEntityIDV2_parser.add_argument('entityID', type=int)
+        getEntityByEntityIDV2_parser.add_argument('flags', type=int)
+
         findPathByEntityID_parser = subparsers.add_parser('findPathByEntityID', usage=argparse.SUPPRESS)
         findPathByEntityID_parser.add_argument('startEntityID', type=int)
         findPathByEntityID_parser.add_argument('endEntityID', type=int)
         findPathByEntityID_parser.add_argument('maxDegree', type=int)
+
+        findPathByEntityIDV2_parser = subparsers.add_parser('findPathByEntityIDV2', usage=argparse.SUPPRESS)
+        findPathByEntityIDV2_parser.add_argument('startEntityID', type=int)
+        findPathByEntityIDV2_parser.add_argument('endEntityID', type=int)
+        findPathByEntityIDV2_parser.add_argument('maxDegree', type=int)
+        findPathByEntityIDV2_parser.add_argument('flags', type=int)
 
         findPathExcludingByEntityID_parser = subparsers.add_parser('findPathExcludingByEntityID', usage=argparse.SUPPRESS)
         findPathExcludingByEntityID_parser.add_argument('startEntityID', type=int)
@@ -99,6 +113,13 @@ class G2CmdShell(cmd.Cmd, object):
         findNetworkByEntityID_parser.add_argument('maxDegree', type=int)
         findNetworkByEntityID_parser.add_argument('buildOutDegree', type=int)
         findNetworkByEntityID_parser.add_argument('maxEntities', type=int)
+
+        findNetworkByEntityIDV2_parser = subparsers.add_parser('findNetworkByEntityIDV2', usage=argparse.SUPPRESS)
+        findNetworkByEntityIDV2_parser.add_argument('entityList')
+        findNetworkByEntityIDV2_parser.add_argument('maxDegree', type=int)
+        findNetworkByEntityIDV2_parser.add_argument('buildOutDegree', type=int)
+        findNetworkByEntityIDV2_parser.add_argument('maxEntities', type=int)
+        findNetworkByEntityIDV2_parser.add_argument('flags', type=int)
 
         getEntityDetails_parser = subparsers.add_parser('getEntityDetails', usage=argparse.SUPPRESS)
         getEntityDetails_parser.add_argument('-e', '--entityID', required=True, type=int, default=0)
@@ -140,12 +161,34 @@ class G2CmdShell(cmd.Cmd, object):
         getEntityByRecordID_parser.add_argument('dataSourceCode')
         getEntityByRecordID_parser.add_argument('recordID')
 
+        getRecord_parser = subparsers.add_parser('getRecord', usage=argparse.SUPPRESS)
+        getRecord_parser.add_argument('dataSourceCode')
+        getRecord_parser.add_argument('recordID')
+
+        getRecordV2_parser = subparsers.add_parser('getRecordV2', usage=argparse.SUPPRESS)
+        getRecordV2_parser.add_argument('dataSourceCode')
+        getRecordV2_parser.add_argument('recordID')
+        getRecordV2_parser.add_argument('flags', type=int)
+
+        getEntityByRecordIDV2_parser = subparsers.add_parser('getEntityByRecordIDV2', usage=argparse.SUPPRESS)
+        getEntityByRecordIDV2_parser.add_argument('dataSourceCode')
+        getEntityByRecordIDV2_parser.add_argument('recordID')
+        getEntityByRecordIDV2_parser.add_argument('flags', type=int)
+
         findPathByRecordID_parser = subparsers.add_parser('findPathByRecordID', usage=argparse.SUPPRESS)
         findPathByRecordID_parser.add_argument('startDataSourceCode')
         findPathByRecordID_parser.add_argument('startRecordID')
         findPathByRecordID_parser.add_argument('endDataSourceCode')
         findPathByRecordID_parser.add_argument('endRecordID')
         findPathByRecordID_parser.add_argument('maxDegree', type=int)
+
+        findPathByRecordIDV2_parser = subparsers.add_parser('findPathByRecordIDV2', usage=argparse.SUPPRESS)
+        findPathByRecordIDV2_parser.add_argument('startDataSourceCode')
+        findPathByRecordIDV2_parser.add_argument('startRecordID')
+        findPathByRecordIDV2_parser.add_argument('endDataSourceCode')
+        findPathByRecordIDV2_parser.add_argument('endRecordID')
+        findPathByRecordIDV2_parser.add_argument('maxDegree', type=int)
+        findPathByRecordIDV2_parser.add_argument('flags', type=int)
 
         findPathExcludingByRecordID_parser = subparsers.add_parser('findPathExcludingByRecordID', usage=argparse.SUPPRESS)
         findPathExcludingByRecordID_parser.add_argument('startDataSourceCode')
@@ -171,6 +214,13 @@ class G2CmdShell(cmd.Cmd, object):
         findNetworkByRecordID_parser.add_argument('maxDegree', type=int)
         findNetworkByRecordID_parser.add_argument('buildOutDegree', type=int)
         findNetworkByRecordID_parser.add_argument('maxEntities', type=int)
+
+        findNetworkByRecordIDV2_parser = subparsers.add_parser('findNetworkByRecordIDV2', usage=argparse.SUPPRESS)
+        findNetworkByRecordIDV2_parser.add_argument('recordList')
+        findNetworkByRecordIDV2_parser.add_argument('maxDegree', type=int)
+        findNetworkByRecordIDV2_parser.add_argument('buildOutDegree', type=int)
+        findNetworkByRecordIDV2_parser.add_argument('maxEntities', type=int)
+        findNetworkByRecordIDV2_parser.add_argument('flags', type=int)
 
         outputOptional_parser = subparsers.add_parser('outputOptional',  usage=argparse.SUPPRESS)
         outputOptional_parser.add_argument('-o', '--outputFile', required=False)
@@ -294,7 +344,8 @@ class G2CmdShell(cmd.Cmd, object):
              '\t1 = Return resolved entities\n' \
              '\t2 = Return resolved AND possibly same entities\n' \
              '\t3 = Return resolved AND possibly same AND possibly related entities\n' \
-             '\t4 = Return resolved AND possibly same AND possibly related AND disclosed relationship entities\n\n' \
+             '\t4 = Return resolved AND possibly same AND possibly related AND name-only entities\n' \
+             '\t5 = Return resolved AND possibly same AND possibly related AND name-only entities AND disclosed relationship entities\n\n' \
               'When using -m you can also use the -c and -s arguments:\n\n' \
               '\t-s = Include singleton entities (Those that have not resolved or related)\n' \
               '\t-c = Include additional details in the export\n\n' \
@@ -567,6 +618,20 @@ class G2CmdShell(cmd.Cmd, object):
             print(err)
 
 
+    def do_searchByAttributesV2(self, arg):
+        '\nSearch by attributes:  searchByAttributesV2 <jsonData> <flags>\n'
+        try:
+            args = self.parser.parse_args(['searchByAttributesV2'] + parse(arg))
+        except SystemExit:
+            print(self.do_searchByAttributesV2.__doc__)
+            return
+        try: 
+            response = self.g2_module.searchByAttributesV2(args.jsonData,args.flags)
+            printResponse(response)
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
     def do_getEntityByEntityID(self, arg):
         '\nGet entity by resolved entity ID:  getEntityByEntityID <entityID>\n'
         try:
@@ -576,6 +641,23 @@ class G2CmdShell(cmd.Cmd, object):
             return
         try: 
             response = self.g2_module.getEntityByEntityID(args.entityID)
+            if response:
+                printResponse(response)
+            else:
+                printWithNewLine('')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
+    def do_getEntityByEntityIDV2(self, arg):
+        '\nGet entity by resolved entity ID:  getEntityByEntityIDV2 <entityID> <flags>\n'
+        try:
+            args = self.parser.parse_args(['getEntityByEntityIDV2'] + parse(arg))
+        except SystemExit:
+            print(self.do_getEntityByEntityIDV2.__doc__)
+            return
+        try: 
+            response = self.g2_module.getEntityByEntityIDV2(args.entityID,args.flags)
             if response:
                 printResponse(response)
             else:
@@ -601,6 +683,23 @@ class G2CmdShell(cmd.Cmd, object):
             print(err)
 
 
+    def do_findPathByEntityIDV2(self, arg):
+        '\nFind path between two entities:  findPathByEntityIDV2 <startEntityID> <endEntityID> <maxDegree> <flags>\n'
+        try:
+            args = self.parser.parse_args(['findPathByEntityIDV2'] + parse(arg))
+        except SystemExit:
+            print(self.do_findPathByEntityIDV2.__doc__)
+            return
+        try: 
+            response = self.g2_module.findPathByEntityIDV2(args.startEntityID,args.endEntityID,args.maxDegree,args.flags)
+            if response:
+                printResponse(response)
+            else:
+                printWithNewLine('')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
     def do_findNetworkByEntityID(self, arg):
         '\nFind network between entities:  findNetworkByEntityID <entityList> <maxDegree> <buildOutDegree> <maxEntities>\n'
         try:
@@ -610,6 +709,23 @@ class G2CmdShell(cmd.Cmd, object):
             return
         try: 
             response = self.g2_module.findNetworkByEntityID(args.entityList,args.maxDegree,args.buildOutDegree,args.maxEntities)
+            if response:
+                printResponse(response)
+            else:
+                printWithNewLine('')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
+    def do_findNetworkByEntityIDV2(self, arg):
+        '\nFind network between entities:  findNetworkByEntityIDV2 <entityList> <maxDegree> <buildOutDegree> <maxEntities> <flags>\n'
+        try:
+            args = self.parser.parse_args(['findNetworkByEntityIDV2'] + parse(arg))
+        except SystemExit:
+            print(self.do_findNetworkByEntityIDV2.__doc__)
+            return
+        try: 
+            response = self.g2_module.findNetworkByEntityIDV2(args.entityList,args.maxDegree,args.buildOutDegree,args.maxEntities,args.flags)
             if response:
                 printResponse(response)
             else:
@@ -668,6 +784,22 @@ class G2CmdShell(cmd.Cmd, object):
         except G2Exception.G2Exception as err:
             print(err)
 
+    def do_getEntityByRecordIDV2(self, arg):
+        '\nGet entity by record ID:  getEntityByRecordIDV2 <dataSourceCode> <recordID> <flags>\n'
+        try:
+            args = self.parser.parse_args(['getEntityByRecordIDV2'] + parse(arg))
+        except SystemExit:
+            print(self.do_getEntityByRecordIDV2.__doc__)
+            return
+        try: 
+            response = self.g2_module.getEntityByRecordIDV2(args.dataSourceCode, args.recordID, args.flags)
+            if response:
+                printResponse(response)
+            else:
+                printWithNewLine('')
+        except G2Exception.G2Exception as err:
+            print(err)
+
     def do_findPathByRecordID(self, arg):
         '\nFind path between two records:  findPathByRecordID <startDataSourceCode> <startRecordID> <endDataSourceCode> <endRecordID> <maxDegree>\n'
         try:
@@ -685,6 +817,23 @@ class G2CmdShell(cmd.Cmd, object):
             print(err)
 
 
+    def do_findPathByRecordIDV2(self, arg):
+        '\nFind path between two records:  findPathByRecordIDV2 <startDataSourceCode> <startRecordID> <endDataSourceCode> <endRecordID> <maxDegree> <flags>\n'
+        try:
+            args = self.parser.parse_args(['findPathByRecordIDV2'] + parse(arg))
+        except SystemExit:
+            print(self.do_findPathByRecordIDV2.__doc__)
+            return
+        try: 
+            response = self.g2_module.findPathByRecordIDV2(args.startDataSourceCode,args.startRecordID,args.endDataSourceCode,args.endRecordID,args.maxDegree,args.flags)
+            if response:
+                printResponse(response)
+            else:
+                printWithNewLine('')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
     def do_findNetworkByRecordID(self, arg):
         '\nFind network between records:  findNetworkByRecordID <recordList> <maxDegree> <buildOutDegree> <maxEntities>\n'
         try:
@@ -694,6 +843,23 @@ class G2CmdShell(cmd.Cmd, object):
             return
         try: 
             response = self.g2_module.findNetworkByRecordID(args.recordList,args.maxDegree,args.buildOutDegree,args.maxEntities)
+            if response:
+                printResponse(response)
+            else:
+                printWithNewLine('')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
+    def do_findNetworkByRecordIDV2(self, arg):
+        '\nFind network between records:  findNetworkByRecordIDV2 <recordList> <maxDegree> <buildOutDegree> <maxEntities> <flags>\n'
+        try:
+            args = self.parser.parse_args(['findNetworkByRecordIDV2'] + parse(arg))
+        except SystemExit:
+            print(self.do_findNetworkByRecordIDV2.__doc__)
+            return
+        try: 
+            response = self.g2_module.findNetworkByRecordIDV2(args.recordList,args.maxDegree,args.buildOutDegree,args.maxEntities,args.flags)
             if response:
                 printResponse(response)
             else:
@@ -737,14 +903,32 @@ class G2CmdShell(cmd.Cmd, object):
 
 
     def do_getRecord(self, arg):
-        '\nGet current set of attributes for record ID :  getRecord <dataSourceCode> <recordID>\n'
+        '\nGet record for record ID :  getRecord <dataSourceCode> <recordID>\n'
         try:
-            args = self.parser.parse_args(['getEntityByRecordID'] + parse(arg))
+            args = self.parser.parse_args(['getRecord'] + parse(arg))
         except SystemExit:
             print(self.do_getRecord.__doc__)
             return
         try: 
             response = self.g2_module.getRecord(args.dataSourceCode, args.recordID)
+            if response:
+                printResponse(response)
+            else:
+                printWithNewLine('')
+
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
+    def do_getRecordV2(self, arg):
+        '\nGet record for record ID :  getRecordV2 <dataSourceCode> <recordID> <flags>\n'
+        try:
+            args = self.parser.parse_args(['getRecordV2'] + parse(arg))
+        except SystemExit:
+            print(self.do_getRecordV2.__doc__)
+            return
+        try: 
+            response = self.g2_module.getRecordV2(args.dataSourceCode, args.recordID, args.flags)
             if response:
                 printResponse(response)
             else:
@@ -1123,3 +1307,4 @@ if __name__ == '__main__':
         G2CmdShell().cmdloop()
 
     sys.exit()
+

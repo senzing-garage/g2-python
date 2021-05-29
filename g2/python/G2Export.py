@@ -22,12 +22,23 @@ from G2Exception import G2ModuleException
 #---------------------------------------
 def exportEntityResume(appError):
 
+    exportFlags = 0
     if outputFilter == 1:
         outputFilterDisplay = 'Resolved entities only'
+        exportFlags = 131076
     elif outputFilter == 2:
         outputFilterDisplay = 'Including possible matches'
-    elif outputFilter >= 3:
+        exportFlags = 8204
+    elif outputFilter == 3:
         outputFilterDisplay = 'Including relationships'
+        exportFlags = 24604
+    elif outputFilter == 4:
+        outputFilterDisplay = 'Including relationships'
+        exportFlags = 122940
+    elif outputFilter >= 5:
+        outputFilterDisplay = 'Including relationships'
+        exportFlags = 4220
+    exportFlags = exportFlags + 3
     print('')    
     print('Writing to %s ... (%s)' % (outputFileName, outputFilterDisplay))
     print('')
@@ -49,7 +60,7 @@ def exportEntityResume(appError):
 
     #--initialize the g2module export
     print('Executing query ...')
-    try: exportHandle = g2_module.getExportHandle(outputFormat, outputFilter)
+    try: exportHandle = g2_module.getExportHandleFromFlags(outputFormat,exportFlags)
     except G2ModuleException as ex:
         print('ERROR: could not initialize export')
         print(ex)

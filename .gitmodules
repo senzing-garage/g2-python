@@ -49,3 +49,9 @@
 [submodule "g2s3"]
 	path = g2s3
 	url = https://github.com/Senzing/g2s3.git
+[submodule "g2createinstance"]
+	path = g2createinstance
+	url = https://github.com/Senzing/g2createinstance.git
+[submodule "g2diagnostic"]
+	path = g2diagnostic
+	url = https://github.com/Senzing/g2diagnostic.git

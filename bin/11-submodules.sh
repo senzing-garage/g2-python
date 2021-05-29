@@ -19,7 +19,7 @@ SUBMODULES=(
     "g2engine;1.0.0;G2Engine.py"
     "g2exception;1.1.0;G2Exception.py"
     "g2export;1.2.0;G2Export.py"
-    "g2loader;1.3.0;G2Loader.py"
+    "g2loader;1.3.1;G2Loader.py"
     "g2module;1.3.0;G2Module.ini"
     "g2module;1.3.0;G2Module.py"
     "g2product;1.1.0;G2Product.py"

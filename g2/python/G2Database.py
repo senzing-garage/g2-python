@@ -23,7 +23,7 @@ class G2Database:
             return
 
         #--import correct modules for DB type
-        if self.dbType in ('MYSQL', 'DB2'):
+        if self.dbType in ('MYSQL', 'DB2', 'POSTGRESQL'):
             try:
                 self.pyodbc = import_module('pyodbc')
             except ImportError as err:
@@ -81,7 +81,10 @@ class G2Database:
                 c.execute("PRAGMA journal_mode=wal")
                 c.execute("PRAGMA synchronous=0")
             elif self.dbType == 'DB2':
-                self.dbo = self.pyodbc.connect('DSN=' + self.dsn + '; UID=' + self.userId + '; PWD=' + self.password, autocommit = True)
+                self.dbo = self.pyodbc.connect('DSN=' + self.dsn + '; UID=' + self.userId + '; PWD=' + self.password, autocommit=True)
+            elif self.dbType == 'POSTGRESQL':
+              conn_str = 'DSN=' + self.dsn + ';UID=' + self.userId + ';PWD=' + self.password + ';'
+              self.dbo = self.pyodbc.connect(conn_str, autocommit=True)
             else:
                 print('ERROR: Unsupported DB Type: ' + self.dbType)
                 return False
@@ -209,7 +212,8 @@ class G2Database:
             elif self.dbType == 'DB2':
                 self.sqlExec('set current schema ' + self.schema)
                 #--note: for some reason pyodbc not throwing error with set to invalid schema!
-
+            elif self.dbType == 'POSTGRESQL':
+                self.sqlExec('SET search_path TO ' + self.schema)
         except G2Exception.G2DBException as err:
             print(err)
             return False
@@ -252,6 +256,7 @@ class G2Database:
         else: #--just dsn with trusted connection?
             justUidPwd = ':'
             justDsnSch = dbUriData
+        justDsnSch = justDsnSch.rstrip('/')
  
         #--separate uid and password
         if ':' in justUidPwd:
@@ -268,6 +273,8 @@ class G2Database:
         elif ':' in justDsnSch:
             dsn = justDsnSch.split(':')[0]
             self.port = justDsnSch.split(':')[1]
+            if dbtype == 'POSTGRESQL':
+              dsn = justDsnSch.split(':')[2]
         else: #--just dsn with no port
             dsn = justDsnSch
             self.port = None
@@ -279,7 +286,7 @@ class G2Database:
         self.password = pwd
         self.table = tbl
 
-        if self.dbType not in ('DB2', 'MYSQL', 'SQLITE3'):
+        if self.dbType not in ('DB2', 'MYSQL', 'SQLITE3', 'POSTGRESQL'):
             raise G2Exception.G2UnsupportedDatabaseType('ERROR: ' + self.dbType + ' is an unsupported database type')
 
         return
@@ -313,6 +320,9 @@ class G2Database:
                 if 'not unique' in errMessage:
                     return G2Exception.G2DBUniqueConstraintViolation(errMessage)
         elif self.dbType == 'MYSQL':
+            errMessage = ex.args[1]
+            pass
+        elif self.dbType == 'POSTGRESQL':
             errMessage = ex.args[1]
             pass
         else:

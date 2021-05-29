@@ -223,7 +223,7 @@ def loadProject():
     else:
         actionStr = 'Loading'
 
-    print('%s %s' % (actionStr, projectFileName if projectFileName else projectFileSpec))
+    print('\n%s %s\n' % (actionStr, projectFileName if projectFileName else projectFileSpec))
 
     #--prepare G2 database
     if not prepareG2db():
@@ -449,7 +449,7 @@ def loadRedoQueueAndProcess():
 #---------------------------------------
 def prepareG2db():
 
-    g2ConfigTables = G2ConfigTables(configTableFile,g2iniPath)	
+    g2ConfigTables = G2ConfigTables(configTableFile,g2iniPath, configuredDatasourcesOnly)	
     if not g2ConfigTables.success:
         return
 	
@@ -469,6 +469,9 @@ def prepareG2db():
         except G2Exception.G2DBException as err:
             print(err)
             print('ERROR: could not prepare G2 database')
+            return False
+        except G2Exception.UnconfiguredDataSourceException as err:
+            print(err)
             return False
 
     return True
@@ -635,8 +638,6 @@ if __name__ == '__main__':
     iniParser.read(iniFileName)
     try: g2dbUri = iniParser.get('g2', 'G2Connection')
     except: g2dbUri = None
-    ####try: odsDbUri = iniParser.get('g2', 'ODSConnection')
-    ####except: odsDbUri = None
     try: configTableFile = iniParser.get('g2', 'G2ConfigFile')
     except: configTableFile = None
     try: g2iniPath = os.path.expanduser(iniParser.get('g2', 'iniPath'))
@@ -663,20 +664,29 @@ if __name__ == '__main__':
     processRedoQueue = True
     redoMode = False
     redoModeInterval = 60
-    if len(sys.argv) > 1:
-        argParser = argparse.ArgumentParser()
-        argParser.add_argument('-p', '--projectFile', dest='projectFileName', default='', help='the name of a g2 project csv or json file')
-        argParser.add_argument('-f', '--fileSpec', dest='projectFileSpec', default='', help='the name of a file to load such as /data/*.json/?data_source=?,file_format=?')
-        argParser.add_argument('-P', '--purgeFirst', dest='purgeFirst', action='store_true', default=False, help='purge the g2 repository first')
-        argParser.add_argument('-T', '--testMode', dest='testMode', action='store_true', default=False, help='run in test mode to get stats without loading, ctrl-c anytime')
-        argParser.add_argument('-D', '--delete', dest='deleteMode', action='store_true', default=False, help='run in delete mode')
-        argParser.add_argument('-t', '--debugTrace', dest='debugTrace', action='store_true', default=False, help='output debug trace information')
-        argParser.add_argument('-w', '--workloadStats', dest='workloadStats', action='store_true', default=False, help='output workload statistics information')
-        argParser.add_argument('-n', '--noRedo', dest='noRedo', action='store_false', default=True, help='disable redo processing')
-        argParser.add_argument('-R', '--redoMode', dest='redoMode', action='store_true', default=False, help='run in redo mode that only processes the redo queue')
-        argParser.add_argument('-i', '--redoModeInterval', dest='redoModeInterval', type=int, default=60, help='time to wait between redo processing runs, in seconds. Only used in redo mode')
-        args = argParser.parse_args()
-        if args.projectFileName:
+    configuredDatasourcesOnly = False
+
+    argParser = argparse.ArgumentParser()
+    argParser.add_argument('-p', '--projectFile', dest='projectFileName', default='', help='the name of a g2 project csv or json file', nargs='?')
+    argParser.add_argument('-f', '--fileSpec', dest='projectFileSpec', default='', help='the name of a file to load such as /data/*.json/?data_source=?,file_format=?')
+    argParser.add_argument('-P', '--purgeFirst', dest='purgeFirst', action='store_true', default=False, help='purge the g2 repository first')
+    argParser.add_argument('-T', '--testMode', dest='testMode', action='store_true', default=False, help='run in test mode to get stats without loading, ctrl-c anytime')
+    argParser.add_argument('-D', '--delete', dest='deleteMode', action='store_true', default=False, help='run in delete mode')
+    argParser.add_argument('-t', '--debugTrace', dest='debugTrace', action='store_true', default=False, help='output debug trace information')
+    argParser.add_argument('-w', '--workloadStats', dest='workloadStats', action='store_true', default=False, help='output workload statistics information')
+    argParser.add_argument('-n', '--noRedo', dest='noRedo', action='store_false', default=True, help='disable redo processing')
+    argParser.add_argument('-R', '--redoMode', dest='redoMode', action='store_true', default=False, help='run in redo mode that only processes the redo queue')
+    argParser.add_argument('-i', '--redoModeInterval', dest='redoModeInterval', type=int, default=60, help='time to wait between redo processing runs, in seconds. Only used in redo mode')
+    argParser.add_argument('-k', '--knownDatasourcesOnly', dest='configuredDatasourcesOnly', action='store_true', default=False, help='only accepts configured(known) data sources')
+    args = argParser.parse_args()
+
+    if len(sys.argv) < 2:
+        print('')
+        argParser.print_help()
+        sys.exit(0)
+    else:
+        #If -p and a value is present use it, otherwise G2Project.ini project file will be used, allows no arguments to display help and still have default project
+        if args.projectFileName and len(args.projectFileName) > 0:
             projectFileName = args.projectFileName
         if args.projectFileSpec:
             projectFileSpec = args.projectFileSpec
@@ -690,17 +700,14 @@ if __name__ == '__main__':
             debugTrace = 1
         if args.workloadStats:
             workloadStats = 1
-        processRedoQueue = args.noRedo
-        if args.redoMode:
-            redoMode = args.redoMode
+        processRedoQueue = args.noRedo        
+        redoMode = args.redoMode
         redoModeInterval = args.redoModeInterval
+        configuredDatasourcesOnly = args.configuredDatasourcesOnly
 
     #--validations
     if not g2dbUri:
         print('ERROR: A G2 database connection is not specified!')
-        sys.exit(1)
-    ####if not odsDbUri:
-    ####    print('ERROR: A ODS database connection is not specified!')
         sys.exit(1)
     if not configTableFile:
         print('ERROR: A G2 setup configuration file is not specified')
@@ -713,7 +720,7 @@ if __name__ == '__main__':
             projectFileName = None
 
     #--set globals for the g2 engine
-    maxThreadsPerProcess=4
+    maxThreadsPerProcess=8
 
     if redoMode:
         runSetupProcess(False) # no purge because we would purge the redo queue
@@ -735,7 +742,7 @@ if __name__ == '__main__':
             sys.exit(1)
             
         #-- Load the G2 configuration file
-        g2ConfigTables = G2ConfigTables(configTableFile,g2iniPath)
+        g2ConfigTables = G2ConfigTables(configTableFile,g2iniPath, configuredDatasourcesOnly)
 
         #--open the project
         cfg_attr = g2ConfigTables.loadConfig('CFG_ATTR')

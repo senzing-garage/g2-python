@@ -443,13 +443,16 @@ class G2Project:
             elif fileExtension.upper() in ('.CSV', '.TAB', '.PIPE'):
                 self.projectFileFormat = fileExtension[1:].upper()
             else:
-                raise G2UnsupportedFileTypeException('Unknown project file type: ' + fileExtension)
+                print('ERROR: Invalid project file extension [%s]' % fileExtension)
+                print(' Supported project file extensions include: .json, .csv, .tab, and .pipe')
+                self.success = False 
+                return
 
             #--load a json project file
             if self.projectFileFormat == 'JSON':
                 self.loadJsonProject()
-            #--load a csv json file
-            elif self.projectFileFormat == 'CSV':
+            #--its gotta be a csv dialect
+            else:
                 self.loadCsvProject()
 
             if self.success:
@@ -492,6 +495,8 @@ class G2Project:
             csvHeaders = [x.strip().upper() for x in next(csvReader)]
             if not 'DATA_SOURCE' in csvHeaders:
                 print('ERROR: project file does not contain a column for DATA_SOURCE!')
+                print(' Please ensure the file extension matches the delimiters.')
+                print(' Supported file extensions include: .csv, .tab, and .pipe')
                 self.success = False
             elif not 'FILE_NAME' in csvHeaders:
                 print('ERROR: project file does not contain a column for FILE_NAME!')
@@ -775,11 +780,14 @@ class G2Project:
     def openCsv(self, fileName, fileFormat):
         ''' chooses best dialect to open a csv with (comma, tab, quoted or not) '''
         csvFile = openPossiblyCompressedFile(fileName, 'r')
-        csv.register_dialect('CSV', delimiter = ',', quotechar = '"')
-        csv.register_dialect('TAB', delimiter = '\t', quotechar = '"')
-        csv.register_dialect('PIPE', delimiter = '|', quotechar = '"')
+        if fileFormat in ('CSV', 'TAB', 'PIPE'):
+            csv.register_dialect('CSV', delimiter = ',', quotechar = '"')
+            csv.register_dialect('TAB', delimiter = '\t', quotechar = '"')
+            csv.register_dialect('PIPE', delimiter = '|', quotechar = '"')
+        else: #--let csv module figure it out
+            fileFormat = csv.Sniffer().sniff(csvFile.read(1024))
+            csvFile.seek(0)
         csvReader = csv.reader(csvFile, fileFormat)
-
         return csvFile, csvReader
 
     #----------------------------------------

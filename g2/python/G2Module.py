@@ -202,33 +202,41 @@ class G2Module(object):
 
         return responseBuf.value.decode('utf-8')
 
-    def getExportFlagsForMaxMatchLevel(self, max_match_level):
+    def getExportFlagsForMaxMatchLevel(self, max_match_level, includeSingletons, includeExtraCols):
         """ Converts a maximum match level into an appropriate export flag bitmask value.
 
         Args:
             max_match_level: The maximum match level to use in an export.
+            includeSingletons: Also include singletons.
+            includeExtraCols: Also include extra export output.
 
         Return:
             int: A bitmask flag representing the match-levels to include.
         """
+
         g2ExportFlags = 0
         if max_match_level == 1:
-            # Include "resolved" relationships
+            # Include resolved entities
             g2ExportFlags = 4
         elif max_match_level == 2:
-            # Include "possibly same" relationships
+            # Include possibly same relationships in addition to resolved entities
             g2ExportFlags = 12
         elif max_match_level == 3:
-            # Include "possibly related" relationships
+            # Include possibly related relationships in addition to resolved entities & possibly same
             g2ExportFlags = 28
         elif max_match_level == 4:
-            # Include "name only" relationships
-            g2ExportFlags = 60
-        elif max_match_level == 5:
-            # Include "disclosed" relationships
-            g2ExportFlags = 125
+            # Include disclosed relationships in addition to resolved entities & possibly same & possibly related
+            g2ExportFlags = 92
         else:
             g2ExportFlags = 0
+
+        #Add 1 to flags if we are including singletons
+        if includeSingletons:
+            g2ExportFlags += 1
+        #Add 2 to flags if we are including extra header columns
+        if includeExtraCols:
+            g2ExportFlags = g2ExportFlags + 2 
+
         return g2ExportFlags
 
     def getExportHandle(self, exportType, max_match_level):
@@ -248,13 +256,13 @@ class G2Module(object):
                              1 -- "resolved" relationships
                              2 -- "possibly same" relationships
                              3 -- "possibly related" relationships
-                             4 -- "name only" relationships
+                             4 -- "name only" relationships                 *** Internal only
                              5 -- "disclosed" relationships
         Return:
             c_void_p: handle for the export
         """
-        g2ExportFlags = self.getExportFlagsForMaxMatchLevel(max_match_level)
-        g2ExportFlags = g2ExportFlags | 3 
+        g2ExportFlags = self.getExportFlagsForMaxMatchLevel(max_match_level, True, True)
+
         if exportType == 'CSV':
             self._lib_handle.G2_exportCSVEntityReport.restype = c_void_p
             exportHandle = self._lib_handle.G2_exportCSVEntityReport(g2ExportFlags)
@@ -306,7 +314,7 @@ class G2Module(object):
             csvRecord = None
         return csvRecord 
 
-    def exportCSVEntityReport(self, max_match_level, g2ExportFlags):
+    def exportCSVEntityReport(self, max_match_level, g2ExportFlags, includeSingletons, includeExtraCols):
         # type: (int, int) -> str
         """ Generate a CSV Entity Report
         This is used to export entity data from known entities.  This function
@@ -321,17 +329,21 @@ class G2Module(object):
                              1 -- "resolved" relationships
                              2 -- "possibly same" relationships
                              3 -- "possibly related" relationships
-                             4 -- "name only" relationships
+                             4 -- "name only" relationships                         *** Internal only
                              5 -- "disclosed" relationships
             g2ExportFlags: A bit mask specifying other control flags, such as
                            "G2_EXPORT_INCLUDE_SINGLETONS".  The default and recommended
                            value is "G2_EXPORT_DEFAULT_REPORT_FLAGS".
+            includeSingletons: Also include singletons
+            includeExtraCols: Also include extra export output
+
 
         Return:
             c_void_p: handle for the export
         """
+
         resultString = b""
-        fullG2ExportFlags_ = self.getExportFlagsForMaxMatchLevel(max_match_level)
+        fullG2ExportFlags_ = self.getExportFlagsForMaxMatchLevel(max_match_level, includeSingletons, includeExtraCols)
         fullG2ExportFlags_ = fullG2ExportFlags_ | g2ExportFlags
         self._lib_handle.G2_exportCSVEntityReport.restype = c_void_p
         exportHandle = self._lib_handle.G2_exportCSVEntityReport(fullG2ExportFlags_)
@@ -341,14 +353,15 @@ class G2Module(object):
         rowData = self._lib_handle.G2_fetchNext(c_void_p(exportHandle),tls_var.buf,sizeof(tls_var.buf))
 
         while rowData:
-            rowCount = rowCount + 1
+            rowCount += 1
             stringData = tls_var.buf
             resultString += stringData.value
             rowData = self._lib_handle.G2_fetchNext(c_void_p(exportHandle),tls_var.buf,sizeof(tls_var.buf))
         self._lib_handle.G2_closeExport(c_void_p(exportHandle))
-        return resultString.decode('utf-8')
 
-    def exportJSONEntityReport(self,max_match_level,g2ExportFlags):
+        return (resultString.decode('utf-8'), rowCount)
+
+    def exportJSONEntityReport(self, max_match_level, g2ExportFlags, includeSingletons, includeExtraCols):
         # type: (int, int) -> str
         """ Generate a JSON Entity Report
         This is used to export entity data from known entities.  This function
@@ -368,12 +381,14 @@ class G2Module(object):
             g2ExportFlags: A bit mask specifying other control flags, such as
                            "G2_EXPORT_INCLUDE_SINGLETONS".  The default and recommended
                            value is "G2_EXPORT_DEFAULT_REPORT_FLAGS".
+            includeSingletons: Also include singletons
+            includeExtraCols: Also include extra export output
 
         Return:
             c_void_p: handle for the export
         """
         resultString = b""
-        fullG2ExportFlags_ = self.getExportFlagsForMaxMatchLevel(max_match_level)
+        fullG2ExportFlags_ = self.getExportFlagsForMaxMatchLevel(max_match_level, includeSingletons, includeExtraCols)
         fullG2ExportFlags_ = fullG2ExportFlags_ | g2ExportFlags
         self._lib_handle.G2_exportJSONEntityReport.restype = c_void_p
         exportHandle = self._lib_handle.G2_exportJSONEntityReport(fullG2ExportFlags_)
@@ -381,13 +396,15 @@ class G2Module(object):
         resize_return_buffer(None,65535)
         self._lib_handle.G2_fetchNext.argtypes = [c_void_p, c_char_p, c_size_t]
         rowData = self._lib_handle.G2_fetchNext(c_void_p(exportHandle),tls_var.buf,sizeof(tls_var.buf))
+
         while rowData:
-            rowCount = rowCount + 1
+            rowCount += 1
             stringData = tls_var.buf
             resultString += stringData.value
             rowData = self._lib_handle.G2_fetchNext(c_void_p(exportHandle),tls_var.buf,sizeof(tls_var.buf))
         self._lib_handle.G2_closeExport(c_void_p(exportHandle))
-        return resultString.decode('utf-8')
+        
+        return (resultString.decode('utf-8'), rowCount)
 
     def prepareStringArgument(self, stringToPrepare):
         # type: (str) -> str
@@ -872,7 +889,7 @@ class G2Module(object):
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
 
-        return json.loads(responseBuf.value.decode('utf-8'))
+        return responseBuf.value.decode('utf-8')
 
     def exportConfig(self):
         # type: () -> object
@@ -897,7 +914,7 @@ class G2Module(object):
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code < 0:
             raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
-        return json.loads(responseBuf.value.decode('utf-8'))
+        return responseBuf.value.decode('utf-8')
 
     def getActiveConfigID(self):
         # type: () -> object
@@ -928,6 +945,7 @@ class G2Module(object):
 
         Return:
             object: The last modified time stamp, as a numeric integer
+
         """
 
         lastModifiedTimeStamp = c_longlong(0)

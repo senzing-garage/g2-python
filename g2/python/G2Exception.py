@@ -18,6 +18,10 @@ class G2DBException(G2Exception):
     def __init__(self, *args, **kwargs):
         G2Exception.__init__(self, *args, **kwargs)
 
+class UnconfiguredDataSourceException(G2Exception):
+    def __init__(self, DataSourceName):
+        G2Exception.__init__(self,("Datasource %s not configured. See https://senzing.zendesk.com/hc/en-us/articles/360010784333 on how to configure datasources in the config file." % DataSourceName ))
+
 class G2DBUnknownException(G2DBException):
     def __init__(self, *args, **kwargs):
         G2DBException.__init__(self, *args, **kwargs)

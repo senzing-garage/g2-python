@@ -5115,9 +5115,9 @@
             "COMPATIBILITY_VERSION": {
                 "CONFIG_VERSION": "2"
             },
-            "BUILD_DATE": "2019-02-27",
-            "VERSION": "1.6.19058",
-            "BUILD_NUMBER": "2019_02_27__02_00"
+            "BUILD_DATE": "2019-03-18",
+            "VERSION": "1.6.19077",
+            "BUILD_NUMBER": "2019_03_18__02_00"
         },
         "CFG_DFUNC": [
             {

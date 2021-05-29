@@ -5115,9 +5115,9 @@
             "COMPATIBILITY_VERSION": {
                 "CONFIG_VERSION": "2"
             },
-            "BUILD_DATE": "2019-01-31",
-            "VERSION": "1.5.19031",
-            "BUILD_NUMBER": "2019_01_31__02_00"
+            "BUILD_DATE": "2019-02-27",
+            "VERSION": "1.6.19058",
+            "BUILD_NUMBER": "2019_02_27__02_00"
         },
         "CFG_DFUNC": [
             {
@@ -8363,7 +8363,7 @@
                 "FTYPE_ID": 54,
                 "FTYPE_CODE": "CITIZENSHIP",
                 "FTYPE_DESC": "Country of citizenship",
-                "FTYPE_EXCL": "Yes"
+                "FTYPE_EXCL": "No"
             },
             {
                 "VERSION": 1,
@@ -8379,7 +8379,7 @@
                 "FTYPE_ID": 55,
                 "FTYPE_CODE": "NATIONALITY",
                 "FTYPE_DESC": "Nationality",
-                "FTYPE_EXCL": "Yes"
+                "FTYPE_EXCL": "No"
             },
             {
                 "VERSION": 1,

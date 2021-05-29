@@ -716,18 +716,18 @@ class G2CmdShell(cmd.Cmd):
             printWithNewLines('')
 
             #--can't alter a locked feature
-            if parmData['FEATURE'] in self.lockedFeatureList:
-                printWithNewLines('Feature %s is locked!' % parmData['FEATURE'])
-                return
+            #if parmData['FEATURE'] in self.lockedFeatureList:
+            #    printWithNewLines('Feature %s is locked!' % parmData['FEATURE'])
+            #    return
 
             #--lookup feature and error if doesn't exist
-            listID = 0
+            listID = -1
             ftypeID = 0
             for i in range(len(self.cfgData['G2_CONFIG']['CFG_FTYPE'])):
                 if self.cfgData['G2_CONFIG']['CFG_FTYPE'][i]['FTYPE_CODE'] == parmData['FEATURE']:
                     listID = i
                     ftypeID = self.cfgData['G2_CONFIG']['CFG_FTYPE'][i]['FTYPE_ID']
-            if listID == 0: 
+            if listID == -1: 
                 printWithNewLines('Feature %s does not exist!' % parmData['FEATURE'])
                 return
 
@@ -1119,8 +1119,8 @@ class G2CmdShell(cmd.Cmd):
         jsonString += ', "class": "%s"' % fclassRecord['FCLASS_CODE'] if fclassRecord else 'OTHER'
         
         jsonString += ', "behavior": "%s"' % getFeatureBehavior(ftypeRecord)
-        jsonString += ', "anonymize": "%s"' % ('Yes' if ftypeRecord['ANONYMIZE'] == 1 else 'No')
-        jsonString += ', "candidates": "%s"' % ('Yes' if ftypeRecord['USED_FOR_CAND'] == 1 else 'No')
+        jsonString += ', "anonymize": "%s"' % ('Yes' if ftypeRecord['ANONYMIZE'].upper() == 'YES' else 'No')
+        jsonString += ', "candidates": "%s"' % ('Yes' if ftypeRecord['USED_FOR_CAND'].upper() == 'YES' else 'No')
         jsonString += ', "standardize": "%s"' % (sfuncRecord['SFUNC_CODE'] if sfuncRecord else '')
         jsonString += ', "expression": "%s"' % (efuncRecord['EFUNC_CODE'] if efuncRecord else '')
         jsonString += ', "comparison": "%s"' % (cfuncRecord['CFUNC_CODE'] if cfuncRecord else '')

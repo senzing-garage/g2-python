@@ -245,7 +245,8 @@ class G2Engine(object):
                              1 -- same entities
                              2 -- possibly same entities
                              3 -- possibly related entities
-                             4 -- disclosed relationships
+                             4 -- "name only" relationships                 *** Internal only
+                             5 -- disclosed relationships
         Return:
             c_void_p: handle for the export
         """
@@ -262,6 +263,9 @@ class G2Engine(object):
         elif max_match_level == 4:
             # Include match-level 1,2,3,4
             g2ExportFlags = 60
+        elif max_match_level == 5:
+            # Include match-level 1,2,3,4,5
+            g2ExportFlags = 124
         else:
             g2ExportFlags = 0
         g2ExportFlags = g2ExportFlags | 3 
@@ -484,6 +488,34 @@ class G2Engine(object):
             response.append(i)
         return ret_code
 
+    def searchByAttributesV2(self,jsonData,flags,response):
+        # type: (str,bytearray) -> int
+        """ Find records matching the provided attributes
+        Args:
+            jsonData: A JSON document containing the attribute information to search.
+            flags: control flags.
+            response: A bytearray for returning the response document; if an error occurred, an error response is stored here.
+        Return:
+            int: 0 upon success, other for error.
+        """
+        _jsonData = self.prepareStringArgument(jsonData)
+        resize_return_buffer(None, 65535)
+        responseBuf = c_char_p(None)
+        responseSize = c_size_t(0)
+        self._lib_handle.G2_searchByAttributes_V2.argtypes = [c_char_p, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_searchByAttributes_V2(_jsonData,flags,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            self._lib_handle.G2_clearLastException()
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        stringRet = str(tls_var.buf.value.decode('utf-8'))
+        for i in stringRet:
+            response.append(i)
+        return ret_code
+
     def getEntityByEntityID(self,entityID,response):
         # type: (int,bytearray) -> int
         """ Find the entity with the given ID
@@ -501,6 +533,36 @@ class G2Engine(object):
         responseSize = c_size_t(0)
         self._lib_handle.G2_getEntityByEntityID.argtypes = [c_longlong, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
         ret_code = self._lib_handle.G2_getEntityByEntityID(entityID,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            self._lib_handle.G2_clearLastException()
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        stringRet = str(tls_var.buf.value.decode('utf-8'))
+        for i in stringRet:
+            response.append(i)
+        return ret_code
+
+    def getEntityByEntityIDV2(self,entityID,flags,response):
+        # type: (int,bytearray) -> int
+        """ Find the entity with the given ID
+        Args:
+            entityID: The entity ID you want returned.  Typically referred to as
+                      ENTITY_ID in JSON results.
+            flags: control flags.
+            response: A bytearray for returning the response document; if an error occurred, an error response is stored here.
+
+        Return:
+            int: 0 upon success, other for error.
+        """
+
+        resize_return_buffer(None, 65535)
+        responseBuf = c_char_p(None)
+        responseSize = c_size_t(0)
+        self._lib_handle.G2_getEntityByEntityID_V2.argtypes = [c_longlong, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_getEntityByEntityID_V2(entityID,flags,
                                                                  pointer(responseBuf),
                                                                  pointer(responseSize),
                                                                  self._resize_func)
@@ -544,6 +606,38 @@ class G2Engine(object):
             response.append(i)
         return ret_code
 
+    def getEntityByRecordIDV2(self,dsrcCode,recordId,flags,response):
+        # type: (str,str,bytearray) -> int
+        """ Get the entity containing the specified record
+        Args:
+            dataSourceCode: The data source for the observation.
+            recordID: The ID for the record
+            flags: control flags.
+            response: A bytearray for returning the response document; if an error occurred, an error response is stored here.
+
+        Return:
+            int: 0 upon success, other for error.
+        """
+
+        _dsrcCode = self.prepareStringArgument(dsrcCode)
+        _recordId = self.prepareStringArgument(recordId)
+        resize_return_buffer(None, 65535)
+        responseBuf = c_char_p(None)
+        responseSize = c_size_t(0)
+        self._lib_handle.G2_getEntityByRecordID_V2.argtypes = [c_char_p, c_char_p, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_getEntityByRecordID_V2(_dsrcCode,_recordId,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            self._lib_handle.G2_clearLastException()
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        stringRet = str(responseBuf.value.decode('utf-8'))
+        for i in stringRet:
+            response.append(i)
+        return ret_code
+
     def getRecord(self,dsrcCode,recordId,response):
         # type: (str,str,bytearray) -> int
         """ Get the specified record
@@ -563,6 +657,38 @@ class G2Engine(object):
         responseSize = c_size_t(0)
         self._lib_handle.G2_getRecord.argtypes = [c_char_p, c_char_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
         ret_code = self._lib_handle.G2_getRecord(_dsrcCode,_recordId,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            self._lib_handle.G2_clearLastException()
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        stringRet = str(responseBuf.value.decode('utf-8'))
+        for i in stringRet:
+            response.append(i)
+        return ret_code
+
+    def getRecordV2(self,dsrcCode,recordId,response,flags):
+        # type: (str,str,bytearray) -> int
+        """ Get the specified record
+        Args:
+            dataSourceCode: The data source for the observation.
+            recordID: The ID for the record
+            flags: control flags.
+            response: A bytearray for returning the response document; if an error occurred, an error response is stored here.
+
+        Return:
+            int: 0 upon success, other for error.
+        """
+
+        _dsrcCode = self.prepareStringArgument(dsrcCode)
+        _recordId = self.prepareStringArgument(recordId)
+        resize_return_buffer(None, 65535)
+        responseBuf = c_char_p(None)
+        responseSize = c_size_t(0)
+        self._lib_handle.G2_getRecord_V2.argtypes = [c_char_p, c_char_p, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_getRecord_V2(_dsrcCode,_recordId,flags,
                                                                  pointer(responseBuf),
                                                                  pointer(responseSize),
                                                                  self._resize_func)

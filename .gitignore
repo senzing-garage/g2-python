@@ -1,5 +1,5 @@
 .DS_Store
 /g2.*
 /g2/python.*
-bin/00-user-variables.sh
+bin/01-user-variables.sh
 bin/03-copy-files-from-senzing-install.sh

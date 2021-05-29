@@ -279,7 +279,7 @@ def loadProject():
         else:
             transportThreadCount = defaultThreadCount
 
-        threadList, workQueue = startLoaderProcessAndThreads(defaultThreadCount)
+        threadList, workQueue = startLoaderProcessAndThreads(transportThreadCount)
         if threadStop.value != 0:
             return exitCode
 

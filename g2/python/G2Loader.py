@@ -14,7 +14,7 @@ import time
 import tempfile
 import math
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from glob import glob
 from multiprocessing import Queue,Value,Process
 try: from queue import Full,Empty
@@ -31,7 +31,7 @@ from G2Engine import G2Engine
 from G2Diagnostic import G2Diagnostic
 from G2Product import G2Product
 from G2Exception import G2ModuleException, G2ModuleResolveMissingResEnt, G2ModuleLicenseException
-from CompressedFile import openPossiblyCompressedFile, isCompressedFile
+from CompressedFile import openPossiblyCompressedFile, isCompressedFile, fileRowParser
 import DumpStack
  
 #--optional libraries
@@ -285,14 +285,7 @@ def loadProject():
 
     #--start loading!
     for sourceDict in g2Project.sourceList:        
-        dataSource = sourceDict['DATA_SOURCE'] 
-        entityType = sourceDict['ENTITY_TYPE'] 
-        fileFormat = sourceDict['FILE_FORMAT']
-        masterFileName = sourceDict['FILE_NAME']
-        masterDict = sourceDict['FILE_LIST'][0]
-        filePath = masterDict['FILE_PATH']
-        fileMappings = masterDict['MAP']
-        fileSource = sourceDict['FILE_SOURCE']
+        filePath = sourceDict['FILE_PATH']
 
         cntRows = 0
         cntBadParse = 0
@@ -302,21 +295,46 @@ def loadProject():
 
         print('')
         print('-' * 50)
-        print('Data source: %s, Format: %s' % (dataSource, fileFormat)) 
         if not testMode:
-            print(' Loading %s ...' % filePath)
+            print('Loading %s ...' % filePath)
         else:
-            print(' Testing %s ... (press control-c at any time to end test)' % filePath)
+            if not createJsonOnly:
+                print('Testing %s ... ' % filePath)
+                print(' press control-c at any time to end test')
+            else:
+                print('Creating %s ...' % (filePath + '.json',))
+                try: outputFile = open(filePath + '.json', 'w', encoding='utf-8', newline='')
+                except IOError as err:
+                    print('ERROR: could not create output file %s' % filePath + '.json')
+                    exitCode = 1
+                    return
 
-        if fileFormat == 'JSON' or fileFormat == 'UMF':
-            fileReader = openPossiblyCompressedFile(filePath, 'r')
-        else:
-            csvFile = openPossiblyCompressedFile(filePath, 'r')
-            csv.register_dialect('CSV', delimiter = ',', quotechar = '"')
-            csv.register_dialect('TAB', delimiter = '\t', quotechar = '"')
-            csv.register_dialect('PIPE', delimiter = '|', quotechar = '"')
-            csvHeaders = masterDict['CSV_HEADERS']
-            fileReader = csv.reader(csvFile, fileFormat)
+        #--shuffle if directed
+        if (not noShuffle) and (not testMode):
+            print (' shuffling file ...')
+            #if not os.path.exists(tempFolderPath):
+            #    try: os.makedirs(tempFolderPath)
+            #    except: 
+            #        print('ERROR: could not create temp directory %s' % tempFolderPath)
+            #        exitCode = 1
+            #        return
+            #shufFilePath = tempFolderPath + os.sep + sourceDict['FILE_NAME']
+            #--abandoned above ... shuffling to temp folder is more likley to run out of space!
+            shufFilePath = filePath + '.shuf'
+            if sourceDict['FILE_FORMAT'] in ('JSON', 'UMF'):
+                cmd = 'shuf %s > %s' % (filePath, shufFilePath)
+            else:
+                cmd = 'cat ' + filePath + ' | (read -r; printf "%s\n" "$REPLY"; shuf) > ' + shufFilePath
+            try: os.system(cmd)
+            except: 
+                print('ERROR: shuffle command failed: %s' % cmd)
+                exitCode = 1
+                return
+            else:
+                filePath = shufFilePath
+        fileReader = openPossiblyCompressedFile(filePath, 'r')
+        #--fileReader = safe_csv_reader(csv.reader(csvFile, fileFormat), cntBadParse)
+        if sourceDict['FILE_FORMAT'] not in ('JSON', 'UMF'):
             next(fileReader) #--use previously stored header row, so get rid of this one
                 
         #--drop to a single thread for files under 500k
@@ -334,57 +352,72 @@ def loadProject():
         fileStartTime = time.time()
         batchStartTime = time.time()
         cntRows = 0
-        for row in fileReader:
-
+        while True:
+            try: row = next(fileReader)
+            except StopIteration: 
+                break
+            except: 
+                cntRows += 1
+                cntBadParse += 1
+                print('could not read row %s, %s' % (cntRows, sys.exc_info()[0]))
+                continue
             #--always increment rowcount so agrees with a line count and references to bad rows are correct!
             cntRows += 1 
 
             #--skip blank rows
-            #--note a row could be a umf string, a json string or a csv list
-            if type(row) == list: #--csv
-                isBlank = len(''.join(map(str, row)).strip()) == 0
-            else:
-                row = row.strip()
-                isBlank = len(row) == 0
-            if isBlank:
+            rowData = fileRowParser(row, sourceDict, cntRows)
+            if not rowData:
                 cntBadParse += 1
                 continue
 
             #-- don't do any transformation if this is raw UMF
             okToContinue = True
-            if fileFormat != 'UMF':
-                try: rowDict = json.loads(row) if fileFormat == 'JSON' else dict(list(zip(csvHeaders, row)))
-                except: 
-                    print('  WARNING: could not parse row %s' % cntRows) 
-                    cntBadParse += 1
-                    okToContinue = False
-                else:
-                    #--update with file defaults
-                    if 'DATA_SOURCE' not in rowDict:
-                        rowDict['DATA_SOURCE'] = dataSource
-                    if 'LOAD_ID' not in rowDict:
-                        rowDict['LOAD_ID'] = masterFileName
-                    if 'ENTITY_TYPE' not in rowDict:
-                        rowDict['ENTITY_TYPE'] = entityType
-                    if 'DSRC_ACTION' not in rowDict:
-                        rowDict['DSRC_ACTION'] = dsrcAction
-                    row = json.dumps(rowDict, sort_keys=True)
+            if sourceDict['FILE_FORMAT'] != 'UMF':
 
-                    if testMode:
-                        mappingResponse = g2Project.mapJsonRecord(rowDict)
+                #--update with file defaults
+                if 'DATA_SOURCE' not in rowData and 'DATA_SOURCE' in sourceDict:
+                    rowData['DATA_SOURCE'] = sourceDict['DATA_SOURCE']
+                if 'ENTITY_TYPE' not in rowData and 'ENTITY_TYPE' in sourceDict:
+                    rowData['ENTITY_TYPE'] = sourceDict['ENTITY_TYPE']
+                if 'LOAD_ID' not in rowData:
+                    rowData['LOAD_ID'] = sourceDict['FILE_NAME']
+                #if 'DSRC_ACTION' not in rowData:
+                #    rowData['DSRC_ACTION'] = dsrcAction
+
+                #if 'DATA_SOURCE' not in rowData or 'ENTITY_TYPE' not in rowData:
+                #    print('  WARNING: data source or entity type missing on row %s' % cntRows) 
+                #    cntBadParse += 1
+                #    okToContinue = False
+                #    continue
+                    #--update with file defaults
+                if sourceDict['MAPPING_FILE']:
+                    rowData['_MAPPING_FILE'] = sourceDict['MAPPING_FILE']
+                    
+                if testMode:
+                    if '_MAPPING_FILE' not in rowData:
+                        recordList = [rowData]
+                    else:
+                        recordList, errorCount = g2Project.csvMapper(rowData)
+                        if errorCount:
+                            cntBadParse += 1
+                            recordList = []
+
+                    for rowData in recordList:
+                        mappingResponse = g2Project.mapJsonRecord(rowData)
                         if mappingResponse[0]:
                             cntBadUmf += 1
                             okToContinue = False
                             for mappingError in mappingResponse[0]:
                                 print('  WARNING: mapping error in row %s (%s)' % (cntRows, mappingError))
-
+                        elif createJsonOnly:
+                            outputFile.write(json.dumps(rowData, sort_keys = True) + '\n')
 
             #--put the record on the queue
             if okToContinue:
                 cntGoodUmf += 1
                 if not testMode:
                     while True:
-                        try: workQueue.put(row, True, 1)
+                        try: workQueue.put(rowData, True, 1)
                         except Full:
                             #check to see if any of our threads have died
                             for thread in threadList:
@@ -405,7 +438,7 @@ def loadProject():
                             redoStatDisplay = ', ' + redoMsg
 
                 #--display current stats
-                print('  %s rows processed, %s records per second%s' % (cntRows, int(float(sqlCommitSize) / (float(time.time() - batchStartTime if time.time() - batchStartTime != 0 else 1))), redoStatDisplay)) 
+                print('  %s rows processed at %s, %s records per second%s' % (cntRows, datetime.now().strftime('%I:%M%p').lower(), int(float(sqlCommitSize) / (float(time.time() - batchStartTime if time.time() - batchStartTime != 0 else 1))), redoStatDisplay))
                 batchStartTime = time.time()
 
             #--check to see if any threads threw errors or control-c pressed and shut down
@@ -417,17 +450,22 @@ def loadProject():
           redoError, redoMsg = processRedo(workQueue, True)
 
         #--close input files
-        if fileFormat in ('JSON', 'UMF'):
-            fileReader.close()
-        else:
-            csvFile.close()
+        fileReader.close()
 
         stopLoaderProcessAndThreads(threadList, workQueue)
 
-        if fileSource == 'S3':
+        if sourceDict['FILE_SOURCE'] == 'S3':
             print(" Removing temporary file created by S3 download " +  filePath)
             os.remove(filePath)
         
+        #--close outut file if just created json
+        if createJsonOnly:
+            outputFile.close()
+
+        #--remove shuffled file
+        if not noShuffle and not testMode:
+            print(" Removing shuffled file " +  filePath)
+            os.remove(shufFilePath)
         #--print the stats if not error or they pressed control-c
         if exitCode in (0, 9):
             elapsedSecs = time.time() - fileStartTime
@@ -461,9 +499,9 @@ def loadProject():
     print('')
     elapsedMins = round((time.time() - procStartTime) / 60, 1)
     if exitCode:
-        print('Process aborted after %s minutes' % elapsedMins)
+        print('Process aborted at %s after %s minutes' % (datetime.now().strftime('%I:%M%p').lower(), elapsedMins))
     else:
-        print('Process completed successfully in %s minutes' % elapsedMins)
+        print('Process completed successfully at %s in %s minutes' % (datetime.now().strftime('%I:%M%p').lower(), elapsedMins))
 
     return exitCode
 
@@ -508,18 +546,17 @@ def prepareG2db():
     #--add any missing source codes and entity types to the g2 config
     g2RestartRequired = False
     for sourceDict in g2Project.sourceList:
-        try: 
-            if g2ConfigTables.addDataSource(sourceDict['DATA_SOURCE']) == 1: #--inserted
-                g2RestartRequired = True
-            if g2ConfigTables.addEntityType(sourceDict['ENTITY_TYPE']) == 1: #--inserted
-                g2RestartRequired = True
-        except G2Exception.G2DBException as err:
-            print(err)
-            print('ERROR: could not prepare G2 database')
-            return False
-        except G2Exception.UnconfiguredDataSourceException as err:
-            print(err)
-            return False
+        if 'DATA_SOURCE' in sourceDict: 
+            try: 
+                if g2ConfigTables.addDataSource(sourceDict['DATA_SOURCE']) == 1: #--inserted
+                    g2RestartRequired = True
+            except G2Exception.G2DBException as err:
+                print(err)
+                print('ERROR: could not prepare G2 database')
+                return False
+            except G2Exception.UnconfiguredDataSourceException as err:
+                print(err)
+                return False
 
     return True
 
@@ -611,22 +648,42 @@ def g2Thread(threadId_, workQueue_, g2Engine_, threadStop, workloadStats, dsrcAc
             row = None
             continue
 
-        #--call g2engine
-        numProcessed += 1
-        if (workloadStats > 0 and (numProcessed%(maxThreadsPerProcess*sqlCommitSize)) == 0):
-          print(g2Engine_.stats())
 
-        try: 
-            g2Engine_.process(row)
-        except G2ModuleLicenseException as err:
-            print(err)
-            print('ERROR: G2Engine licensing error!')
-            with threadStop.get_lock():
-                threadStop.value = 1
-            return
-        except G2ModuleException as err:
-            print(row)
-            print(err)
+        #--perform mapping if necessary
+        if type(row) == dict:
+            if '_MAPPING_FILE' not in row:
+                rowList = [row]
+            else:
+                rowList, errorCount = g2Project.csvMapper(row)
+                if errorCount:
+                    recordList = []
+        else:
+            rowList = [row]
+
+        #--call g2engine
+        for row in rowList:
+
+            #--only umf is not a dict (csv and json are)
+            if type(row) == dict:
+                if dsrcAction == 'D':
+                    row['DSRC_ACTION'] = dsrcAction
+                row = json.dumps(row, sort_keys=True)
+
+            numProcessed += 1
+            if (workloadStats > 0 and (numProcessed%(maxThreadsPerProcess*sqlCommitSize)) == 0):
+              print(g2Engine_.stats())
+
+            try: 
+                returnCode = g2Engine_.process(row)
+            except G2ModuleLicenseException as err:
+                print(err)
+                print('ERROR: G2Engine licensing error!')
+                with threadStop.get_lock():
+                    threadStop.value = 1
+                return
+            except G2ModuleException as err:
+                print(row)
+                print('exception: %s' % err)
 
     return
 
@@ -657,7 +714,12 @@ def getFromDict(dict_, key_, max_ = 0):
 
 #----------------------------------------
 def pause(question = 'PRESS ENTER TO CONTINUE ...'):
-    response = input(question)
+    try: 
+        if sys.version[0] == '2':
+            response = raw_input(question)
+        else:
+            response = input(question)
+    except: response = ''
     return response
 
 #----------------------------------------
@@ -707,11 +769,13 @@ if __name__ == '__main__':
     purgeFirst = False
     testMode = False
     debugTrace = 0
+    noShuffle = 0
     workloadStats = 0
     processRedoQueue = True
     redoMode = False
     redoModeInterval = 60
     configuredDatasourcesOnly = False
+    createJsonOnly = False
 
     argParser = argparse.ArgumentParser()
     argParser.add_argument('-p', '--projectFile', dest='projectFileName', default='', help='the name of a g2 project csv or json file', nargs='?')
@@ -720,11 +784,13 @@ if __name__ == '__main__':
     argParser.add_argument('-T', '--testMode', dest='testMode', action='store_true', default=False, help='run in test mode to get stats without loading, ctrl-c anytime')
     argParser.add_argument('-D', '--delete', dest='deleteMode', action='store_true', default=False, help='run in delete mode')
     argParser.add_argument('-t', '--debugTrace', dest='debugTrace', action='store_true', default=False, help='output debug trace information')
+    argParser.add_argument('-ns', '--noShuffle', dest='noShuffle', action='store_true', default=False, help='shuffle the file to improve performance')
     argParser.add_argument('-w', '--workloadStats', dest='workloadStats', action='store_true', default=False, help='output workload statistics information')
     argParser.add_argument('-n', '--noRedo', dest='noRedo', action='store_false', default=True, help='disable redo processing')
     argParser.add_argument('-R', '--redoMode', dest='redoMode', action='store_true', default=False, help='run in redo mode that only processes the redo queue')
     argParser.add_argument('-i', '--redoModeInterval', dest='redoModeInterval', type=int, default=60, help='time to wait between redo processing runs, in seconds. Only used in redo mode')
     argParser.add_argument('-k', '--knownDatasourcesOnly', dest='configuredDatasourcesOnly', action='store_true', default=False, help='only accepts configured(known) data sources')
+    argParser.add_argument('-j', '--createJsonOnly', dest='createJsonOnly', action='store_true', default=False, help='only create json files from mapped csv files')
     args = argParser.parse_args()
 
     if len(sys.argv) < 2:
@@ -745,12 +811,17 @@ if __name__ == '__main__':
             dsrcAction = 'D'
         if args.debugTrace:
             debugTrace = 1
+        if args.noShuffle:
+            noShuffle = 1
         if args.workloadStats:
             workloadStats = 1
         processRedoQueue = args.noRedo        
         redoMode = args.redoMode
         redoModeInterval = args.redoModeInterval
         configuredDatasourcesOnly = args.configuredDatasourcesOnly
+        if args.createJsonOnly:
+            testMode = True
+            createJsonOnly = True
 
     #--validations
     if not g2dbUri:
@@ -791,8 +862,7 @@ if __name__ == '__main__':
         g2ConfigTables = G2ConfigTables(configTableFile,g2iniPath, configuredDatasourcesOnly)
 
         #--open the project
-        cfg_attr = g2ConfigTables.loadConfig('CFG_ATTR')
-        g2Project = G2Project(cfg_attr, projectFileName, projectFileSpec, tempFolderPath)
+        g2Project = G2Project(g2ConfigTables, projectFileName, projectFileSpec, tempFolderPath)
         if not g2Project.success:
             sys.exit(1)
 

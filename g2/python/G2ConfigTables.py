@@ -43,16 +43,16 @@ class G2ConfigTables:
             if tableName.upper() == 'CFG_DSRC':
             	cfgNodeEntry['ID'] = rowNode['DSRC_ID'];
             	cfgNodeEntry['DSRC_CODE'] = rowNode['DSRC_CODE'];
-            	cfgDict[cfgNodeEntry['ID']] = cfgNodeEntry
+            	cfgDict[cfgNodeEntry['DSRC_CODE']] = cfgNodeEntry
             elif tableName.upper() == 'CFG_ETYPE':
             	cfgNodeEntry['ID'] = rowNode['ETYPE_ID'];
             	cfgNodeEntry['ETYPE_CODE'] = rowNode['ETYPE_CODE'];
-            	cfgDict[cfgNodeEntry['ID']] = cfgNodeEntry
+            	cfgDict[cfgNodeEntry['ETYPE_CODE']] = cfgNodeEntry
             elif tableName.upper() == 'CFG_FTYPE':
             	cfgNodeEntry['ID'] = rowNode['FTYPE_ID'];
             	cfgNodeEntry['FTYPE_CODE'] = rowNode['FTYPE_CODE'];
             	cfgNodeEntry['DERIVED'] = rowNode['DERIVED'];
-            	cfgDict[cfgNodeEntry['ID']] = cfgNodeEntry
+            	cfgDict[cfgNodeEntry['FTYPE_CODE']] = cfgNodeEntry
             elif tableName.upper() == 'CFG_ERRULE':
             	cfgNodeEntry['ID'] = rowNode['ERRULE_ID'];
             	cfgNodeEntry['ERRULE_CODE'] = rowNode['ERRULE_CODE'];

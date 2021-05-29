@@ -5,7 +5,8 @@ import os
 
 tls_var = threading.local()
 
-from csv import reader as csvreader
+import csv
+csv.field_size_limit(500000)
 
 from G2Exception import TranslateG2ModuleException, G2ModuleNotInitialized, G2ModuleGenericException
 
@@ -319,7 +320,7 @@ class G2Module(object):
         """
         resultString = self.fetchExportRecord(exportHandle)
         if resultString:
-            csvRecord = next(csvreader([resultString]))
+            csvRecord = next(csv.reader([resultString]))
             if csvHeaders:
                 csvRecord = dict(list(zip(csvHeaders, csvRecord)))
         else:

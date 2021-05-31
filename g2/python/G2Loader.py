@@ -1,3 +1,5 @@
+#! /usr/bin/env python3
+
 #--python imports
 import argparse
 try: import configparser
@@ -32,6 +34,7 @@ from G2Diagnostic import G2Diagnostic
 from G2Product import G2Product
 from G2Exception import G2ModuleException, G2ModuleResolveMissingResEnt, G2ModuleLicenseException
 import G2Paths
+from G2IniParams import G2IniParams
 from CompressedFile import openPossiblyCompressedFile, isCompressedFile, fileRowParser
 import DumpStack
  
@@ -60,8 +63,11 @@ def redoFeed(q, processEverything, g2iniPath, debugTrace):
     ''' process any records in the redo queue '''
     #--purge the repository
     try:
+        iniParamCreator = G2IniParams()
+        iniParams = iniParamCreator.getJsonINIParams(g2iniPath)
+
         g2_engine = G2Engine()
-        g2_engine.init('pyG2Redo', g2iniPath, debugTrace)
+        g2_engine.initV2('pyG2Redo', iniParams, debugTrace)
     except G2ModuleException as ex:
         print('ERROR: could not start the G2 engine at ' + g2iniPath)
         print(ex)
@@ -108,8 +114,11 @@ def redoFeed(q, processEverything, g2iniPath, debugTrace):
 #---------------------------------------
 def checkResources():
 
+    iniParamCreator = G2IniParams()
+    iniParams = iniParamCreator.getJsonINIParams(g2iniPath)
+
     diag = G2Diagnostic()
-    diag.init('pyG2Diagnostic', g2iniPath, debugTrace)
+    diag.initV2('pyG2Diagnostic', iniParams, debugTrace)
 
     physicalCores = diag.getPhysicalCores()
     logicalCores = diag.getLogicalCores()
@@ -196,8 +205,11 @@ def startSetup(doPurge, doLicense, g2iniPath, debugTrace):
 
     #--check the product version and license
     try:
+        iniParamCreator = G2IniParams()
+        iniParams = iniParamCreator.getJsonINIParams(g2iniPath)
+
         g2_product = G2Product()
-        g2_product.init('pyG2LicenseVersion', g2iniPath, debugTrace)
+        g2_product.initV2('pyG2LicenseVersion', iniParams, debugTrace)
     except G2ModuleException as ex:
         print('ERROR: could not start the G2 product module at ' + g2iniPath)
         print(ex)
@@ -220,8 +232,11 @@ def startSetup(doPurge, doLicense, g2iniPath, debugTrace):
 
     #--purge the repository
     try:
+        iniParamCreator = G2IniParams()
+        iniParams = iniParamCreator.getJsonINIParams(g2iniPath)
+
         g2_engine = G2Engine()
-        g2_engine.init('pyG2Purge', g2iniPath, debugTrace)
+        g2_engine.initV2('pyG2Purge', iniParams, debugTrace)
     except G2ModuleException as ex:
         print('ERROR: could not start the G2 engine at ' + g2iniPath)
         print(ex)
@@ -522,7 +537,10 @@ def loadRedoQueueAndProcess():
 #---------------------------------------
 def prepareG2db():
 
-    g2ConfigTables = G2ConfigTables(configTableFile,g2iniPath, configuredDatasourcesOnly)	
+    iniParamCreator = G2IniParams()
+    iniParams = iniParamCreator.getJsonINIParams(g2iniPath)
+
+    g2ConfigTables = G2ConfigTables(configTableFile,iniParams, configuredDatasourcesOnly)	
     if not g2ConfigTables.success:
         return
 	
@@ -592,8 +610,10 @@ def sendToG2(threadId_, workQueue_, numThreads_, g2iniPath, debugTrace, threadSt
   numProcessed = 0
 
   try:
+      iniParamCreator = G2IniParams()
+      iniParams = iniParamCreator.getJsonINIParams(g2iniPath)
       g2_engine = G2Engine()
-      g2_engine.init('pyG2Engine' + str(threadId_), g2iniPath, debugTrace)
+      g2_engine.initV2('pyG2Engine' + str(threadId_), iniParams, debugTrace)
   except G2ModuleException as ex:
       print('ERROR: could not start the G2 engine at ' + g2iniPath)
       print(ex)
@@ -741,27 +761,6 @@ if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)
     DumpStack.listen()
 
-    #--get parameters from ini file
-    iniFileName = G2Paths.get_G2Project_ini_path()
-    iniParser = configparser.ConfigParser()
-    iniParser.read(iniFileName)
-    try: configTableFile = iniParser.get('g2', 'G2ConfigFile')
-    except: configTableFile = None
-    try: g2iniPath = os.path.expanduser(iniParser.get('g2', 'iniPath'))
-    except: g2iniPath = None
-    try: evalQueueProcessing = int(iniParser.get('g2', 'evalQueueProcessing'))
-    except: evalQueueProcessing = 1
-    try: projectFileName = iniParser.get('project', 'projectFileName')
-    except: projectFileName = None
-    try: projectFileSpec = iniParser.get('project', 'projectFileSpec')
-    except: projectFileSpec = None
-    try: tempFolderPath = iniParser.get('project', 'tempFolderPath')
-    except: tempFolderPath = os.path.join(tempfile.gettempdir(), 'senzing', 'g2')
-    try: defaultThreadCount = int(iniParser.get('transport', 'numThreads'))
-    except: defaultThreadCount = 1
-    try: sqlCommitSize = int(iniParser.get('report', 'sqlCommitSize'))
-    except: sqlCommitSize = 1000
-
     #--capture the command line arguments
     dsrcAction = 'A'
     purgeFirst = False
@@ -774,8 +773,10 @@ if __name__ == '__main__':
     redoModeInterval = 60
     configuredDatasourcesOnly = False
     createJsonOnly = False
+    iniFileName = ''
 
     argParser = argparse.ArgumentParser()
+    argParser.add_argument('-c', '--iniFile', dest='iniFile', default='', help='the name of a G2Project.ini file to use', nargs='?')
     argParser.add_argument('-p', '--projectFile', dest='projectFileName', default='', help='the name of a g2 project csv or json file', nargs='?')
     argParser.add_argument('-f', '--fileSpec', dest='projectFileSpec', default='', help='the name of a file to load such as /data/*.json/?data_source=?,file_format=?')
     argParser.add_argument('-P', '--purgeFirst', dest='purgeFirst', action='store_true', default=False, help='purge the g2 repository first')
@@ -798,37 +799,64 @@ if __name__ == '__main__':
         print('')
         argParser.print_help()
         sys.exit(0)
-    else:
-        #If -p and a value is present use it, otherwise G2Project.ini project file will be used, allows no arguments to display help and still have default project
-        if args.projectFileName and len(args.projectFileName) > 0:
-            projectFileName = args.projectFileName
-        if args.projectFileSpec:
-            projectFileSpec = args.projectFileSpec
-        if args.purgeFirst:
-            purgeFirst = args.purgeFirst
-        if args.testMode:
-            testMode = args.testMode
-        if args.deleteMode:
-            dsrcAction = 'D'
-        if args.reprocessMode:
-            dsrcAction = 'X'
-        if args.debugTrace:
-            debugTrace = 1
-        if args.noShuffle:
-            noShuffle = 1
-        if args.workloadStats:
-            workloadStats = 1
-        if args.defaultThreadCount:
-            defaultThreadCount = args.defaultThreadCount
-        if args.maxThreadsPerProcess:
-            maxThreadsPerProcess = args.maxThreadsPerProcess
-        processRedoQueue = args.noRedo        
-        redoMode = args.redoMode
-        redoModeInterval = args.redoModeInterval
-        configuredDatasourcesOnly = args.configuredDatasourcesOnly
-        if args.createJsonOnly:
-            testMode = True
-            createJsonOnly = True
+
+    # if ini file is specified, use that file. Process it and then the rest of the command line args. Command line args overwrite ini file values.
+    if args.iniFile and len(args.iniFile) > 0:
+        iniFileName = os.path.abspath(args.iniFile)
+
+    #--get parameters from ini file
+    if not iniFileName:
+        iniFileName = G2Paths.get_G2Project_ini_path()
+    print("Starting G2 with ini file: " + iniFileName)
+    iniParser = configparser.ConfigParser(empty_lines_in_values=False)
+    iniParser.read(iniFileName)
+    try: configTableFile = iniParser.get('g2', 'G2ConfigFile')
+    except: configTableFile = None
+    try: g2iniPath = os.path.expanduser(iniParser.get('g2', 'iniPath'))
+    except: g2iniPath = None
+    try: evalQueueProcessing = int(iniParser.get('g2', 'evalQueueProcessing'))
+    except: evalQueueProcessing = 1
+    try: projectFileName = iniParser.get('project', 'projectFileName')
+    except: projectFileName = None
+    try: projectFileSpec = iniParser.get('project', 'projectFileSpec')
+    except: projectFileSpec = None
+    try: tempFolderPath = iniParser.get('project', 'tempFolderPath')
+    except: tempFolderPath = os.path.join(tempfile.gettempdir(), 'senzing', 'g2')
+    try: defaultThreadCount = int(iniParser.get('transport', 'numThreads'))
+    except: defaultThreadCount = 1
+    try: sqlCommitSize = int(iniParser.get('report', 'sqlCommitSize'))
+    except: sqlCommitSize = 1000
+
+    #If -p and a value is present use it, otherwise G2Project.ini project file will be used, allows no arguments to display help and still have default project
+    if args.projectFileName and len(args.projectFileName) > 0:
+        projectFileName = args.projectFileName
+    if args.projectFileSpec:
+        projectFileSpec = args.projectFileSpec
+    if args.purgeFirst:
+        purgeFirst = args.purgeFirst
+    if args.testMode:
+        testMode = args.testMode
+    if args.deleteMode:
+        dsrcAction = 'D'
+    if args.reprocessMode:
+        dsrcAction = 'X'
+    if args.debugTrace:
+        debugTrace = 1
+    if args.noShuffle:
+        noShuffle = 1
+    if args.workloadStats:
+        workloadStats = 1
+    if args.defaultThreadCount:
+        defaultThreadCount = args.defaultThreadCount
+    if args.maxThreadsPerProcess:
+        maxThreadsPerProcess = args.maxThreadsPerProcess
+    processRedoQueue = args.noRedo        
+    redoMode = args.redoMode
+    redoModeInterval = args.redoModeInterval
+    configuredDatasourcesOnly = args.configuredDatasourcesOnly
+    if args.createJsonOnly:
+        testMode = True
+        createJsonOnly = True
 
     #--validations
     if not configTableFile:
@@ -843,7 +871,7 @@ if __name__ == '__main__':
             exitCode = loadRedoQueueAndProcess()
             if threadStop.value == 9 or exitCode != 0:
                     break
-            print("Wating " + str(redoModeInterval) + " seconds for next cycle.")
+            print("Waiting " + str(redoModeInterval) + " seconds for next cycle.")
             # sleep in 1 second increments to respond to user input
             for x in range (1, redoModeInterval):
                 if threadStop.value == 9:
@@ -859,7 +887,9 @@ if __name__ == '__main__':
                 projectFileName = None
             
         #-- Load the G2 configuration file
-        g2ConfigTables = G2ConfigTables(configTableFile,g2iniPath, configuredDatasourcesOnly)
+        iniParamCreator = G2IniParams()
+        iniParams = iniParamCreator.getJsonINIParams(g2iniPath)
+        g2ConfigTables = G2ConfigTables(configTableFile,iniParams,configuredDatasourcesOnly)
 
         #--open the project
         g2Project = G2Project(g2ConfigTables, projectFileName, projectFileSpec, tempFolderPath)

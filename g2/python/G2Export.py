@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
 #--python imports
 import optparse
@@ -22,6 +22,7 @@ extendedFormat = False
 #--project classes
 from G2Engine import G2Engine
 from G2Exception import G2ModuleException
+from G2IniParams import G2IniParams
 
 #---------------------------------------------------------------------
 #-- g2 export
@@ -54,8 +55,11 @@ def exportEntityResume(appError):
 
     # initialize G2
     try:
+        iniParamCreator = G2IniParams()
+        iniParams = iniParamCreator.getJsonINIParams(g2iniPath)
+
         g2_module = G2Engine()
-        g2_module.init('pyG2Export', g2iniPath, False)
+        g2_module.initV2('pyG2Export', iniParams, False)
     except G2ModuleException as ex:
         print('ERROR: could not start the G2 module at ' + g2iniPath)
         print(ex)
@@ -381,25 +385,18 @@ def pause(question='PRESS ENTER TO CONTINUE ...'):
 #----------------------------------------
 if __name__ == '__main__':
 
-    #--get parameters from ini file
-    iniFileName = G2Paths.get_G2Project_ini_path()
-    iniParser = configparser.ConfigParser()
-    iniParser.read(iniFileName)
-    try: sqlCommitSize = int(iniParser.get('report', 'sqlCommitSize'))
-    except: sqlCommitSize = 1000
-    try: g2iniPath = os.path.expanduser(iniParser.get('g2', 'iniPath'))
-    except: g2iniPath = None
-
     #--defaults
     appError = 0
     outputFilter = 0
     outputFormat = 'csv'
     extended = False
     outputFileName = 'g2export.csv'
+    iniFileName = ''
 
     #--capture the command line arguments
     if len(sys.argv) > 1:
         optParser = optparse.OptionParser()
+        optParser.add_option('-c', '--iniFile', dest='iniFile', default=iniFileName, help='the name of a G2Project.ini file to use')
         optParser.add_option('-o', '--output-file', dest='outputFileName', default=outputFileName, help='the name of a file to write the output to')
         optParser.add_option('-f', '--outputFilter', dest='outputFilter', type='int', default=0, help='0=All; 1=Resolved Entities only; 2=add possible matches; 3=add relationships; 4=add name-only (internal); 5=add disclosed relationships')
         optParser.add_option('-F', '--outputFormat', dest='outputFormat', default=outputFormat, help='json or csv style')
@@ -413,6 +410,18 @@ if __name__ == '__main__':
             outputFormat = options.outputFormat
         if options.extended:
             extended = options.extended
+        if options.iniFile and len(options.iniFile) > 0:
+            iniFileName = os.path.abspath(options.iniFile)
+
+    #--get parameters from ini file
+    if not iniFileName:
+        iniFileName = G2Paths.get_G2Project_ini_path()
+    iniParser = configparser.ConfigParser()
+    iniParser.read(iniFileName)
+    try: sqlCommitSize = int(iniParser.get('report', 'sqlCommitSize'))
+    except: sqlCommitSize = 1000
+    try: g2iniPath = os.path.expanduser(iniParser.get('g2', 'iniPath'))
+    except: g2iniPath = None
 
     #--validations
     if not g2iniPath:

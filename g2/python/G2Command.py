@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
 #--python imports
 import cmd
@@ -8,6 +8,9 @@ from G2Hasher import G2Hasher
 from G2Audit import G2Audit
 from G2Product import G2Product
 from G2Diagnostic import G2Diagnostic
+from G2Config import G2Config
+from G2ConfigMgr import G2ConfigMgr
+from G2IniParams import G2IniParams
 import G2Paths
 import G2Exception
 import json
@@ -18,7 +21,7 @@ import csv
 
 class G2CmdShell(cmd.Cmd, object):
 
-    def __init__(self):
+    def __init__(self, ini_file = ''):
         cmd.Cmd.__init__(self)
         self.intro = ''
         self.prompt = '(g2) '
@@ -27,14 +30,30 @@ class G2CmdShell(cmd.Cmd, object):
         self.g2_audit_module = G2Audit()
         self.g2_product_module = G2Product()
         self.g2_diagnostic_module = G2Diagnostic()
+        self.g2_config_module = G2Config()
+        self.g2_configmgr_module = G2ConfigMgr()
         self.initialized = False
         self.__hidden_methods = ('do_shell', 'do_EOF')
+        if ini_file == '':
+            self.iniFileName = G2Paths.get_G2Module_ini_path()
+        else:
+            self.iniFileName = ini_file
 
         self.parser = argparse.ArgumentParser(prog='G2Command ->', add_help=False)
         subparsers = self.parser.add_subparsers()
       
         jsonOnly_parser = subparsers.add_parser('jsonOnly', usage=argparse.SUPPRESS)
         jsonOnly_parser.add_argument('jsonData')
+
+        addConfigFile_parser = subparsers.add_parser('addConfigFile', usage=argparse.SUPPRESS)
+        addConfigFile_parser.add_argument('configJsonFile')
+        addConfigFile_parser.add_argument('configComments')
+
+        getConfig_parser = subparsers.add_parser('getConfig', usage=argparse.SUPPRESS)
+        getConfig_parser.add_argument('configID', type=int)
+
+        setDefaultConfigID_parser = subparsers.add_parser('setDefaultConfigID', usage=argparse.SUPPRESS)
+        setDefaultConfigID_parser.add_argument('configID', type=int)
 
         interfaceName_parser = subparsers.add_parser('interfaceName', usage=argparse.SUPPRESS)  
         interfaceName_parser.add_argument('interfaceName')
@@ -250,15 +269,19 @@ class G2CmdShell(cmd.Cmd, object):
     def preloop(self):
         if (self.initialized):
             return
-            
-        iniFileName = G2Paths.get_G2Module_ini_path()
+
+        iniParamCreator = G2IniParams()
+        iniParams = iniParamCreator.getJsonINIParams(self.iniFileName)
 
         print("Initializing engine...")
-        self.g2_module.init('pyG2E', iniFileName, False)
-        self.g2_hasher_module.init('pyG2Hasher', iniFileName, False)
-        self.g2_audit_module.init('pyG2Audit', iniFileName, False)
-        self.g2_product_module.init('pyG2Product', iniFileName, False)
-        self.g2_diagnostic_module.init('pyG2Diagnostic', iniFileName, False)
+
+        self.g2_module.initV2('pyG2E', iniParams, False)
+        self.g2_hasher_module.initV2('pyG2Hasher', iniParams, False)
+        self.g2_audit_module.initV2('pyG2Audit', iniParams, False)
+        self.g2_product_module.initV2('pyG2Product', iniParams, False)
+        self.g2_diagnostic_module.initV2('pyG2Diagnostic', iniParams, False)
+        self.g2_config_module.initV2('pyG2Config', iniParams, False)
+        self.g2_configmgr_module.initV2('pyG2ConfigMgr', iniParams, False)
         self.initialized = True
         print('\nWelcome to the G2 shell. Type help or ? to list commands.\n')
 
@@ -269,6 +292,8 @@ class G2CmdShell(cmd.Cmd, object):
             self.g2_audit_module.destroy()
             self.g2_product_module.destroy()
             self.g2_diagnostic_module.destroy()
+            self.g2_config_module.destroy()
+            self.g2_configmgr_module.destroy()
         self.initialized = False
 
     # ----- terminal operations -----
@@ -390,6 +415,10 @@ class G2CmdShell(cmd.Cmd, object):
                 self.g2_product_module.clearLastException()
             elif args.interfaceName == 'diagnostic':
                 self.g2_diagnostic_module.clearLastException()
+            elif args.interfaceName == 'config':
+                self.g2_config_module.clearLastException()
+            elif args.interfaceName == 'configmgr':
+                self.g2_configmgr_module.clearLastException()
             else:
                 raise G2Exception.G2ModuleGenericException("ERROR: Unknown interface name '" + args.interfaceName + "'")
         except G2Exception.G2Exception as err:
@@ -414,6 +443,10 @@ class G2CmdShell(cmd.Cmd, object):
                 resultString = self.g2_product_module.getLastException()
             elif args.interfaceName == 'diagnostic':
                 resultString = self.g2_diagnostic_module.getLastException()
+            elif args.interfaceName == 'config':
+                resultString = self.g2_config_module.getLastException()
+            elif args.interfaceName == 'configmgr':
+                resultString = self.g2_configmgr_module.getLastException()
             else:
                 raise G2Exception.G2ModuleGenericException("ERROR: Unknown interface name '" + args.interfaceName + "'")
             printWithNewLine('Last exception: "%s"' % (resultString))
@@ -439,6 +472,10 @@ class G2CmdShell(cmd.Cmd, object):
                 resultInt = self.g2_product_module.getLastExceptionCode()
             elif args.interfaceName == 'diagnostic':
                 resultInt = self.g2_diagnostic_module.getLastExceptionCode()
+            elif args.interfaceName == 'config':
+                resultInt = self.g2_config_module.getLastExceptionCode()
+            elif args.interfaceName == 'configmgr':
+                resultInt = self.g2_configmgr_module.getLastExceptionCode()
             else:
                 raise G2Exception.G2ModuleGenericException("ERROR: Unknown interface name '" + args.interfaceName + "'")
             printWithNewLine('Last exception code: %d' % (resultInt))
@@ -654,6 +691,82 @@ class G2CmdShell(cmd.Cmd, object):
         else:
             print('Number of exported records = %s\n' % (recCnt) )
 
+    def do_getTemplateConfig(self, arg):
+        '\nGet a template config:  getTemplateConfig \n'
+        try:
+            configHandle = self.g2_config_module.create()
+            response = bytearray() 
+            self.g2_config_module.save(configHandle,response)
+            self.g2_config_module.close(configHandle)
+            print('{}'.format(response.decode()))
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_getConfig(self, arg):
+        '\nGet the config:  getConfig <configID> \n'
+        try:
+            args = self.parser.parse_args(['getConfig'] + parse(arg))
+        except SystemExit:
+            print(self.do_getConfig.__doc__)
+            return
+        try:
+            response = bytearray() 
+            self.g2_configmgr_module.getConfig(args.configID,response)
+            print('{}'.format(response.decode()))
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_getConfigList(self, arg):
+        '\nGet a list of known configs:  getConfigList \n'
+        try:
+            response = bytearray() 
+            self.g2_configmgr_module.getConfigList(response)
+            print('{}'.format(response.decode()))
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_addConfigFile(self, arg):
+        '\nAdd config from a file:  addConfigFile <configJsonFile> <configComments>\n'
+        try:
+            args = self.parser.parse_args(['addConfigFile'] + parse(arg))
+        except SystemExit:
+            print(self.do_addConfigFile.__doc__)
+            return
+        try:
+            configStr = ''
+            with open(args.configJsonFile.split("?")[0]) as data_in:
+                for line in data_in:
+                    configStr += line.strip()
+            configID = bytearray() 
+            returnCode = self.g2_configmgr_module.addConfig(configStr,args.configComments,configID)
+            if returnCode == 0:
+                printWithNewLine('Config added.  [ID = %s]' % configID.decode())
+            else:
+                printWithNewLine('Error encountered!  Return code = %s' % (returnCode))
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_getDefaultConfigID(self, arg):
+        '\nGet the default config ID:  getDefaultConfigID \n'
+        try:
+            configID = bytearray() 
+            self.g2_configmgr_module.getDefaultConfigID(configID)
+            print('{}'.format(configID.decode()))
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_setDefaultConfigID(self, arg):
+        '\nSet the default config ID:  setDefaultConfigID <configID>\n'
+        try:
+            args = self.parser.parse_args(['setDefaultConfigID'] + parse(arg))
+        except SystemExit:
+            print(self.do_setDefaultConfigID.__doc__)
+            return
+        try:
+            self.g2_configmgr_module.setDefaultConfigID(args.configID)
+            printWithNewLine('Default config set')
+        except G2Exception.G2Exception as err:
+            print(err)
 
     def do_addRecord(self, arg):
         '\nAdd record:  addRecord <dataSourceCode> <recordID> <jsonData> [-l <loadID>]\n'
@@ -1367,7 +1480,8 @@ class G2CmdShell(cmd.Cmd, object):
             return
         try: 
             response = bytearray() 
-            ret_code = self.g2_module.exportConfig(response)
+            configID = bytearray() 
+            ret_code = self.g2_module.exportConfig(response,configID)
             responseMsg = json.loads(response)
             if args.outputFile:
                 with open(args.outputFile, 'w') as data_out:
@@ -1566,18 +1680,30 @@ def printResponse(response):
 
 if __name__ == '__main__':
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument("fileToProcess", nargs='?')
+    parser.add_argument('-c', '--iniFile', dest='iniFile', default='', help='the name of a G2Module.ini file to use', nargs='?')
+    args = parser.parse_args()
+    file_to_process = ''
+    ini_file_name = ''
+
+    if args.fileToProcess and len(args.fileToProcess) > 0:
+        file_to_process = args.fileToProcess
+    if args.iniFile and len(args.iniFile) > 0:
+        ini_file_name = os.path.abspath(args.iniFile)
+
     #Python3 uses input, raw_input was removed
     userInput = input
     if sys.version_info[:2] <= (2,7):
         userInput = raw_input
 
     #--execute a file of commands
-    if len(sys.argv) > 1:
-        G2CmdShell().fileloop(sys.argv[1])
+    if file_to_process:
+        G2CmdShell(ini_file_name).fileloop(file_to_process)
 
     # go into command shell 
     else:
-        G2CmdShell().cmdloop()
+        G2CmdShell(ini_file_name).cmdloop()
 
     sys.exit()
 

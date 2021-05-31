@@ -51,22 +51,101 @@ class G2Audit(object):
         resize_return_buffer(None, 65535)
 
         self._lib_handle.G2Audit_init.argtypes = [c_char_p, c_char_p, c_int]
-        retval = self._lib_handle.G2Audit_init(self._module_name.encode('utf-8'),
+        ret_code = self._lib_handle.G2Audit_init(self._module_name.encode('utf-8'),
                                  self._ini_file_name.encode('utf-8'),
                                  self._debug)
 
         if self._debug:
-            print("Initialization Status: " + str(retval))
+            print("Initialization Status: " + str(ret_code))
 
-        if retval == -2:
+        if ret_code == -2:
             self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
-        elif retval == -1:
+        elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
-        elif retval < 0:
+        elif ret_code < 0:
             raise G2ModuleGenericException("Failed to initialize G2 Audit")
-        return retval
+        return ret_code
 
+
+    def initV2(self, module_name_, ini_params_, debug_=False):
+
+        self._module_name = module_name_
+        self._ini_params = ini_params_
+        self._debug = debug_
+
+        if self._debug:
+            print("Initializing G2 audit module")
+
+        resize_return_buffer(None, 65535)
+
+        self._lib_handle.G2Audit_init_V2.argtypes = [c_char_p, c_char_p, c_int]
+        ret_code = self._lib_handle.G2Audit_init_V2(self._module_name.encode('utf-8'),
+                                 self._ini_params.encode('utf-8'),
+                                 self._debug)
+
+        if self._debug:
+            print("Initialization Status: " + str(ret_code))
+
+        if ret_code == -2:
+            self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
+        elif ret_code < 0:
+            raise G2ModuleGenericException("Failed to initialize G2 Audit")
+        return ret_code
+
+
+    def initWithConfigIDV2(self, engine_name_, ini_params_, debug_, configID):
+
+        configIDValue = int(configID.decode())
+
+        self._engine_name = engine_name_
+        self._ini_params = ini_params_
+        self._debug = debug_
+        if self._debug:
+            print("Initializing G2 audit module")
+
+        resize_return_buffer(None, 65535)
+
+        self._lib_handle.G2Audit_initWithConfigID_V2.argtypes = [ c_char_p, c_char_p, c_int, c_longlong ]
+        ret_code = self._lib_handle.G2Audit_initWithConfigID_V2(self._engine_name.encode('utf-8'),
+                                 self._ini_params.encode('utf-8'),
+                                 configIDValue,
+                                 self._debug)
+
+        if self._debug:
+            print("Initialization Status: " + str(ret_code))
+
+        if ret_code == -2:
+            self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
+        elif ret_code < 0:
+            raise G2ModuleGenericException("Failed to initialize G2 Audit")
+
+        return ret_code
+
+    def reinitV2(self, configID):
+
+        configIDValue = int(configID.decode())
+
+        resize_return_buffer(None, 65535)
+
+        self._lib_handle.G2Audit_reinit_V2.argtypes = [ c_longlong ]
+        ret_code = self._lib_handle.G2Audit_reinit_V2(configIDValue)
+
+        if ret_code == -2:
+            self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2 audit module has not been succesfully initialized')
+        elif ret_code < 0:
+            raise G2ModuleGenericException("Failed to initialize G2 Audit")
+
+        return ret_code
 
     def __init__(self):
         # type: (str, str, bool) -> None
@@ -307,14 +386,6 @@ class G2Audit(object):
 
     def closeReport(self, reportHandle):
         self._lib_handle.G2Audit_closeReport(c_void_p(reportHandle))
-
-    def restart(self):
-        """  Internal function """
-        moduleName = self._engine_name
-        iniFilename = self._ini_file_name
-        debugFlag = self._debug
-        self.destroy()
-        self.init(moduleName, iniFilename, debugFlag)
 
     def destroy(self):
         """ Uninitializes the engine

@@ -61,3 +61,9 @@
 [submodule "g2paths"]
 	path = g2paths
 	url = https://github.com/Senzing/g2paths.git
+[submodule "g2configmgr"]
+	path = g2configmgr
+	url = https://github.com/Senzing/g2configmgr.git
+[submodule "g2iniparams"]
+	path = g2iniparams
+	url = https://github.com/Senzing/g2iniparams.git

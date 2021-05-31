@@ -20,9 +20,9 @@ class G2ConfigTables:
 
 
     #----------------------------------------
-    def __init__(self, configFile,g2iniPath,configuredDatasourcesOnly=False):
+    def __init__(self, configFile,g2iniParams,configuredDatasourcesOnly=False):
         self.configFileName = configFile
-        self.g2iniPath = g2iniPath
+        self.g2iniParams = g2iniParams
         self.success = True
         self.configuredDatasourcesOnly = configuredDatasourcesOnly
 
@@ -76,7 +76,7 @@ class G2ConfigTables:
         ''' adds a data source if does not exist '''
         returnCode = 0  #--1=inserted, 2=updated
         g2_config_module = G2Config()
-        g2_config_module.init('pyG2AddDataSource', self.g2iniPath, False)
+        g2_config_module.initV2('pyG2AddDataSource', self.g2iniParams, False)
 
         with open(self.configFileName) as data_file:
             cfgDataRoot = data_file.read() #.decode('utf8')

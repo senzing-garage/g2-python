@@ -1306,6 +1306,17 @@
             },
             {
                 "DEFAULT_VALUE": null,
+                "ATTR_CODE": "NAME_GEN",
+                "FELEM_REQ": "No",
+                "ATTR_CLASS": "NAME",
+                "INTERNAL": "No",
+                "ATTR_ID": 1109,
+                "FTYPE_CODE": "NAME",
+                "FELEM_CODE": "NAME_GEN",
+                "ADVANCED": "Yes"
+            },
+            {
+                "DEFAULT_VALUE": null,
                 "ATTR_CODE": "GENDER",
                 "FELEM_REQ": "Yes",
                 "ATTR_CLASS": "ATTRIBUTE",
@@ -5149,9 +5160,9 @@
             "COMPATIBILITY_VERSION": {
                 "CONFIG_VERSION": "2"
             },
-            "BUILD_DATE": "2019-05-08",
-            "VERSION": "1.8.19128",
-            "BUILD_NUMBER": "2019_05_08__02_00"
+            "BUILD_DATE": "2019-05-17",
+            "VERSION": "1.8.19137",
+            "BUILD_NUMBER": "2019_05_17__02_01"
         },
         "CFG_DFUNC": [
             {

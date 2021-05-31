@@ -1,5 +1,3 @@
-#! /usr/bin/env python
-
 #--python imports
 import optparse
 try: import configparser
@@ -28,11 +26,7 @@ def exportEntityResume(appError):
         outputFilterDisplay = 'Resolved entities only'
     elif outputFilter == 2:
         outputFilterDisplay = 'Including possible matches'
-    elif outputFilter == 3:
-        outputFilterDisplay = 'Including relationships'
-    elif outputFilter == 4:
-        outputFilterDisplay = 'Including relationships'
-    elif outputFilter >= 5:
+    elif outputFilter >= 3:
         outputFilterDisplay = 'Including relationships'
     print('')    
     print('Writing to %s ... (%s)' % (outputFileName, outputFilterDisplay))
@@ -53,23 +47,9 @@ def exportEntityResume(appError):
         print(ex)
         return 1
 
-    #--determine the output flags
-    exportFlags = 0
-    if outputFilter == 1:
-        exportFlags = g2_module.G2_EXPORT_INCLUDE_RESOLVED | g2_module.G2_ENTITY_INCLUDE_NO_RELATIONS
-    elif outputFilter == 2:
-        exportFlags = g2_module.G2_EXPORT_INCLUDE_RESOLVED | g2_module.G2_EXPORT_INCLUDE_POSSIBLY_SAME | g2_module.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS
-    elif outputFilter == 3:
-        exportFlags = g2_module.G2_EXPORT_INCLUDE_RESOLVED | g2_module.G2_EXPORT_INCLUDE_POSSIBLY_SAME | g2_module.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | g2_module.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS | g2_module.G2_ENTITY_INCLUDE_POSSIBLY_RELATED_RELATIONS
-    elif outputFilter == 4:
-        exportFlags = g2_module.G2_EXPORT_INCLUDE_RESOLVED | g2_module.G2_EXPORT_INCLUDE_POSSIBLY_SAME | g2_module.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | g2_module.G2_EXPORT_INCLUDE_NAME_ONLY | g2_module.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS | g2_module.G2_ENTITY_INCLUDE_POSSIBLY_RELATED_RELATIONS | g2_module.G2_ENTITY_INCLUDE_NAME_ONLY_RELATIONS
-    elif outputFilter >= 5:
-        exportFlags = g2_module.G2_EXPORT_INCLUDE_RESOLVED | g2_module.G2_EXPORT_INCLUDE_POSSIBLY_SAME | g2_module.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | g2_module.G2_EXPORT_INCLUDE_NAME_ONLY | g2_module.G2_EXPORT_INCLUDE_DISCLOSED | g2_module.G2_ENTITY_INCLUDE_ALL_RELATIONS
-    exportFlags = exportFlags | g2_module.G2_EXPORT_INCLUDE_ALL_ENTITIES | g2_module.G2_EXPORT_CSV_INCLUDE_FULL_DETAILS
-
     #--initialize the g2module export
     print('Executing query ...')
-    try: exportHandle = g2_module.getExportHandleFromFlags(outputFormat,exportFlags)
+    try: exportHandle = g2_module.getExportHandle(outputFormat, outputFilter)
     except G2ModuleException as ex:
         print('ERROR: could not initialize export')
         print(ex)
@@ -365,7 +345,7 @@ if __name__ == '__main__':
     if len(sys.argv) > 1:
         optParser = optparse.OptionParser()
         optParser.add_option('-o', '--output-file', dest='outputFileName', default=outputFileName, help='the name of a file to write the output to')
-        optParser.add_option('-f', '--outputFilter', dest='outputFilter', type='int', default=3, help='1=Resolved Entities only; 2=add possible matches; 3=add relationships; 4=add disclosed relationships')
+        optParser.add_option('-f', '--outputFilter', dest='outputFilter', type='int', default=3, help='1=Resolved Entities only; 2=add possible matches; 3=add relationships')
         optParser.add_option('-F', '--outputFormat', dest='outputFormat', default=outputFormat, help='json or csv style')
         (options, args) = optParser.parse_args()
         if options.outputFileName:
@@ -385,8 +365,8 @@ if __name__ == '__main__':
     if not outputFilter:
         print('ERROR: Resume filter value must be specified')
         sys.exit(1)
-    if outputFilter not in (1,2,3,4,5):
-        print('ERROR: Resume filter must be 1, 2, 3, 4 or 5')
+    if outputFilter not in (1,2,3,4):
+        print('ERROR: Resume filter must be 1, 2, 3 or 4')
         sys.exit(1)
 
     #--adjust from default of csv to json if they did not change it themselves
@@ -409,4 +389,5 @@ if __name__ == '__main__':
     print('')
 
     sys.exit(appError)
+
 

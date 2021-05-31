@@ -4,7 +4,7 @@
 import cmd
 import sys
 from G2Module import G2Module
-from G2AnonModule import G2AnonModule
+from G2HasherModule import G2HasherModule
 from G2AuditModule import G2AuditModule
 from G2ProductModule import G2ProductModule
 from G2Diagnostic import G2Diagnostic
@@ -22,7 +22,7 @@ class G2CmdShell(cmd.Cmd, object):
         self.intro = ''
         self.prompt = '(g2) '
         self.g2_module = G2Module('pyG2', 'G2Module.ini', False)
-        self.g2_anon_module = G2AnonModule('pyG2Anon', 'G2Module.ini', False)
+        self.g2_hasher_module = G2HasherModule('pyG2Hasher', 'G2Module.ini', False)
         self.g2_audit_module = G2AuditModule('pyG2Audit', 'G2Module.ini', False)
         self.g2_product_module = G2ProductModule('pyG2Product', 'G2Module.ini', False)
         self.g2_diagnostic_module = G2Diagnostic()
@@ -62,6 +62,14 @@ class G2CmdShell(cmd.Cmd, object):
         exportEntityReport_parser.add_argument('-c', '--includeExtraCols', action='store_true', required=False, default=False)
         exportEntityReport_parser.add_argument('-f', '--flags', required=False, default=0, type=int)
         exportEntityReport_parser.add_argument('-o', '--outputFile', required=False)
+
+        exportEntityCsvV2_parser = subparsers.add_parser('exportEntityCsvV2', usage=argparse.SUPPRESS)
+        exportEntityCsvV2_parser.add_argument('-t', '--headersForCSV', required=True)
+        exportEntityCsvV2_parser.add_argument('-m', '--maximumMatchLevel', required=False, default=0, type=int)
+        exportEntityCsvV2_parser.add_argument('-s', '--includeSingletons', action='store_true', required=False, default=False)
+        exportEntityCsvV2_parser.add_argument('-c', '--includeExtraCols', action='store_true', required=False, default=False)
+        exportEntityCsvV2_parser.add_argument('-f', '--flags', required=False, default=0, type=int)
+        exportEntityCsvV2_parser.add_argument('-o', '--outputFile', required=False)
 
         getAuditReport_parser = subparsers.add_parser('getAuditReport', usage=argparse.SUPPRESS)
         getAuditReport_parser.add_argument('-m', '--matchLevel', type=int)
@@ -249,7 +257,7 @@ class G2CmdShell(cmd.Cmd, object):
             return
         print("Initializing engine...")
         self.g2_module.init()
-        self.g2_anon_module.init()
+        self.g2_hasher_module.init()
         self.g2_audit_module.init()
         self.g2_product_module.init()
         self.g2_diagnostic_module.init('pyG2Diagnostic', 'G2Module.ini', False)
@@ -259,7 +267,7 @@ class G2CmdShell(cmd.Cmd, object):
     def postloop(self):
         if (self.initialized):
             self.g2_module.destroy()
-            self.g2_anon_module.destroy()
+            self.g2_hasher_module.destroy()
             self.g2_audit_module.destroy()
             self.g2_product_module.destroy()
             self.g2_diagnostic_module.destroy()
@@ -368,7 +376,7 @@ class G2CmdShell(cmd.Cmd, object):
 
     def help_InterfaceName(self):
         print (
-              '\nThe name of a G2 interface (engine, audit, product, diagnostic, anon).\n\n' \
+              '\nThe name of a G2 interface (engine, audit, product, diagnostic, hasher).\n\n' \
               )
 
     def help_KnowledgeCenter(self):
@@ -399,8 +407,8 @@ class G2CmdShell(cmd.Cmd, object):
         try: 
             if args.interfaceName == 'engine':
                 self.g2_module.clearLastException()
-            elif args.interfaceName == 'anon':
-                self.g2_anon_module.clearLastException()
+            elif args.interfaceName == 'hasher':
+                self.g2_hasher_module.clearLastException()
             elif args.interfaceName == 'audit':
                 self.g2_audit_module.clearLastException()
             elif args.interfaceName == 'product':
@@ -423,8 +431,8 @@ class G2CmdShell(cmd.Cmd, object):
             resultString = ''
             if args.interfaceName == 'engine':
                 resultString = self.g2_module.getLastException()
-            elif args.interfaceName == 'anon':
-                resultString = self.g2_anon_module.getLastException()
+            elif args.interfaceName == 'hasher':
+                resultString = self.g2_hasher_module.getLastException()
             elif args.interfaceName == 'audit':
                 resultString = self.g2_audit_module.getLastException()
             elif args.interfaceName == 'product':
@@ -448,8 +456,8 @@ class G2CmdShell(cmd.Cmd, object):
             resultInt = 0
             if args.interfaceName == 'engine':
                 resultInt = self.g2_module.getLastExceptionCode()
-            elif args.interfaceName == 'anon':
-                resultInt = self.g2_anon_module.getLastExceptionCode()
+            elif args.interfaceName == 'hasher':
+                resultInt = self.g2_hasher_module.getLastExceptionCode()
             elif args.interfaceName == 'audit':
                 resultInt = self.g2_audit_module.getLastExceptionCode()
             elif args.interfaceName == 'product':
@@ -597,6 +605,43 @@ class G2CmdShell(cmd.Cmd, object):
 
         try: 
             (response, recCnt) = self.g2_module.exportCSVEntityReport(args.maximumMatchLevel, args.flags, args.includeSingletons, args.includeExtraCols)
+            if args.outputFile:
+                with open(args.outputFile, 'w') as data_out:
+                    data_out.write(response)
+            else:
+                printResponse(response)
+        except G2Exception.G2Exception as err:
+            print(err)
+        else:
+            #Remove 1 for the header on CSV
+            print('Number of exported records = %s\n' % (recCnt-1) )
+            if missingDetails:
+                print('Exporting resolved entities (match level and flags using default values.)\n')
+
+
+    def do_exportCSVEntityReportV2(self, arg):
+        '\nExport repository contents as CSV:  exportCSVEntityReportV2 [ -h <csvColumnList> | -m <match_level> [-s] [-c] | -f <flags> ] [-o <output_file>]\n' \
+        '\nSee also \'help MatchLevels_vs_Flags\' for the difference between -m and -f  \n'
+
+        missingDetails = False
+
+        try:
+            args = self.parser.parse_args(['exportEntityCsvV2'] + parse(arg))
+        except SystemExit:
+            print(self.do_exportCSVEntityReportV2.__doc__)
+            return
+        else:
+            if args.maximumMatchLevel and args.flags:
+                print('\nThe -f and -m arguments are mutually exclusive, use only one!\n')
+                return
+            if args.maximumMatchLevel == 0 and args.flags == 0:
+                args.flags = 4
+                missingDetails = True
+            if args.flags and (args.includeSingletons or args.includeExtraCols):
+                print('\nThe -c and -s arguments are only used with -m, ignoring!\n')
+
+        try: 
+            (response, recCnt) = self.g2_module.exportCSVEntityReportV2(args.headersForCSV, args.maximumMatchLevel, args.flags, args.includeSingletons, args.includeExtraCols)
             if args.outputFile:
                 with open(args.outputFile, 'w') as data_out:
                     data_out.write(response)
@@ -1305,12 +1350,12 @@ class G2CmdShell(cmd.Cmd, object):
             print(self.do_exportTokenLibrary.__doc__)
             return
         try: 
-            response = self.g2_anon_module.exportTokenLibrary()
+            response = self.g2_hasher_module.exportTokenLibrary()
             if args.outputFile:
                 with open(args.outputFile, 'w') as data_out:
                     json.dump(response,data_out)
             else:
-                printWithNewLine(json.dumps(response))
+                printWithNewLine(json.dumps(json.loads(response)))
         except G2Exception.G2Exception as err:
             print(err)
 
@@ -1338,25 +1383,25 @@ class G2CmdShell(cmd.Cmd, object):
             print(err)
 
 
-    def do_anonymize(self, arg):
-        '\nAnonymize an entity record:  anonymize <json_data>\n'
+    def do_hashRecord(self, arg):
+        '\naHash an entity record:  hashRecord <json_data>\n'
         try:
             args = self.parser.parse_args(['jsonOnly'] + parse(arg))
         except SystemExit:
-            print(self.do_anonymize.__doc__)
+            print(self.do_hashRecord.__doc__)
             return
         try: 
-            response = self.g2_anon_module.anonymize(args.jsonData)
+            response = self.g2_hasher_module.process(args.jsonData)
             printResponse(response)
         except G2Exception.G2Exception as err:
             print(err)
 
-    def do_anonymizeFile(self, arg):
-        '\nAnonymize a file of entity records:  anonymizeFile <input_file> [-o <output_file>]\n'
+    def do_hashFile(self, arg):
+        '\nHash a file of entity records:  hashFile <input_file> [-o <output_file>]\n'
         try:
             args = self.parser.parse_args(['inputFile'] + parse(arg))
         except SystemExit:
-            print(self.do_anonymizeFile.__doc__)
+            print(self.do_hashFile.__doc__)
             return
         try: 
             printWithNewLine('')
@@ -1364,14 +1409,14 @@ class G2CmdShell(cmd.Cmd, object):
                 with open(args.outputFile, 'w') as data_out:
                     with open(args.inputFile.split("?")[0]) as data_in:
                         for line in data_in:
-                            anonymizedData = self.g2_anon_module.anonymize(line.strip())
-                            data_out.write(anonymizedData)
+                            hashedData = self.g2_hasher_module.process(line.strip())
+                            data_out.write(hashedData)
                             data_out.write('\n')
             else:
                 with open(args.inputFile.split("?")[0]) as data_in :
                     for line in data_in:
-                        anonymizedData = self.g2_anon_module.anonymize(line.strip())
-                        printWithNewLine(anonymizedData)
+                        hashedData = self.g2_hasher_module.process(line.strip())
+                        printWithNewLine(hashedData)
         except G2Exception.G2Exception as err:
             print(err)
 

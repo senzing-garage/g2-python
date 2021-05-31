@@ -63,12 +63,17 @@ class G2Module(object):
     # flag for getting a minimal entity
     G2_ENTITY_MINIMAL_FORMAT = ( 1 << 18 )
 
+    # flag for excluding feature scores from search results
+    G2_SEARCH_NO_FEATURE_SCORES = ( 1 << 19 )
+
     # recommended settings
     G2_EXPORT_DEFAULT_FLAGS = G2_EXPORT_INCLUDE_ALL_ENTITIES
     G2_ENTITY_DEFAULT_FLAGS = G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES | G2_ENTITY_INCLUDE_ALL_RELATIONS
     G2_FIND_PATH_DEFAULT_FLAGS = G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES | G2_ENTITY_INCLUDE_ALL_RELATIONS
 
     G2_SEARCH_BY_ATTRIBUTES_DEFAULT_FLAGS = G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES
+    G2_SEARCH_BY_ATTRIBUTES_MINIMAL_STRONG = G2_ENTITY_MINIMAL_FORMAT | G2_SEARCH_NO_FEATURE_SCORES | G2_ENTITY_INCLUDE_NO_RELATIONS | G2_EXPORT_INCLUDE_RESOLVED | G2_EXPORT_INCLUDE_POSSIBLY_SAME 
+    G2_SEARCH_BY_ATTRIBUTES_MINIMAL_ALL = G2_ENTITY_MINIMAL_FORMAT | G2_SEARCH_NO_FEATURE_SCORES | G2_ENTITY_INCLUDE_NO_RELATIONS 
 
     # backwards compatability flags
     G2_EXPORT_DEFAULT_REPORT_FLAGS = G2_EXPORT_INCLUDE_ALL_ENTITIES
@@ -322,7 +327,7 @@ class G2Module(object):
             # Include disclosed relationships in addition to resolved entities & possibly same & possibly related & name-only
             g2ExportFlags = self.G2_EXPORT_INCLUDE_RESOLVED | self.G2_EXPORT_INCLUDE_POSSIBLY_SAME | self.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | self.G2_EXPORT_INCLUDE_NAME_ONLY | self.G2_EXPORT_INCLUDE_DISCLOSED
         else:
-            g2ExportFlags = 0
+            g2ExportFlags = self.G2_EXPORT_INCLUDE_ALL_ENTITIES
 
         #Add 1 to flags if we are including singletons
         if includeSingletons:
@@ -333,12 +338,20 @@ class G2Module(object):
 
         return g2ExportFlags
 
-    def getExportHandleFromFlags(self, exportType, g2ExportFlags):
+    def getExportHandleFromFlags(self, exportType, g2ExportFlags, colNames=None):
         if exportType == 'CSV':
-            self._lib_handle.G2_exportCSVEntityReport.restype = c_void_p
-            exportHandle = self._lib_handle.G2_exportCSVEntityReport(g2ExportFlags)
+            if colNames and isinstance(colNames, list):
+                colNames = ",".join(colNames)
+                self._lib_handle.G2_exportCSVEntityReport_V2.restype = c_void_p
+                self._lib_handle.G2_exportCSVEntityReport_V2.argtypes = [c_char_p, c_int]
+                exportHandle = self._lib_handle.G2_exportCSVEntityReport_V2(colNames.encode(), g2ExportFlags)
+            else:
+                self._lib_handle.G2_exportCSVEntityReport.restype = c_void_p
+                self._lib_handle.G2_exportCSVEntityReport.argtypes = [c_int]
+                exportHandle = self._lib_handle.G2_exportCSVEntityReport(g2ExportFlags)
         else:
             self._lib_handle.G2_exportJSONEntityReport.restype = c_void_p
+            self._lib_handle.G2_exportJSONEntityReport.argtypes = [c_int]
             exportHandle = self._lib_handle.G2_exportJSONEntityReport(g2ExportFlags)
         return exportHandle
 
@@ -410,9 +423,7 @@ class G2Module(object):
         """
         resultString = self.fetchExportRecord(exportHandle)
         if resultString:
-            csvRecord = next(csv.reader([resultString]))
-            if csvHeaders:
-                csvRecord = dict(list(zip(csvHeaders, csvRecord)))
+            csvRecord = next(csv.DictReader([resultString], fieldnames=csvHeaders))
         else:
             csvRecord = None
         return csvRecord 
@@ -450,6 +461,33 @@ class G2Module(object):
         fullG2ExportFlags_ = fullG2ExportFlags_ | g2ExportFlags
         self._lib_handle.G2_exportCSVEntityReport.restype = c_void_p
         exportHandle = self._lib_handle.G2_exportCSVEntityReport(fullG2ExportFlags_)
+        rowCount = 0
+        resize_return_buffer(None,65535)
+        self._lib_handle.G2_fetchNext.argtypes = [c_void_p, c_char_p, c_size_t]
+        rowData = self._lib_handle.G2_fetchNext(c_void_p(exportHandle),tls_var.buf,sizeof(tls_var.buf))
+
+        while rowData:
+            rowCount += 1
+            stringData = tls_var.buf
+            resultString += stringData.value
+            rowData = self._lib_handle.G2_fetchNext(c_void_p(exportHandle),tls_var.buf,sizeof(tls_var.buf))
+        self._lib_handle.G2_closeExport(c_void_p(exportHandle))
+
+        return (resultString.decode('utf-8'), rowCount)
+
+    def exportCSVEntityReportV2(self, csvColumnList, max_match_level, g2ExportFlags, includeSingletons, includeExtraCols):
+        # type: (int, int) -> str
+        """ Generate a CSV Entity Report
+        This is used to export entity data from known entities
+        """
+
+        resultString = b""
+        fullG2ExportFlags_ = self.getExportFlagsForMaxMatchLevel(max_match_level, includeSingletons, includeExtraCols)
+        fullG2ExportFlags_ = fullG2ExportFlags_ | g2ExportFlags
+        _csvColumnList = self.prepareStringArgument(csvColumnList)
+        self._lib_handle.G2_exportCSVEntityReport_V2.restype = c_void_p
+        self._lib_handle.G2_exportCSVEntityReport_V2.argtypes = [c_char_p, c_int]
+        exportHandle = self._lib_handle.G2_exportCSVEntityReport_V2(_csvColumnList,fullG2ExportFlags_)
         rowCount = 0
         resize_return_buffer(None,65535)
         self._lib_handle.G2_fetchNext.argtypes = [c_void_p, c_char_p, c_size_t]

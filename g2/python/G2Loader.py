@@ -14,6 +14,7 @@ import time
 import tempfile
 import math
 
+from time import sleep
 from datetime import datetime, timedelta
 from glob import glob
 from multiprocessing import Queue,Value,Process
@@ -24,7 +25,6 @@ import pprint
 
 #--project classes
 import G2Exception
-from G2Database import G2Database
 from G2ConfigTables import G2ConfigTables
 from G2Project import G2Project
 from G2Engine import G2Engine
@@ -34,12 +34,6 @@ from G2Exception import G2ModuleException, G2ModuleResolveMissingResEnt, G2Modul
 from CompressedFile import openPossiblyCompressedFile, isCompressedFile, fileRowParser
 import DumpStack
  
-#--optional libraries
-try: import pyodbc
-except: pass
-try: import sqlite3
-except: pass
-
 #--set globals for the g2 engine
 maxThreadsPerProcess=16
 defaultThreadCount=4
@@ -50,84 +44,65 @@ defaultThreadCount=4
 
 #---------------------------------------
 def processRedo(q, processEverything=False):
-    ''' process any records in the redo queue '''
-    exitCode = 0
-
-    g2Dbo = G2Database(g2dbUri)
-    if not g2Dbo.success:
+    #-- This may look weird but ctypes/ffi have problems with the native code and fork.
+    setupProcess = Process(target=redoFeed, args=(q, processEverything, g2iniPath, debugTrace))
+    setupProcess.start()
+    setupProcess.join()
+    if setupProcess.exitcode != 0:
+        exitCode = 1
         return
 
-    deleteStmt = 'delete from SYS_EVAL_QUEUE where LENS_CODE = ? and ETYPE_CODE = ? and DSRC_CODE = ? and ENT_SRC_KEY = ?'
-    execManyList = []
+
+
+
+def redoFeed(q, processEverything, g2iniPath, debugTrace):
+    ''' process any records in the redo queue '''
+    #--purge the repository
+    try:
+        g2_engine = G2Engine()
+        g2_engine.init('pyG2Redo', g2iniPath, debugTrace)
+    except G2ModuleException as ex:
+        print('ERROR: could not start the G2 engine at ' + g2iniPath)
+        print(ex)
+        return -1
+
+    exitCode = 0
 
     passNum = 0
     cntRows = 0
+    passStartTime = time.time()
+    batchStartTime = time.time()
+
     while True:
-        if processEverything is False and passNum > 10:
-          print('Too many resolution review cycles, taking a break from reprocessing')
-          break
-
-        passStartTime = time.time()
-        try:
-            if g2Dbo.dbType == 'DB2':
-                myCursor = g2Dbo.sqlExec('select LENS_CODE, ETYPE_CODE, DSRC_CODE, ENT_SRC_KEY, varchar(MSG) from SYS_EVAL_QUEUE')
-            else:
-                myCursor = g2Dbo.sqlExec('select LENS_CODE, ETYPE_CODE, DSRC_CODE, ENT_SRC_KEY, MSG from SYS_EVAL_QUEUE')
-            allRows = g2Dbo.fetchAllRows(myCursor)
-            if not allRows:
-              break
-        except G2Exception.G2DBException as err:
-            print(err)
-            print('ERROR: Selecting redo queue entries')
-            exitCode = 1
+        if threadStop.value != 0:
+           break
+        recBytes = bytearray()
+        ret = g2_engine.getRedoRecord(recBytes)
+        rec = recBytes.decode()
+        if not rec:
+          passNum += 1
+          if (passNum > 10):
             break
+          sleep(0.05)
+          continue
 
-        if allRows:
-            passNum += 1
-            if redoMode:
-                print
-                print ('Reviewing approximately %s resolutions in pass %s ...' % (len(allRows), passNum))
-        batchStartTime = time.time()
-        for row in allRows:
-            cntRows += 1
-            while True:
-                try: q.put(row[4],True,1)
-                except Full:
-                    continue
-                break
-            execManyList.append([row[0],row[1],row[2],row[3]])
-            if cntRows % sqlCommitSize == 0:
-                try: g2Dbo.execMany(deleteStmt, execManyList)
-                except G2Exception.G2DBException as err:
-                    print(err)
-                    print('ERROR: could not delete from SYS_EVAL_QUEUE table')
-                    exitCode = 1
-                    break
-                else:
-                    execManyList = []
-                if redoMode:
-                    print('  %s rows processed, %s records per second' % (cntRows, int(float(sqlCommitSize) / (float(time.time() - batchStartTime if time.time() - batchStartTime != 0 else 1))))) 
-                    batchStartTime = time.time()
-
-        if exitCode == 0 and passNum > 0:
-            if execManyList:
-                try: g2Dbo.execMany(deleteStmt, execManyList)
-                except G2Exception.G2DBException as err:
-                    print(err)
-                    print('ERROR: could not delete from SYS_EVAL_QUEUE table')
-                    exitCode = 1
-                    break
-                else:
-                    execManyList = []
+        cntRows += 1
+        while True:
+            try: q.put(rec,True,1)
+            except Full:
+                continue
+            break
+        if cntRows % sqlCommitSize == 0:
+            recordsLeft = g2_engine.countRedoRecords()
+            print('  %s redo records processed at %s, %s records per second, approx %d remaining' % (cntRows, datetime.now().strftime('%I:%M%p').lower(), int(float(sqlCommitSize) / (float(time.time() - batchStartTime if time.time() - batchStartTime != 0 else 1))), recordsLeft)) 
+            batchStartTime = time.time()
 
     if cntRows > 0:
-        resultStr = '%s reevaluations completed in %s passes' % (cntRows, passNum)
-    else:
-        resultStr = None
+        print('%s reevaluations completed' % (cntRows))
 
-    g2Dbo.close()
-
-    return exitCode, resultStr
+    g2_engine.destroy()
+    del g2_engine
+    return exitCode, ""
 
 #---------------------------------------
 def checkResources():
@@ -438,18 +413,18 @@ def loadProject():
                         break
 
             if cntRows % sqlCommitSize == 0:
+                batchSpeed = int(float(sqlCommitSize) / (float(time.time() - batchStartTime if time.time() - batchStartTime != 0 else 1)))
 
-                redoStatDisplay = ''
+                #--display current stats
+                print('  %s rows processed at %s, %s records per second' % (cntRows, datetime.now().strftime('%I:%M%p').lower(), batchSpeed))
+
                 if cntRows % (100*sqlCommitSize) == 0:
                     #--process redo
                     if not testMode and processRedoQueue:
-                        redoError, redoMsg = processRedo(workQueue)
-                        if redoMsg:
-                            redoStatDisplay = ', ' + redoMsg
+                        redoError = processRedo(workQueue)
 
-                #--display current stats
-                print('  %s rows processed at %s, %s records per second%s' % (cntRows, datetime.now().strftime('%I:%M%p').lower(), int(float(sqlCommitSize) / (float(time.time() - batchStartTime if time.time() - batchStartTime != 0 else 1))), redoStatDisplay))
                 batchStartTime = time.time()
+
 
             #--check to see if any threads threw errors or control-c pressed and shut down
             if threadStop.value != 0:
@@ -457,7 +432,7 @@ def loadProject():
                 break
         
         if threadStop.value == 0 and not testMode and processRedoQueue:
-          redoError, redoMsg = processRedo(workQueue, True)
+          redoError = processRedo(workQueue, True)
 
         #--close input files
         fileReader.close()
@@ -528,7 +503,7 @@ def loadRedoQueueAndProcess():
     #--start processing queue
     fileStartTime = time.time()
     if threadStop.value == 0 and not testMode and processRedoQueue:
-      redoError, redoMsg = processRedo(workQueue, True)
+      redoError = processRedo(workQueue, True)
     
     stopLoaderProcessAndThreads(threadList, workQueue)
 
@@ -637,7 +612,7 @@ def sendToG2(threadId_, workQueue_, numThreads_, g2iniPath, debugTrace, threadSt
 
   except: pass
 
-  if workloadStats > 0:
+  if workloadStats > 0 and numProcessed > 0:
     pprint.pprint(g2_engine.stats())
   
   try: g2_engine.destroy()
@@ -767,8 +742,6 @@ if __name__ == '__main__':
     #--get parameters from ini file
     iniParser = configparser.ConfigParser()
     iniParser.read(iniFileName)
-    try: g2dbUri = iniParser.get('g2', 'G2Connection')
-    except: g2dbUri = None
     try: configTableFile = iniParser.get('g2', 'G2ConfigFile')
     except: configTableFile = None
     try: g2iniPath = os.path.expanduser(iniParser.get('g2', 'iniPath'))
@@ -855,14 +828,12 @@ if __name__ == '__main__':
             createJsonOnly = True
 
     #--validations
-    if not g2dbUri:
-        print('ERROR: A G2 database connection is not specified!')
-        sys.exit(1)
     if not configTableFile:
         print('ERROR: A G2 setup configuration file is not specified')
         sys.exit(1)
 
     if redoMode:
+        defaultThreadCount = min(defaultThreadCount, maxThreadsPerProcess)
         runSetupProcess(False) # no purge because we would purge the redo queue
         while threadStop.value != 9 and exitCode == 0:
             print("\nProcessing redo queue...")
@@ -883,10 +854,6 @@ if __name__ == '__main__':
         else:
             if projectFileSpec: #--file spec takes precendence over name
                 projectFileName = None
-        #--attempt to open the g2 database
-        g2Dbo = G2Database(g2dbUri)
-        if not g2Dbo.success:
-            sys.exit(1)
             
         #-- Load the G2 configuration file
         g2ConfigTables = G2ConfigTables(configTableFile,g2iniPath, configuredDatasourcesOnly)
@@ -896,8 +863,6 @@ if __name__ == '__main__':
         if not g2Project.success:
             sys.exit(1)
 
-        g2Dbo.close()
-    
         #--all good, lets start loading!
         exitCode = loadProject()
 

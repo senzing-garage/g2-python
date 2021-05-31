@@ -55,3 +55,6 @@
 [submodule "g2diagnostic"]
 	path = g2diagnostic
 	url = https://github.com/Senzing/g2diagnostic.git
+[submodule "g2hasher"]
+	path = g2hasher
+	url = https://github.com/Senzing/g2hasher.git

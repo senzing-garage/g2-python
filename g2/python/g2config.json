@@ -2550,7 +2550,7 @@
             {
                 "DEFAULT_VALUE": null,
                 "ATTR_CODE": "GROUP_ASSOCIATION_TYPE",
-                "FELEM_REQ": "Yes",
+                "FELEM_REQ": "No",
                 "ATTR_CLASS": "ATTRIBUTE",
                 "INTERNAL": "No",
                 "ATTR_ID": 2001,
@@ -5149,9 +5149,9 @@
             "COMPATIBILITY_VERSION": {
                 "CONFIG_VERSION": "2"
             },
-            "BUILD_DATE": "2019-04-09",
-            "VERSION": "1.7.19099",
-            "BUILD_NUMBER": "2019_04_09__02_00"
+            "BUILD_DATE": "2019-05-08",
+            "VERSION": "1.8.19128",
+            "BUILD_NUMBER": "2019_05_08__02_00"
         },
         "CFG_DFUNC": [
             {
@@ -7255,8 +7255,8 @@
                 "ERFRAG_CODE": "DIFF_EXCL",
                 "ERFRAG_ID": 55,
                 "ERFRAG_DESC": "DIFF_EXCL",
-                "ERFRAG_SOURCE": "./SUMMARY/BEHAVIOR/EXCLUSIVE[sum(./UNLIKELY | ./NO_CHANCE) > 0] | ./FRAGMENT[./DIFF_GEN>0 and sum(./SAME_GEN)=0]",
-                "ERFRAG_DEPENDS": "63,64"
+                "ERFRAG_SOURCE": "./SUMMARY/BEHAVIOR/EXCLUSIVE[sum(./UNLIKELY | ./NO_CHANCE) > 0] | ./FRAGMENT[./NAME_GEN_MISMATCH>0]",
+                "ERFRAG_DEPENDS": "75"
             },
             {
                 "ERFRAG_CODE": "NO_EXCL",
@@ -7290,22 +7290,22 @@
                 "ERFRAG_CODE": "DIFF_GEN",
                 "ERFRAG_ID": 63,
                 "ERFRAG_DESC": "DIFF_GEN",
-                "ERFRAG_SOURCE": "./SCORES[./NAME/GENERATION_MATCH = 0]",
+                "ERFRAG_SOURCE": "./SCORES/NAME[./GENERATION_MATCH = 0]",
                 "ERFRAG_DEPENDS": null
             },
             {
                 "ERFRAG_CODE": "SAME_GEN",
                 "ERFRAG_ID": 64,
                 "ERFRAG_DESC": "SAME_GEN",
-                "ERFRAG_SOURCE": "./SCORES[./NAME/GENERATION_MATCH >= 90]",
+                "ERFRAG_SOURCE": "./SCORES/NAME[./GENERATION_MATCH >= 90]",
                 "ERFRAG_DEPENDS": null
             },
             {
                 "ERFRAG_CODE": "DIFF_STAB",
                 "ERFRAG_ID": 65,
                 "ERFRAG_DESC": "DIFF_STAB",
-                "ERFRAG_SOURCE": "./SUMMARY/BEHAVIOR/STABLE[sum(./PLAUSIBLE | ./UNLIKELY | ./NO_CHANCE) > 0] | ./FRAGMENT[./DIFF_GEN>0 and sum(./SAME_GEN)=0]",
-                "ERFRAG_DEPENDS": "63,64"
+                "ERFRAG_SOURCE": "./SUMMARY/BEHAVIOR/STABLE[sum(./PLAUSIBLE | ./UNLIKELY | ./NO_CHANCE) > 0] | ./FRAGMENT[./NAME_GEN_MISMATCH>0]",
+                "ERFRAG_DEPENDS": "75"
             },
             {
                 "ERFRAG_CODE": "NO_STAB",
@@ -7327,6 +7327,13 @@
                 "ERFRAG_DESC": "NO_NAME_CONF",
                 "ERFRAG_SOURCE": "./FRAGMENT[./NO_NAME=1 and sum(./DIFF_EXCL)=0]",
                 "ERFRAG_DEPENDS": "17,55"
+            },
+            {
+                "ERFRAG_CODE": "NAME_GEN_MISMATCH",
+                "ERFRAG_ID": 75,
+                "ERFRAG_DESC": "DIFF_NAME_GEN",
+                "ERFRAG_SOURCE": "./FRAGMENT[./DIFF_GEN>0 and sum(./SAME_GEN)=0]",
+                "ERFRAG_DEPENDS": "63,64"
             },
             {
                 "ERFRAG_CODE": "SF1_PNAME_CFF_CSTAB",

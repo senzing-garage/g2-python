@@ -257,8 +257,8 @@ class G2CmdShell(cmd.Cmd):
                 printWithNewLines('Configuration wasn\'t reloaded, your changes remain but are still unsaved.')
                 return
         
-        self.cfgData = json.load(open(self.g2ConfigFile), encoding="utf-8")
-        printWithNewLines('%s has been reloaded.' % self.g2ConfigFile, 'B')
+        self.cfgData = json.load(open(self.g2configFile), encoding="utf-8")
+        printWithNewLines('%s has been reloaded.' % self.g2configFile, 'B')
         
     def do_configReloadFromDB(self,arg):
         '\n\tReload configuration from the database and discard all unsaved changes\n'
@@ -752,10 +752,10 @@ class G2CmdShell(cmd.Cmd):
                 elif parmCode == 'ANONYMIZE':
                     if parmData['ANONYMIZE'].upper() in ('YES', 'Y', 'NO','N'):
                         self.cfgData['G2_CONFIG']['CFG_FTYPE'][listID]['ANONYMIZE'] = 'Yes' if parmData['ANONYMIZE'].upper() in ('YES', 'Y') else 'No'
-                        printWithNewLines('Anonymize setting updated!')
+                        printWithNewLines('Hasing setting updated!')
                         self.configUpdated = True
                     else:
-                        printWithNewLines('Invalid anonymize setting: %s' % parmData['ANONYMIZE'])
+                        printWithNewLines('Invalid hashing setting: %s' % parmData['ANONYMIZE'])
                     
                 elif parmCode == 'CANDIDATES':
                     if parmData['CANDIDATES'].upper() in ('YES', 'Y', 'NO','N'):
@@ -1839,7 +1839,7 @@ class G2CmdShell(cmd.Cmd):
                     if thisChar == '/':
                         currentFrag = ''
                     elif currentFrag != 'eof':
-                        if thisChar in ' =><':
+                        if thisChar in ' =><)':
                             #--lookup the fragment code
                             fragRecord = self.getRecord('CFG_ERFRAG', 'ERFRAG_CODE', currentFrag)
                             if not fragRecord:

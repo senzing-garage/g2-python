@@ -62,12 +62,17 @@ class G2Engine(object):
     # flag for getting a minimal entity
     G2_ENTITY_MINIMAL_FORMAT = ( 1 << 18 )
 
+    # flag for excluding feature scores from search results
+    G2_SEARCH_NO_FEATURE_SCORES = ( 1 << 19 )
+
     # recommended settings
     G2_EXPORT_DEFAULT_FLAGS = G2_EXPORT_INCLUDE_ALL_ENTITIES
     G2_ENTITY_DEFAULT_FLAGS = G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES | G2_ENTITY_INCLUDE_ALL_RELATIONS
     G2_FIND_PATH_DEFAULT_FLAGS = G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES | G2_ENTITY_INCLUDE_ALL_RELATIONS
 
     G2_SEARCH_BY_ATTRIBUTES_DEFAULT_FLAGS = G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES
+    G2_SEARCH_BY_ATTRIBUTES_MINIMAL_STRONG = G2_ENTITY_MINIMAL_FORMAT | G2_SEARCH_NO_FEATURE_SCORES | G2_ENTITY_INCLUDE_NO_RELATIONS | G2_EXPORT_INCLUDE_RESOLVED | G2_EXPORT_INCLUDE_POSSIBLY_SAME 
+    G2_SEARCH_BY_ATTRIBUTES_MINIMAL_ALL = G2_ENTITY_MINIMAL_FORMAT | G2_SEARCH_NO_FEATURE_SCORES | G2_ENTITY_INCLUDE_NO_RELATIONS 
 
     # backwards compatability flags
     G2_EXPORT_DEFAULT_REPORT_FLAGS = G2_EXPORT_INCLUDE_ALL_ENTITIES
@@ -726,6 +731,49 @@ class G2Engine(object):
             response.append(i)
         return ret_code
 
+    def getRedoRecord(self,response):
+        # type: (bytearray) -> int
+        """ Get the next Redo record
+        Args:
+            response: A bytearray for returning the response document; if an error occurred, an error response is stored here.
+
+        Return:
+            int: 0 upon success, other for error.
+        """
+
+        resize_return_buffer(None, 65535)
+        responseBuf = c_char_p(None)
+        responseSize = c_size_t(0)
+        self._lib_handle.G2_getRedoRecord.restype = c_int
+        self._lib_handle.G2_getRedoRecord.argtypes = [POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_getRedoRecord(pointer(responseBuf),
+                                                     pointer(responseSize),
+                                                     self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
+        response += responseBuf.value
+        return ret_code
+
+    def countRedoRecords(self):
+        # type: () -> int
+        """ Get the redo records left
+        Args:
+
+        Return:
+            int: >=0 upon success, other for error.
+        """
+
+        ret_code = self._lib_handle.G2_countRedoRecords()
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
+        return ret_code
+
     def getRecord(self,dsrcCode,recordId,response):
         # type: (str,str,bytearray) -> int
         """ Get the specified record
@@ -941,8 +989,9 @@ class G2Engine(object):
         """  Internal function """
         moduleName = self._engine_name
         iniFilename = self._ini_file_name
+        debugFlag = self._debug
         self.destroy()
-        self.init(moduleName, iniFilename, False)
+        self.init(moduleName, iniFilename, debugFlag)
 
     def destroy(self):
         """ Uninitializes the engine

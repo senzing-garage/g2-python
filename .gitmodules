@@ -58,3 +58,6 @@
 [submodule "g2hasher"]
 	path = g2hasher
 	url = https://github.com/Senzing/g2hasher.git
+[submodule "g2paths"]
+	path = g2paths
+	url = https://github.com/Senzing/g2paths.git

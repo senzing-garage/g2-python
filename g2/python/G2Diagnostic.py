@@ -111,15 +111,12 @@ class G2Diagnostic(object):
             booleanValue = 1
         return booleanToPrepare
 
-    def getEntityDetails(self,entityID,includeDerivedFeatures):
+    def getEntityDetails(self,entityID,includeDerivedFeatures,response):
         # type: (int) -> str
         """ Get the details for the resolved entity
         Args:
             entityID: The entity ID to get results for
             includeDerivedFeatures: boolean value indicating whether to include derived features
-
-        Return:
-            str: JSON document with results
         """
 
         _includeDerivedFeatures = self.prepareBooleanArgument(includeDerivedFeatures);
@@ -136,17 +133,15 @@ class G2Diagnostic(object):
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
-        return tls_var.buf.value.decode('utf-8')
+        response += tls_var.buf.value
+        return ret_code
 
-    def getRelationshipDetails(self,relationshipID,includeDerivedFeatures):
+    def getRelationshipDetails(self,relationshipID,includeDerivedFeatures,response):
         # type: (int) -> str
         """ Get the details for the resolved entity relationship
         Args:
             relationshipID: The relationshp ID to get results for
             includeDerivedFeatures: boolean value indicating whether to include derived features
-
-        Return:
-            str: JSON document with results
         """
 
         _includeDerivedFeatures = self.prepareBooleanArgument(includeDerivedFeatures);
@@ -163,16 +158,14 @@ class G2Diagnostic(object):
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
-        return tls_var.buf.value.decode('utf-8')
+        response += tls_var.buf.value
+        return ret_code
 
-    def getEntityResume(self,entityID):
+    def getEntityResume(self,entityID,response):
         # type: (int) -> str
         """ Get the related records for the resolved entity
         Args:
             entityID: The entity ID to get results for
-
-        Return:
-            str: JSON document with results
         """
 
         resize_return_buffer(None, 65535)
@@ -188,44 +181,42 @@ class G2Diagnostic(object):
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
-        return tls_var.buf.value.decode('utf-8')
+        response += tls_var.buf.value
+        return ret_code
+
 
     def getEntityListBySize(self,entitySize):
-        # type: (str,str,int) -> str
         """ Generate a list of resolved entities of a particular size
    
         Args:
             entitySize: The size of the resolved entity (observed entity count)
-
-        Return:
-            str: string of several JSON documents with results
         """
-        resultString = b""
-        _entitySize = entitySize
         self._lib_handle.G2Diagnostic_getEntityListBySize.restype = c_void_p
-        sizedEntityHandle = self._lib_handle.G2Diagnostic_getEntityListBySize(_entitySize)
+        sizedEntityHandle = self._lib_handle.G2Diagnostic_getEntityListBySize(entitySize)
         if sizedEntityHandle == None:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
-        rowCount = 0
+        return sizedEntityHandle
+
+    def fetchNextEntityBySize(self, sizedEntityHandle,response):
         resize_return_buffer(None,65535)
         self._lib_handle.G2Diagnostic_fetchNextEntityBySize.argtypes = [c_void_p, c_char_p, c_size_t]
         rowData = self._lib_handle.G2Diagnostic_fetchNextEntityBySize(c_void_p(sizedEntityHandle),tls_var.buf,sizeof(tls_var.buf))
-
         while rowData:
-            rowCount = rowCount + 1
-            stringData = tls_var.buf
-            resultString += stringData.value
-            rowData = self._lib_handle.G2Diagnostic_fetchNextEntityBySize(c_void_p(sizedEntityHandle),tls_var.buf,sizeof(tls_var.buf))
-        self._lib_handle.G2Diagnostic_closeEntityListBySize(c_void_p(sizedEntityHandle))
-        return resultString.decode('utf-8')
+            response += tls_var.buf.value
+            if (response.decode())[-1] == '\n':
+                break
+            else:
+                rowData = self._lib_handle.G2Diagnostic_fetchNextEntityBySize(c_void_p(sizedEntityHandle),tls_var.buf,sizeof(tls_var.buf))
+        return response
 
-    def checkDBPerf(self,secondsToRun):
+    def closeEntityListBySize(self, sizedEntityHandle):
+        self._lib_handle.G2Diagnostic_closeEntityListBySize(c_void_p(sizedEntityHandle))
+
+
+    def checkDBPerf(self,secondsToRun,response):
         # type: () -> object,int
         """ Retrieve JSON of DB performance test
-
-        Return:
-            object: JSON document with results
         """
 
         resize_return_buffer(None, 65535)
@@ -241,14 +232,12 @@ class G2Diagnostic(object):
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
 
-        return responseBuf.value.decode('utf-8')
+        response += tls_var.buf.value
+        return ret_code
 
-    def getDataSourceCounts(self):
+    def getDataSourceCounts(self,response):
         # type: () -> object
         """ Retrieve record counts by data source and entity type.
-
-        Return:
-            object: JSON document with results
         """
 
         resize_return_buffer(None, 65535)
@@ -264,16 +253,14 @@ class G2Diagnostic(object):
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
 
-        return responseBuf.value.decode('utf-8')
+        response += tls_var.buf.value
+        return ret_code
 
-    def getMappingStatistics(self,includeDerivedFeatures):
+    def getMappingStatistics(self,includeDerivedFeatures,response):
         # type: () -> object
         """ Retrieve data source mapping statistics.
         Args:
             includeDerivedFeatures: boolean value indicating whether to include derived features
-
-        Return:
-            object: JSON document with results
         """
 
         _includeDerivedFeatures = self.prepareBooleanArgument(includeDerivedFeatures);
@@ -292,17 +279,15 @@ class G2Diagnostic(object):
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
 
-        return responseBuf.value.decode('utf-8')
+        response += tls_var.buf.value
+        return ret_code
 
-    def getGenericFeatures(self,featureType,maximumEstimatedCount):
+    def getGenericFeatures(self,featureType,maximumEstimatedCount,response):
         # type: () -> object
         """ Retrieve generic features.
         Args:
             featureType: the feature type to find generics for
             maximumEstimatedCount: the maximum estimated count for the generics to find
-
-        Return:
-            object: JSON document with results
         """
 
         _featureType = self.prepareStringArgument(featureType)
@@ -322,17 +307,15 @@ class G2Diagnostic(object):
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
 
-        return responseBuf.value.decode('utf-8')
+        response += tls_var.buf.value
+        return ret_code
 
-    def getEntitySizeBreakdown(self,minimumEntitySize,includeDerivedFeatures):
+    def getEntitySizeBreakdown(self,minimumEntitySize,includeDerivedFeatures,response):
         # type: () -> object
         """ Retrieve data source mapping statistics.
         Args:
             minimumEntitySize: the minimum entity size to report on
             includeDerivedFeatures: boolean value indicating whether to include derived features
-
-        Return:
-            object: JSON document with results
         """
 
         _includeDerivedFeatures = self.prepareBooleanArgument(includeDerivedFeatures);
@@ -352,14 +335,12 @@ class G2Diagnostic(object):
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
 
-        return responseBuf.value.decode('utf-8')
+        response += tls_var.buf.value
+        return ret_code
 
-    def getResolutionStatistics(self):
+    def getResolutionStatistics(self,response):
         # type: () -> object
         """ Retrieve resolution statistics.
-
-        Return:
-            object: JSON document with results
         """
 
         resize_return_buffer(None, 65535)
@@ -375,7 +356,8 @@ class G2Diagnostic(object):
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
 
-        return responseBuf.value.decode('utf-8')
+        response += tls_var.buf.value
+        return ret_code
 
 
 
@@ -478,6 +460,4 @@ class G2Diagnostic(object):
         self._lib_handle.G2Diagnostic_getLastExceptionCode.argtypes = []
         exception_code = self._lib_handle.G2Diagnostic_getLastExceptionCode()
         return exception_code
-  
-
 

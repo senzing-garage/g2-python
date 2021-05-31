@@ -5,8 +5,6 @@ import os
 
 tls_var = threading.local()
 
-from csv import reader as csvreader
-
 from G2Exception import TranslateG2ModuleException, G2ModuleNotInitialized, G2ModuleGenericException
 
 def resize_return_buffer(buf_, size_):
@@ -23,7 +21,7 @@ def resize_return_buffer(buf_, size_):
 
 
 class G2Audit(object):
-    """G2 audit module access library
+    """G2 audit access library
 
     Attributes:
         _lib_handle: A boolean indicating if we like SPAM or not.
@@ -66,7 +64,7 @@ class G2Audit(object):
         elif retval == -1:
             raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
         elif retval < 0:
-            raise G2ModuleGenericException("Failed to initialize G2 Module")
+            raise G2ModuleGenericException("Failed to initialize G2 Audit")
         return retval
 
 
@@ -171,11 +169,9 @@ class G2Audit(object):
             self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
-            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
 
-        stringRet = str(responseBuf.value.decode('utf-8'))
-        for i in stringRet:
-            response.append(i)
+        response += responseBuf.value
         return ret_code
 
     def getSummaryDataDirect(self, response):
@@ -196,11 +192,9 @@ class G2Audit(object):
             self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
-            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
 
-        stringRet = str(responseBuf.value.decode('utf-8'))
-        for i in stringRet:
-            response.append(i)
+        response += responseBuf.value
         return ret_code
 
     def getUsedMatchKeys(self,sessionHandle,fromDataSource,toDataSource,matchLevel,response):
@@ -232,9 +226,7 @@ class G2Audit(object):
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
-        stringRet = str(responseBuf.value.decode('utf-8'))
-        for i in stringRet:
-            response.append(i)
+        response += responseBuf.value
         return ret_code
 
 
@@ -267,9 +259,7 @@ class G2Audit(object):
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
-        stringRet = str(responseBuf.value.decode('utf-8'))
-        for i in stringRet:
-            response.append(i)
+        response += responseBuf.value
         return ret_code
 
 
@@ -299,22 +289,21 @@ class G2Audit(object):
         reportHandle = self._lib_handle.G2Audit_getAuditReport(sessionHandle,_fromDataSource,_toDataSource,_matchLevel)
         return reportHandle
 
-    def fetchNext(self,reportHandle):
-        resultString = b""
+    def fetchNext(self,reportHandle,response):
         if reportHandle == None:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
-        rowCount = 0
         resize_return_buffer(None,65535)
         self._lib_handle.G2Audit_fetchNext.argtypes = [c_void_p, c_char_p, c_size_t]
         rowData = self._lib_handle.G2Audit_fetchNext(c_void_p(reportHandle),tls_var.buf,sizeof(tls_var.buf))
 
         while rowData:
-            rowCount = rowCount + 1
-            stringData = tls_var.buf
-            resultString += stringData.value
-            rowData = self._lib_handle.G2Audit_fetchNext(c_void_p(reportHandle),tls_var.buf,sizeof(tls_var.buf))
-        return resultString.decode('utf-8')
+            response += tls_var.buf.value
+            if (response.decode())[-1] == '\n':
+                break
+            else:
+                rowData = self._lib_handle.G2Audit_fetchNext(c_void_p(reportHandle),tls_var.buf,sizeof(tls_var.buf))
+        return response
 
     def closeReport(self, reportHandle):
         self._lib_handle.G2Audit_closeReport(c_void_p(reportHandle))
@@ -323,8 +312,9 @@ class G2Audit(object):
         """  Internal function """
         moduleName = self._engine_name
         iniFilename = self._ini_file_name
+        debugFlag = self._debug
         self.destroy()
-        self.init(moduleName, iniFilename, False)
+        self.init(moduleName, iniFilename, debugFlag)
 
     def destroy(self):
         """ Uninitializes the engine

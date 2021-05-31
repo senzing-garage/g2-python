@@ -21,32 +21,40 @@ def resize_return_buffer(buf_, size_):
   return addressof(tls_var.buf)
 
 
-class G2HasherModule(object):
-    """G2 module access library
+class G2Hasher(object):
+    """G2 hasher access library
 
     Attributes:
         _lib_handle: A boolean indicating if we like SPAM or not.
         _resize_func_def: resize function definiton
         _resize_func: resize function pointer
-        _module_name: CME module name
+        _hasher_name: CME hasher name
         _ini_file_name: name and location of .ini file
     """
-    def init(self):
+    def init(self, hasher_name_, ini_file_name_, debug_=False):
         """  initializes and starts the G2Module
+        Args:
+            hasherName: A short name given to this instance of the hasher
+            iniFilename: A fully qualified path to the G2 engine INI file (often /opt/senzing/g2/python/G2Module.ini)
+            verboseLogging: Enable diagnostic logging which will print a massive amount of information to stdout
         """
         if self._hasherSupported == False:
             return 0
 
+        self._hasher_name = hasher_name_
+        self._ini_file_name = ini_file_name_
+        self._debug = debug_
+
         if self._debug:
-            print("Initializing G2 Hasher module")
+            print("Initializing G2 Hasher")
 
         resize_return_buffer(None, 65535)
 
-        p_module_name = self.prepareStringArgument(self._module_name)
+        p_hasher_name = self.prepareStringArgument(self._hasher_name)
         p_ini_file_name = self.prepareStringArgument(self._ini_file_name)
 
         self._lib_handle.G2Hasher_init.argtypes = [c_char_p, c_char_p, c_int]
-        retval = self._lib_handle.G2Hasher_init(p_module_name,
+        retval = self._lib_handle.G2Hasher_init(p_hasher_name,
                                  p_ini_file_name,
                                  self._debug)
 
@@ -58,27 +66,25 @@ class G2HasherModule(object):
             self._lib_handle.G2Hasher_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif retval == -1:
-            raise G2ModuleNotInitialized('G2HasherModule has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Hasher has not been succesfully initialized')
         elif retval < 0:
-            raise G2ModuleGenericException("Failed to initialize G2 Module")
+            raise G2ModuleGenericException("Failed to initialize G2 Hasher")
         return retval
 
 
-    def __init__(self, module_name_, ini_file_name_, debug_=False):
+    def __init__(self):
         try:
             if os.name == 'nt':
               self._lib_handle = cdll.LoadLibrary("G2Hasher.dll")
             else:
               self._lib_handle = cdll.LoadLibrary("libG2Hasher.so")
-            self._resize_func_def = CFUNCTYPE(c_char_p, c_char_p, c_size_t)
-            self._resize_func = self._resize_func_def(resize_return_buffer)
             self._hasherSupported = True
         except OSError:
             self._hasherSupported = False
 
-        self._module_name = module_name_
-        self._ini_file_name = ini_file_name_
-        self._debug = debug_
+        self._resize_func_def = CFUNCTYPE(c_char_p, c_char_p, c_size_t)
+        self._resize_func = self._resize_func_def(resize_return_buffer)
+
 
     def prepareStringArgument(self, stringToPrepare):
         #handle null string
@@ -129,7 +135,7 @@ class G2HasherModule(object):
         exception_code = self._lib_handle.G2Hasher_getLastExceptionCode()
         return exception_code
 
-    def exportTokenLibrary(self):
+    def exportTokenLibrary(self,response):
         '''  gets the token library from G2Hasher '''
         if self._hasherSupported == False:
             self.reportHasherNotIncluded()
@@ -144,12 +150,13 @@ class G2HasherModule(object):
             self._lib_handle.G2Hasher_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
-            raise G2ModuleNotInitialized('G2HasherModule has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Hasher has not been succesfully initialized')
         elif ret_code < 0:
             raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
-        return responseBuf.value.decode('utf-8')
+        response += responseBuf.value
+        return ret_code
 
-    def process(self,record):
+    def process(self,record,response):
         '''  process a G2Hasher record '''
         if self._hasherSupported == False:
             self.reportHasherNotIncluded()
@@ -166,19 +173,24 @@ class G2HasherModule(object):
             self._lib_handle.G2Hasher_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
-            raise G2ModuleNotInitialized('G2HasherModule has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Hasher has not been succesfully initialized')
         elif ret_code < 0:
             raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
-        return responseBuf.value.decode('utf-8')
+        response += responseBuf.value
+        return ret_code
 
     def restart(self):
         """  restarts G2 resolver """
+        moduleName = self._engine_name
+        iniFilename = self._ini_file_name
+        debugFlag = self._debug
         self.destroy()
-        self.init()
+        self.init(moduleName, iniFilename, debugFlag)
 
     def destroy(self):
         """ shuts down G2Module
         """
         if self._hasherSupported == True:
-            self._lib_handle.G2Hasher_destroy()
+            return self._lib_handle.G2Hasher_destroy()
+        return 0
 

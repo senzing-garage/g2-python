@@ -90,6 +90,78 @@
                 "EFCALL_ID": 16,
                 "EXEC_ORDER": 1,
                 "FTYPE_ID": 7
+            },
+            {
+                "EFUNC_ID": 1,
+                "EFCALL_ID": 17,
+                "EXEC_ORDER": 1,
+                "FTYPE_ID": 60
+            },
+            {
+                "EFUNC_ID": 1,
+                "EFCALL_ID": 18,
+                "EXEC_ORDER": 1,
+                "FTYPE_ID": 61
+            },
+            {
+                "EFUNC_ID": 1,
+                "EFCALL_ID": 19,
+                "EXEC_ORDER": 1,
+                "FTYPE_ID": 62
+            },
+            {
+                "EFUNC_ID": 1,
+                "EFCALL_ID": 20,
+                "EXEC_ORDER": 1,
+                "FTYPE_ID": 63
+            },
+            {
+                "EFUNC_ID": 1,
+                "EFCALL_ID": 21,
+                "EXEC_ORDER": 1,
+                "FTYPE_ID": 64
+            },
+            {
+                "EFUNC_ID": 1,
+                "EFCALL_ID": 22,
+                "EXEC_ORDER": 1,
+                "FTYPE_ID": 65
+            },
+            {
+                "EFUNC_ID": 1,
+                "EFCALL_ID": 23,
+                "EXEC_ORDER": 1,
+                "FTYPE_ID": 66
+            },
+            {
+                "EFUNC_ID": 1,
+                "EFCALL_ID": 24,
+                "EXEC_ORDER": 1,
+                "FTYPE_ID": 67
+            },
+            {
+                "EFUNC_ID": 1,
+                "EFCALL_ID": 25,
+                "EXEC_ORDER": 1,
+                "FTYPE_ID": 68
+            },
+            {
+                "EFUNC_ID": 1,
+                "EFCALL_ID": 26,
+                "EXEC_ORDER": 1,
+                "FTYPE_ID": 69
+            },
+            {
+                "EFUNC_ID": 1,
+                "EFCALL_ID": 27,
+                "EXEC_ORDER": 1,
+                "FTYPE_ID": 70
+            },
+            {
+                "EFUNC_ID": 1,
+                "EFCALL_ID": 28,
+                "EXEC_ORDER": 1,
+                "FTYPE_ID": 71
             }
         ],
         "CFG_RTYPE": [
@@ -1136,6 +1208,78 @@
                 "FELEM_ID": 3,
                 "CFCALL_ID": 42,
                 "FTYPE_ID": 59
+            },
+            {
+                "EXEC_ORDER": 1,
+                "FELEM_ID": 56,
+                "CFCALL_ID": 43,
+                "FTYPE_ID": 60
+            },
+            {
+                "EXEC_ORDER": 1,
+                "FELEM_ID": 56,
+                "CFCALL_ID": 44,
+                "FTYPE_ID": 61
+            },
+            {
+                "EXEC_ORDER": 1,
+                "FELEM_ID": 56,
+                "CFCALL_ID": 45,
+                "FTYPE_ID": 62
+            },
+            {
+                "EXEC_ORDER": 1,
+                "FELEM_ID": 56,
+                "CFCALL_ID": 46,
+                "FTYPE_ID": 63
+            },
+            {
+                "EXEC_ORDER": 1,
+                "FELEM_ID": 56,
+                "CFCALL_ID": 47,
+                "FTYPE_ID": 64
+            },
+            {
+                "EXEC_ORDER": 1,
+                "FELEM_ID": 56,
+                "CFCALL_ID": 48,
+                "FTYPE_ID": 65
+            },
+            {
+                "EXEC_ORDER": 1,
+                "FELEM_ID": 56,
+                "CFCALL_ID": 49,
+                "FTYPE_ID": 66
+            },
+            {
+                "EXEC_ORDER": 1,
+                "FELEM_ID": 56,
+                "CFCALL_ID": 50,
+                "FTYPE_ID": 67
+            },
+            {
+                "EXEC_ORDER": 1,
+                "FELEM_ID": 56,
+                "CFCALL_ID": 51,
+                "FTYPE_ID": 68
+            },
+            {
+                "EXEC_ORDER": 1,
+                "FELEM_ID": 56,
+                "CFCALL_ID": 52,
+                "FTYPE_ID": 69
+            },
+            {
+                "EXEC_ORDER": 1,
+                "FELEM_ID": 56,
+                "CFCALL_ID": 53,
+                "FTYPE_ID": 70
+            },
+            {
+                "EXEC_ORDER": 1,
+                "FELEM_ID": 56,
+                "CFCALL_ID": 54,
+                "FTYPE_ID": 71
             }
         ],
         "CFG_ATTR": [
@@ -2634,6 +2778,138 @@
                 "FTYPE_CODE": "EMPLOYER",
                 "FELEM_CODE": "ORG_NAME",
                 "ADVANCED": "No"
+            },
+            {
+                "DEFAULT_VALUE": "None",
+                "ATTR_CODE": "LINKEDIN",
+                "FELEM_REQ": "Yes",
+                "ATTR_CLASS": "IDENTIFIER",
+                "INTERNAL": "No",
+                "ATTR_ID": 2303,
+                "FTYPE_CODE": "LINKEDIN",
+                "FELEM_CODE": "LOGIN_ID",
+                "ADVANCED": "No"
+            },
+            {
+                "DEFAULT_VALUE": "None",
+                "ATTR_CODE": "FACEBOOK",
+                "FELEM_REQ": "Yes",
+                "ATTR_CLASS": "IDENTIFIER",
+                "INTERNAL": "No",
+                "ATTR_ID": 2304,
+                "FTYPE_CODE": "FACEBOOK",
+                "FELEM_CODE": "LOGIN_ID",
+                "ADVANCED": "No"
+            },
+            {
+                "DEFAULT_VALUE": "None",
+                "ATTR_CODE": "TWITTER",
+                "FELEM_REQ": "Yes",
+                "ATTR_CLASS": "IDENTIFIER",
+                "INTERNAL": "No",
+                "ATTR_ID": 2305,
+                "FTYPE_CODE": "TWITTER",
+                "FELEM_CODE": "LOGIN_ID",
+                "ADVANCED": "No"
+            },
+            {
+                "DEFAULT_VALUE": "None",
+                "ATTR_CODE": "SKYPE",
+                "FELEM_REQ": "Yes",
+                "ATTR_CLASS": "IDENTIFIER",
+                "INTERNAL": "No",
+                "ATTR_ID": 2306,
+                "FTYPE_CODE": "SKYPE",
+                "FELEM_CODE": "LOGIN_ID",
+                "ADVANCED": "No"
+            },
+            {
+                "DEFAULT_VALUE": "None",
+                "ATTR_CODE": "ZOOMROOM",
+                "FELEM_REQ": "Yes",
+                "ATTR_CLASS": "IDENTIFIER",
+                "INTERNAL": "No",
+                "ATTR_ID": 2307,
+                "FTYPE_CODE": "ZOOMROOM",
+                "FELEM_CODE": "LOGIN_ID",
+                "ADVANCED": "No"
+            },
+            {
+                "DEFAULT_VALUE": "None",
+                "ATTR_CODE": "INSTAGRAM",
+                "FELEM_REQ": "Yes",
+                "ATTR_CLASS": "IDENTIFIER",
+                "INTERNAL": "No",
+                "ATTR_ID": 2308,
+                "FTYPE_CODE": "INSTAGRAM",
+                "FELEM_CODE": "LOGIN_ID",
+                "ADVANCED": "No"
+            },
+            {
+                "DEFAULT_VALUE": "None",
+                "ATTR_CODE": "WHATSAPP",
+                "FELEM_REQ": "Yes",
+                "ATTR_CLASS": "IDENTIFIER",
+                "INTERNAL": "No",
+                "ATTR_ID": 2309,
+                "FTYPE_CODE": "WHATSAPP",
+                "FELEM_CODE": "LOGIN_ID",
+                "ADVANCED": "No"
+            },
+            {
+                "DEFAULT_VALUE": "None",
+                "ATTR_CODE": "SIGNAL",
+                "FELEM_REQ": "Yes",
+                "ATTR_CLASS": "IDENTIFIER",
+                "INTERNAL": "No",
+                "ATTR_ID": 2310,
+                "FTYPE_CODE": "SIGNAL",
+                "FELEM_CODE": "LOGIN_ID",
+                "ADVANCED": "No"
+            },
+            {
+                "DEFAULT_VALUE": "None",
+                "ATTR_CODE": "TELEGRAM",
+                "FELEM_REQ": "Yes",
+                "ATTR_CLASS": "IDENTIFIER",
+                "INTERNAL": "No",
+                "ATTR_ID": 2311,
+                "FTYPE_CODE": "TELEGRAM",
+                "FELEM_CODE": "LOGIN_ID",
+                "ADVANCED": "No"
+            },
+            {
+                "DEFAULT_VALUE": "None",
+                "ATTR_CODE": "TANGO",
+                "FELEM_REQ": "Yes",
+                "ATTR_CLASS": "IDENTIFIER",
+                "INTERNAL": "No",
+                "ATTR_ID": 2312,
+                "FTYPE_CODE": "TANGO",
+                "FELEM_CODE": "LOGIN_ID",
+                "ADVANCED": "No"
+            },
+            {
+                "DEFAULT_VALUE": "None",
+                "ATTR_CODE": "VIBER",
+                "FELEM_REQ": "Yes",
+                "ATTR_CLASS": "IDENTIFIER",
+                "INTERNAL": "No",
+                "ATTR_ID": 2313,
+                "FTYPE_CODE": "VIBER",
+                "FELEM_CODE": "LOGIN_ID",
+                "ADVANCED": "No"
+            },
+            {
+                "DEFAULT_VALUE": "None",
+                "ATTR_CODE": "WECHAT",
+                "FELEM_REQ": "Yes",
+                "ATTR_CLASS": "IDENTIFIER",
+                "INTERNAL": "No",
+                "ATTR_ID": 2314,
+                "FTYPE_CODE": "WECHAT",
+                "FELEM_CODE": "LOGIN_ID",
+                "ADVANCED": "No"
             }
         ],
         "CFG_FBOM": [
@@ -3900,6 +4176,102 @@
                 "FTYPE_ID": 59,
                 "FELEM_ID": 3,
                 "DISPLAY_LEVEL": 1
+            },
+            {
+                "EXEC_ORDER": 1,
+                "DISPLAY_DELIM": null,
+                "DERIVED": "No",
+                "FTYPE_ID": 60,
+                "FELEM_ID": 56,
+                "DISPLAY_LEVEL": 1
+            },
+            {
+                "EXEC_ORDER": 1,
+                "DISPLAY_DELIM": null,
+                "DERIVED": "No",
+                "FTYPE_ID": 61,
+                "FELEM_ID": 56,
+                "DISPLAY_LEVEL": 1
+            },
+            {
+                "EXEC_ORDER": 1,
+                "DISPLAY_DELIM": null,
+                "DERIVED": "No",
+                "FTYPE_ID": 62,
+                "FELEM_ID": 56,
+                "DISPLAY_LEVEL": 1
+            },
+            {
+                "EXEC_ORDER": 1,
+                "DISPLAY_DELIM": null,
+                "DERIVED": "No",
+                "FTYPE_ID": 63,
+                "FELEM_ID": 56,
+                "DISPLAY_LEVEL": 1
+            },
+            {
+                "EXEC_ORDER": 1,
+                "DISPLAY_DELIM": null,
+                "DERIVED": "No",
+                "FTYPE_ID": 64,
+                "FELEM_ID": 56,
+                "DISPLAY_LEVEL": 1
+            },
+            {
+                "EXEC_ORDER": 1,
+                "DISPLAY_DELIM": null,
+                "DERIVED": "No",
+                "FTYPE_ID": 65,
+                "FELEM_ID": 56,
+                "DISPLAY_LEVEL": 1
+            },
+            {
+                "EXEC_ORDER": 1,
+                "DISPLAY_DELIM": null,
+                "DERIVED": "No",
+                "FTYPE_ID": 66,
+                "FELEM_ID": 56,
+                "DISPLAY_LEVEL": 1
+            },
+            {
+                "EXEC_ORDER": 1,
+                "DISPLAY_DELIM": null,
+                "DERIVED": "No",
+                "FTYPE_ID": 67,
+                "FELEM_ID": 56,
+                "DISPLAY_LEVEL": 1
+            },
+            {
+                "EXEC_ORDER": 1,
+                "DISPLAY_DELIM": null,
+                "DERIVED": "No",
+                "FTYPE_ID": 68,
+                "FELEM_ID": 56,
+                "DISPLAY_LEVEL": 1
+            },
+            {
+                "EXEC_ORDER": 1,
+                "DISPLAY_DELIM": null,
+                "DERIVED": "No",
+                "FTYPE_ID": 69,
+                "FELEM_ID": 56,
+                "DISPLAY_LEVEL": 1
+            },
+            {
+                "EXEC_ORDER": 1,
+                "DISPLAY_DELIM": null,
+                "DERIVED": "No",
+                "FTYPE_ID": 70,
+                "FELEM_ID": 56,
+                "DISPLAY_LEVEL": 1
+            },
+            {
+                "EXEC_ORDER": 1,
+                "DISPLAY_DELIM": null,
+                "DERIVED": "No",
+                "FTYPE_ID": 71,
+                "FELEM_ID": 56,
+                "DISPLAY_LEVEL": 1
             }
         ],
         "CFG_DFBOM": [
@@ -5088,6 +5460,78 @@
                 "CFUNC_ID": 12,
                 "CFCALL_ID": 42,
                 "FTYPE_ID": 59
+            },
+            {
+                "EXEC_ORDER": 1,
+                "CFUNC_ID": 3,
+                "CFCALL_ID": 43,
+                "FTYPE_ID": 60
+            },
+            {
+                "EXEC_ORDER": 1,
+                "CFUNC_ID": 3,
+                "CFCALL_ID": 44,
+                "FTYPE_ID": 61
+            },
+            {
+                "EXEC_ORDER": 1,
+                "CFUNC_ID": 3,
+                "CFCALL_ID": 45,
+                "FTYPE_ID": 62
+            },
+            {
+                "EXEC_ORDER": 1,
+                "CFUNC_ID": 3,
+                "CFCALL_ID": 46,
+                "FTYPE_ID": 63
+            },
+            {
+                "EXEC_ORDER": 1,
+                "CFUNC_ID": 3,
+                "CFCALL_ID": 47,
+                "FTYPE_ID": 64
+            },
+            {
+                "EXEC_ORDER": 1,
+                "CFUNC_ID": 3,
+                "CFCALL_ID": 48,
+                "FTYPE_ID": 65
+            },
+            {
+                "EXEC_ORDER": 1,
+                "CFUNC_ID": 3,
+                "CFCALL_ID": 49,
+                "FTYPE_ID": 66
+            },
+            {
+                "EXEC_ORDER": 1,
+                "CFUNC_ID": 3,
+                "CFCALL_ID": 50,
+                "FTYPE_ID": 67
+            },
+            {
+                "EXEC_ORDER": 1,
+                "CFUNC_ID": 3,
+                "CFCALL_ID": 51,
+                "FTYPE_ID": 68
+            },
+            {
+                "EXEC_ORDER": 1,
+                "CFUNC_ID": 3,
+                "CFCALL_ID": 52,
+                "FTYPE_ID": 69
+            },
+            {
+                "EXEC_ORDER": 1,
+                "CFUNC_ID": 3,
+                "CFCALL_ID": 53,
+                "FTYPE_ID": 70
+            },
+            {
+                "EXEC_ORDER": 1,
+                "CFUNC_ID": 3,
+                "CFCALL_ID": 54,
+                "FTYPE_ID": 71
             }
         ],
         "CFG_SFUNC": [
@@ -5160,9 +5604,9 @@
             "COMPATIBILITY_VERSION": {
                 "CONFIG_VERSION": "2"
             },
-            "BUILD_DATE": "2019-06-27",
-            "VERSION": "1.8.19178",
-            "BUILD_NUMBER": "2019_06_27__11_32"
+            "BUILD_DATE": "2019-06-04",
+            "VERSION": "1.9.19155",
+            "BUILD_NUMBER": "2019_06_04__02_00"
         },
         "CFG_DFUNC": [
             {
@@ -6954,6 +7398,90 @@
                 "FELEM_REQ": "Yes",
                 "EXEC_ORDER": 1,
                 "FTYPE_ID": 7
+            },
+            {
+                "FELEM_ID": 56,
+                "EFCALL_ID": 17,
+                "FELEM_REQ": "Yes",
+                "EXEC_ORDER": 1,
+                "FTYPE_ID": 60
+            },
+            {
+                "FELEM_ID": 56,
+                "EFCALL_ID": 18,
+                "FELEM_REQ": "Yes",
+                "EXEC_ORDER": 1,
+                "FTYPE_ID": 61
+            },
+            {
+                "FELEM_ID": 56,
+                "EFCALL_ID": 19,
+                "FELEM_REQ": "Yes",
+                "EXEC_ORDER": 1,
+                "FTYPE_ID": 62
+            },
+            {
+                "FELEM_ID": 56,
+                "EFCALL_ID": 20,
+                "FELEM_REQ": "Yes",
+                "EXEC_ORDER": 1,
+                "FTYPE_ID": 63
+            },
+            {
+                "FELEM_ID": 56,
+                "EFCALL_ID": 21,
+                "FELEM_REQ": "Yes",
+                "EXEC_ORDER": 1,
+                "FTYPE_ID": 64
+            },
+            {
+                "FELEM_ID": 56,
+                "EFCALL_ID": 22,
+                "FELEM_REQ": "Yes",
+                "EXEC_ORDER": 1,
+                "FTYPE_ID": 65
+            },
+            {
+                "FELEM_ID": 56,
+                "EFCALL_ID": 23,
+                "FELEM_REQ": "Yes",
+                "EXEC_ORDER": 1,
+                "FTYPE_ID": 66
+            },
+            {
+                "FELEM_ID": 56,
+                "EFCALL_ID": 24,
+                "FELEM_REQ": "Yes",
+                "EXEC_ORDER": 1,
+                "FTYPE_ID": 67
+            },
+            {
+                "FELEM_ID": 56,
+                "EFCALL_ID": 25,
+                "FELEM_REQ": "Yes",
+                "EXEC_ORDER": 1,
+                "FTYPE_ID": 68
+            },
+            {
+                "FELEM_ID": 56,
+                "EFCALL_ID": 26,
+                "FELEM_REQ": "Yes",
+                "EXEC_ORDER": 1,
+                "FTYPE_ID": 69
+            },
+            {
+                "FELEM_ID": 56,
+                "EFCALL_ID": 27,
+                "FELEM_REQ": "Yes",
+                "EXEC_ORDER": 1,
+                "FTYPE_ID": 70
+            },
+            {
+                "FELEM_ID": 56,
+                "EFCALL_ID": 28,
+                "FELEM_REQ": "Yes",
+                "EXEC_ORDER": 1,
+                "FTYPE_ID": 71
             }
         ],
         "CFG_DSRC": [
@@ -8495,6 +9023,198 @@
                 "FTYPE_ID": 59,
                 "FTYPE_CODE": "EMPLOYER",
                 "FTYPE_DESC": "Employer",
+                "FTYPE_EXCL": "No"
+            },
+            {
+                "VERSION": 1,
+                "DERIVATION": null,
+                "FCLASS_ID": 6,
+                "FTYPE_FREQ": "F1",
+                "RTYPE_ID": 0,
+                "ANONYMIZE": "No",
+                "DERIVED": "No",
+                "USED_FOR_CAND": "Yes",
+                "PERSIST_HISTORY": "Yes",
+                "FTYPE_STAB": "No",
+                "FTYPE_ID": 60,
+                "FTYPE_CODE": "LINKEDIN",
+                "FTYPE_DESC": "LinkedIn",
+                "FTYPE_EXCL": "No"
+            },
+            {
+                "VERSION": 1,
+                "DERIVATION": null,
+                "FCLASS_ID": 6,
+                "FTYPE_FREQ": "F1",
+                "RTYPE_ID": 0,
+                "ANONYMIZE": "No",
+                "DERIVED": "No",
+                "USED_FOR_CAND": "Yes",
+                "PERSIST_HISTORY": "Yes",
+                "FTYPE_STAB": "No",
+                "FTYPE_ID": 61,
+                "FTYPE_CODE": "FACEBOOK",
+                "FTYPE_DESC": "Facebook",
+                "FTYPE_EXCL": "No"
+            },
+            {
+                "VERSION": 1,
+                "DERIVATION": null,
+                "FCLASS_ID": 6,
+                "FTYPE_FREQ": "F1",
+                "RTYPE_ID": 0,
+                "ANONYMIZE": "No",
+                "DERIVED": "No",
+                "USED_FOR_CAND": "Yes",
+                "PERSIST_HISTORY": "Yes",
+                "FTYPE_STAB": "No",
+                "FTYPE_ID": 62,
+                "FTYPE_CODE": "TWITTER",
+                "FTYPE_DESC": "Twitter",
+                "FTYPE_EXCL": "No"
+            },
+            {
+                "VERSION": 1,
+                "DERIVATION": null,
+                "FCLASS_ID": 6,
+                "FTYPE_FREQ": "F1",
+                "RTYPE_ID": 0,
+                "ANONYMIZE": "No",
+                "DERIVED": "No",
+                "USED_FOR_CAND": "Yes",
+                "PERSIST_HISTORY": "Yes",
+                "FTYPE_STAB": "No",
+                "FTYPE_ID": 63,
+                "FTYPE_CODE": "SKYPE",
+                "FTYPE_DESC": "Skype",
+                "FTYPE_EXCL": "No"
+            },
+            {
+                "VERSION": 1,
+                "DERIVATION": null,
+                "FCLASS_ID": 6,
+                "FTYPE_FREQ": "F1",
+                "RTYPE_ID": 0,
+                "ANONYMIZE": "No",
+                "DERIVED": "No",
+                "USED_FOR_CAND": "Yes",
+                "PERSIST_HISTORY": "Yes",
+                "FTYPE_STAB": "No",
+                "FTYPE_ID": 64,
+                "FTYPE_CODE": "ZOOMROOM",
+                "FTYPE_DESC": "Zoom room",
+                "FTYPE_EXCL": "No"
+            },
+            {
+                "VERSION": 1,
+                "DERIVATION": null,
+                "FCLASS_ID": 6,
+                "FTYPE_FREQ": "F1",
+                "RTYPE_ID": 0,
+                "ANONYMIZE": "No",
+                "DERIVED": "No",
+                "USED_FOR_CAND": "Yes",
+                "PERSIST_HISTORY": "Yes",
+                "FTYPE_STAB": "No",
+                "FTYPE_ID": 65,
+                "FTYPE_CODE": "INSTAGRAM",
+                "FTYPE_DESC": "Instagram",
+                "FTYPE_EXCL": "No"
+            },
+            {
+                "VERSION": 1,
+                "DERIVATION": null,
+                "FCLASS_ID": 6,
+                "FTYPE_FREQ": "F1",
+                "RTYPE_ID": 0,
+                "ANONYMIZE": "No",
+                "DERIVED": "No",
+                "USED_FOR_CAND": "Yes",
+                "PERSIST_HISTORY": "Yes",
+                "FTYPE_STAB": "No",
+                "FTYPE_ID": 66,
+                "FTYPE_CODE": "WHATSAPP",
+                "FTYPE_DESC": "WhatsApp",
+                "FTYPE_EXCL": "No"
+            },
+            {
+                "VERSION": 1,
+                "DERIVATION": null,
+                "FCLASS_ID": 6,
+                "FTYPE_FREQ": "F1",
+                "RTYPE_ID": 0,
+                "ANONYMIZE": "No",
+                "DERIVED": "No",
+                "USED_FOR_CAND": "Yes",
+                "PERSIST_HISTORY": "Yes",
+                "FTYPE_STAB": "No",
+                "FTYPE_ID": 67,
+                "FTYPE_CODE": "SIGNAL",
+                "FTYPE_DESC": "Signal",
+                "FTYPE_EXCL": "No"
+            },
+            {
+                "VERSION": 1,
+                "DERIVATION": null,
+                "FCLASS_ID": 6,
+                "FTYPE_FREQ": "F1",
+                "RTYPE_ID": 0,
+                "ANONYMIZE": "No",
+                "DERIVED": "No",
+                "USED_FOR_CAND": "Yes",
+                "PERSIST_HISTORY": "Yes",
+                "FTYPE_STAB": "No",
+                "FTYPE_ID": 68,
+                "FTYPE_CODE": "TELEGRAM",
+                "FTYPE_DESC": "Telegram",
+                "FTYPE_EXCL": "No"
+            },
+            {
+                "VERSION": 1,
+                "DERIVATION": null,
+                "FCLASS_ID": 6,
+                "FTYPE_FREQ": "F1",
+                "RTYPE_ID": 0,
+                "ANONYMIZE": "No",
+                "DERIVED": "No",
+                "USED_FOR_CAND": "Yes",
+                "PERSIST_HISTORY": "Yes",
+                "FTYPE_STAB": "No",
+                "FTYPE_ID": 69,
+                "FTYPE_CODE": "TANGO",
+                "FTYPE_DESC": "Tango",
+                "FTYPE_EXCL": "No"
+            },
+            {
+                "VERSION": 1,
+                "DERIVATION": null,
+                "FCLASS_ID": 6,
+                "FTYPE_FREQ": "F1",
+                "RTYPE_ID": 0,
+                "ANONYMIZE": "No",
+                "DERIVED": "No",
+                "USED_FOR_CAND": "Yes",
+                "PERSIST_HISTORY": "Yes",
+                "FTYPE_STAB": "No",
+                "FTYPE_ID": 70,
+                "FTYPE_CODE": "VIBER",
+                "FTYPE_DESC": "Viber",
+                "FTYPE_EXCL": "No"
+            },
+            {
+                "VERSION": 1,
+                "DERIVATION": null,
+                "FCLASS_ID": 6,
+                "FTYPE_FREQ": "F1",
+                "RTYPE_ID": 0,
+                "ANONYMIZE": "No",
+                "DERIVED": "No",
+                "USED_FOR_CAND": "Yes",
+                "PERSIST_HISTORY": "Yes",
+                "FTYPE_STAB": "No",
+                "FTYPE_ID": 71,
+                "FTYPE_CODE": "WECHAT",
+                "FTYPE_DESC": "WeChat",
                 "FTYPE_EXCL": "No"
             }
         ],

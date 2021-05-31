@@ -12,6 +12,7 @@ import os
 import json
 import csv
 import time
+import G2Paths
 from datetime import datetime, timedelta
 
 #--extended format (with lens_id, errule code, etc) is hard coded to false for now
@@ -19,7 +20,7 @@ extendedFormat = False
 
 
 #--project classes
-from G2Module import G2Module
+from G2Engine import G2Engine
 from G2Exception import G2ModuleException
 
 #---------------------------------------------------------------------
@@ -53,8 +54,8 @@ def exportEntityResume(appError):
 
     # initialize G2
     try:
-        g2_module = G2Module('pyG2Export', g2iniPath, False)
-        g2_module.init()
+        g2_module = G2Engine()
+        g2_module.init('pyG2Export', g2iniPath, False)
     except G2ModuleException as ex:
         print('ERROR: could not start the G2 module at ' + g2iniPath)
         print(ex)
@@ -97,7 +98,12 @@ def exportEntityResume(appError):
     #--initialize the g2module export
     print('Executing query ...')
     try:
-        exportHandle = g2_module.getExportHandleFromFlags(outputFormat,exportFlags,csvFields)
+        if outputFormat == "CSV":
+            if csvFields and isinstance(csvFields, list):
+                csvFields = ",".join(csvFields)
+            exportHandle = g2_module.exportCSVEntityReportV2(csvFields,exportFlags)
+        else:
+            exportHandle = g2_module.exportJSONEntityReport(exportFlags)
         if not exportHandle:
             print('ERROR: could not initialize export')
             print(g2_module.getLastException())
@@ -125,10 +131,12 @@ def jsonExport(g2_module, exportHandle, outputFileHandle):
     appError = 0
     rowCount = 0
     batchStartTime = time.time()
-    row = g2_module.fetchExportRecord(exportHandle)
+    rowResponse = bytearray()
+    rowData = g2_module.fetchNext(exportHandle,rowResponse)
+    row = rowResponse.decode()
     while row:
 
-        try: outputFileHandle.write(row + '\n')
+        try: outputFileHandle.write(row)
         except IOError as err:
             print('ERROR: could not write to json file')
             print(err)
@@ -140,7 +148,8 @@ def jsonExport(g2_module, exportHandle, outputFileHandle):
             print('  %s entities processed at %s (%s per second)' % (rowCount, datetime.now().strftime('%I:%M%p').lower(), int(float(sqlCommitSize) / (float(time.time() - batchStartTime if time.time() - batchStartTime != 0 else 1)))))
             batchStartTime = time.time()
 
-        row = g2_module.fetchExportRecord(exportHandle)
+        rowData = g2_module.fetchNext(exportHandle,rowResponse)
+        row = rowResponse.decode()
 
     if not appError:
         print(' %s records written, complete!' % rowCount)
@@ -154,9 +163,14 @@ def jsonExport(g2_module, exportHandle, outputFileHandle):
 def csvExport(g2_module, exportHandle, outputFileHandle):
 
     #--first row is header for CSV
-    exportColumnHeaders = g2_module.fetchExportRecord(exportHandle).split(',')
+    rowResponse = bytearray()
+    rowData = g2_module.fetchNext(exportHandle,rowResponse)
+    exportColumnHeaders = rowResponse.decode()
+    if exportColumnHeaders[-1] == '\n':
+        exportColumnHeaders = exportColumnHeaders[0:-1]
+    exportColumnHeaders = exportColumnHeaders.split(',')
 
-    #--wite rows with csv module for proper quoting
+    #--write rows with csv module for proper quoting
     try: outputFileWriter = csv.DictWriter(outputFileHandle, exportColumnHeaders, dialect=csv.excel, quoting=csv.QUOTE_ALL)
     except csv.Error as err:
         print('ERROR: Could not open %s for writing' % outputFilePath)
@@ -177,17 +191,28 @@ def csvExport(g2_module, exportHandle, outputFileHandle):
     rowCount = 0
     entityCnt = 0
     totEntityCnt = 0
-    rowData = g2_module.fetchCsvExportRecord(exportHandle, exportColumnHeaders)
+    rowDataVal = g2_module.fetchNext(exportHandle,rowResponse)
+    rowData = rowResponse.decode()
+    if rowData:
+        csvRecord = next(csv.DictReader([rowData], fieldnames=exportColumnHeaders))
+    else:
+        csvRecord = None
     lineCount += 1
     batchStartTime = time.time()
     while rowData:
 
         #--bypass bad rows
-        if 'LENS_CODE' not in rowData:
+        if 'LENS_CODE' not in csvRecord:
             print('ERROR on line %s' % lineCount)           
             print(rowData)
+            print(csvRecord)
             badCnt1 += 1
-            rowData = g2_module.fetchCsvExportRecord(exportHandle, exportColumnHeaders)
+            rowDataVal = g2_module.fetchNext(exportHandle,rowResponse)
+            rowData = rowResponse.decode()
+            if rowData:
+                csvRecord = next(csv.DictReader([rowData], fieldnames=exportColumnHeaders))
+            else:
+                csvRecord = None
             lineCount += 1
             continue
 
@@ -195,25 +220,36 @@ def csvExport(g2_module, exportHandle, outputFileHandle):
         rowList = []
         resolvedRecordID = None
         resolvedName = None
-        resolvedID = rowData['RESOLVED_ENTITY_ID']
-        lensID = rowData['LENS_CODE']
-        while rowData and rowData['RESOLVED_ENTITY_ID'] == resolvedID and rowData['LENS_CODE'] == lensID:
+        resolvedID = csvRecord['RESOLVED_ENTITY_ID']
+        lensID = csvRecord['LENS_CODE']
+        while csvRecord and csvRecord['RESOLVED_ENTITY_ID'] == resolvedID and csvRecord['LENS_CODE'] == lensID:
 
             #--bypass bad rows
-            if 'RECORD_ID' not in rowData:
+            if 'RECORD_ID' not in csvRecord:
                 print('ERROR on line %s' % lineCount)           
                 print(rowData)
+                print(csvRecord)
                 badCnt2 += 1
-                rowData = g2_module.fetchCsvExportRecord(exportHandle, exportColumnHeaders)
+                rowDataVal = g2_module.fetchNext(exportHandle,rowResponse)
+                rowData = rowResponse.decode()
+                if rowData:
+                    csvRecord = next(csv.DictReader([rowData], fieldnames=exportColumnHeaders))
+                else:
+                    csvRecord = None
                 lineCount += 1
                 continue
 
-            if not resolvedRecordID or (rowData['RECORD_ID'] < resolvedRecordID and rowData['MATCH_LEVEL'] == 0):
-                if extended: resolvedName = rowData['RESOLVED_ENTITY_NAME']
-                resolvedRecordID = rowData['RECORD_ID']
+            if not resolvedRecordID or (csvRecord['RECORD_ID'] < resolvedRecordID and csvRecord['MATCH_LEVEL'] == 0):
+                if extended: resolvedName = csvRecord['RESOLVED_ENTITY_NAME']
+                resolvedRecordID = csvRecord['RECORD_ID']
 
-            rowList.append(rowData)
-            rowData = g2_module.fetchCsvExportRecord(exportHandle, exportColumnHeaders)
+            rowList.append(csvRecord)
+            rowDataVal = g2_module.fetchNext(exportHandle,rowResponse)
+            rowData = rowResponse.decode()
+            if rowData:
+                csvRecord = next(csv.DictReader([rowData], fieldnames=exportColumnHeaders))
+            else:
+                csvRecord = None
             lineCount += 1
 
         entityCnt += 1
@@ -345,13 +381,8 @@ def pause(question='PRESS ENTER TO CONTINUE ...'):
 #----------------------------------------
 if __name__ == '__main__':
 
-    appPath = os.path.dirname(os.path.abspath(sys.argv[0]))
-    iniFileName = appPath + os.path.sep + 'G2Project.ini'
-    if not os.path.exists(iniFileName):
-        print('ERROR: The G2Project.ini file is missing from the application path!')
-        sys.exit(1)
-
     #--get parameters from ini file
+    iniFileName = G2Paths.get_G2Project_ini_path()
     iniParser = configparser.ConfigParser()
     iniParser.read(iniFileName)
     try: sqlCommitSize = int(iniParser.get('report', 'sqlCommitSize'))

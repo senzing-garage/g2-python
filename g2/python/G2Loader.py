@@ -31,6 +31,7 @@ from G2Engine import G2Engine
 from G2Diagnostic import G2Diagnostic
 from G2Product import G2Product
 from G2Exception import G2ModuleException, G2ModuleResolveMissingResEnt, G2ModuleLicenseException
+import G2Paths
 from CompressedFile import openPossiblyCompressedFile, isCompressedFile, fileRowParser
 import DumpStack
  
@@ -73,10 +74,10 @@ def redoFeed(q, processEverything, g2iniPath, debugTrace):
     passStartTime = time.time()
     batchStartTime = time.time()
 
+    recBytes = bytearray()
     while True:
         if threadStop.value != 0:
            break
-        recBytes = bytearray()
         ret = g2_engine.getRedoRecord(recBytes)
         rec = recBytes.decode()
         if not rec:
@@ -125,7 +126,7 @@ def checkResources():
     minRecommendedCores = math.ceil(defaultThreadCount/4+1)
     # 2.5GB per process
     # .5GB per thread
-    numProcesses = math.ceil(defaultThreadCount/maxThreadsPerProcess);
+    numProcesses = math.ceil(float(defaultThreadCount)/maxThreadsPerProcess);
     minRecommendedMemory = (numProcesses*2.5+defaultThreadCount*.5)
     
     print('Resource requested:')
@@ -136,7 +137,9 @@ def checkResources():
     print('')
 
     print('Performing database performance tests...')
-    perfInfo = json.loads(diag.checkDBPerf(3))
+    dbPerfResponse = bytearray()
+    diag.checkDBPerf(3,dbPerfResponse)
+    perfInfo = json.loads(dbPerfResponse.decode())
 
     timePerInsert=999
     maxTimePerInsert=4
@@ -198,7 +201,7 @@ def startSetup(doPurge, doLicense, g2iniPath, debugTrace):
     except G2ModuleException as ex:
         print('ERROR: could not start the G2 product module at ' + g2iniPath)
         print(ex)
-        exit(1)
+        return
 
     if (doLicense):
         licInfo = json.loads(g2_product.license())
@@ -222,7 +225,7 @@ def startSetup(doPurge, doLicense, g2iniPath, debugTrace):
     except G2ModuleException as ex:
         print('ERROR: could not start the G2 engine at ' + g2iniPath)
         print(ex)
-        exit(1)
+        return
 
     if (doPurge):
         print('Purging G2 database ...')
@@ -596,6 +599,7 @@ def sendToG2(threadId_, workQueue_, numThreads_, g2iniPath, debugTrace, threadSt
       print(ex)
       with threadStop.get_lock():
           threadStop.value = 1
+      return
 
   try:
 
@@ -613,7 +617,9 @@ def sendToG2(threadId_, workQueue_, numThreads_, g2iniPath, debugTrace, threadSt
   except: pass
 
   if workloadStats > 0 and numProcessed > 0:
-    pprint.pprint(g2_engine.stats())
+    statsResponse = bytearray()
+    g2_engine.stats(statsResponse)
+    pprint.pprint(statsResponse.decode())
   
   try: g2_engine.destroy()
   except: pass
@@ -668,7 +674,9 @@ def g2Thread(threadId_, workQueue_, g2Engine_, threadStop, workloadStats, dsrcAc
 
             numProcessed += 1
             if (workloadStats > 0 and (numProcessed%(maxThreadsPerProcess*sqlCommitSize)) == 0):
-              print(g2Engine_.stats())
+              statsResponse = bytearray()
+              g2Engine_.stats(statsResponse)
+              print(statsResponse.decode())
 
             try: 
                 returnCode = g2Engine_.process(row)
@@ -733,13 +741,8 @@ if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)
     DumpStack.listen()
 
-    appPath = os.path.dirname(os.path.abspath(sys.argv[0]))
-    iniFileName = appPath + os.path.sep + 'G2Project.ini'
-    if not os.path.exists(iniFileName):
-        print('ERROR: The G2Project.ini file is missing from the application path!')
-        sys.exit(1)
-
     #--get parameters from ini file
+    iniFileName = G2Paths.get_G2Project_ini_path()
     iniParser = configparser.ConfigParser()
     iniParser.read(iniFileName)
     try: configTableFile = iniParser.get('g2', 'G2ConfigFile')
@@ -867,3 +870,4 @@ if __name__ == '__main__':
         exitCode = loadProject()
 
     sys.exit(exitCode)
+

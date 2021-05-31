@@ -62,8 +62,9 @@ class G2Diagnostic(object):
 
         if retval == -2:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2Diagnostic_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif retval == -1:
+            raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
         elif retval < 0:
             raise G2ModuleGenericException("Failed to initialize G2 Diagnostic")
         return retval
@@ -132,7 +133,6 @@ class G2Diagnostic(object):
                                                                  self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2Diagnostic_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
@@ -160,7 +160,6 @@ class G2Diagnostic(object):
                                                                  self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2Diagnostic_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
@@ -186,7 +185,6 @@ class G2Diagnostic(object):
                                                                  self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2Diagnostic_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
@@ -208,7 +206,6 @@ class G2Diagnostic(object):
         sizedEntityHandle = self._lib_handle.G2Diagnostic_getEntityListBySize(_entitySize)
         if sizedEntityHandle == None:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2Diagnostic_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
         rowCount = 0
         resize_return_buffer(None,65535)
@@ -240,7 +237,6 @@ class G2Diagnostic(object):
                                              self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2Diagnostic_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
@@ -264,7 +260,6 @@ class G2Diagnostic(object):
                                              self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2Diagnostic_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
@@ -293,7 +288,6 @@ class G2Diagnostic(object):
                                              self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2Diagnostic_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
@@ -324,7 +318,6 @@ class G2Diagnostic(object):
                                              self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2Diagnostic_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
@@ -355,7 +348,6 @@ class G2Diagnostic(object):
                                              self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2Diagnostic_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
@@ -379,7 +371,6 @@ class G2Diagnostic(object):
                                              self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2Diagnostic_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
@@ -455,16 +446,38 @@ class G2Diagnostic(object):
         self._lib_handle.G2Diagnostic_getAvailableMemory.restype = c_longlong
         return self._lib_handle.G2Diagnostic_getAvailableMemory()
 
+    def clearLastException(self):
+        """ Clears the last exception
+
+        Return:
+            None
+        """
+
+        resize_return_buffer(None, 65535)
+        self._lib_handle.G2Diagnostic_clearLastException.restype = None
+        self._lib_handle.G2Diagnostic_clearLastException.argtypes = []
+        self._lib_handle.G2Diagnostic_clearLastException()
+
     def getLastException(self):
-        responseBuf = c_char_p(None)
-        responseSize = c_size_t(256)
-        ret_code = self._lib_handle.G2Diagnostic_getLastException(responseBuf, responseSize)
-        return str(responseBuf.value)
+        """ Gets the last exception
+        """
+
+        resize_return_buffer(None, 65535)
+        self._lib_handle.G2Diagnostic_getLastException.restype = c_int
+        self._lib_handle.G2Diagnostic_getLastException.argtypes = [c_char_p, c_size_t]
+        self._lib_handle.G2Diagnostic_getLastException(tls_var.buf,sizeof(tls_var.buf))
+        resultString = tls_var.buf.value.decode('utf-8')
+        return resultString
 
     def getLastExceptionCode(self):
-        return self._lib_handle.G2Diagnostic_getLastExceptionCode(tls_var.buf, sizeof(tls_var.buf))
+        """ Gets the last exception code
+        """
 
-    def clearLastException(self):
-        self._lib_handle.G2Diagnostic_clearLastException()        
+        resize_return_buffer(None, 65535)
+        self._lib_handle.G2Diagnostic_getLastExceptionCode.restype = c_int
+        self._lib_handle.G2Diagnostic_getLastExceptionCode.argtypes = []
+        exception_code = self._lib_handle.G2Diagnostic_getLastExceptionCode()
+        return exception_code
+  
 
 

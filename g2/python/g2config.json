@@ -1124,6 +1124,18 @@
                 "FELEM_ID": 3,
                 "CFCALL_ID": 41,
                 "FTYPE_ID": 57
+            },
+            {
+                "EXEC_ORDER": 1,
+                "FELEM_ID": 18,
+                "CFCALL_ID": 42,
+                "FTYPE_ID": 59
+            },
+            {
+                "EXEC_ORDER": 2,
+                "FELEM_ID": 3,
+                "CFCALL_ID": 42,
+                "FTYPE_ID": 59
             }
         ],
         "CFG_ATTR": [
@@ -2597,7 +2609,7 @@
                 "ATTR_CLASS": "ATTRIBUTE",
                 "INTERNAL": "Yes",
                 "ATTR_ID": 2301,
-                "FTYPE_CODE": "GROUP_ASSOCIATION",
+                "FTYPE_CODE": "EMPLOYER",
                 "FELEM_CODE": "TYPE",
                 "ADVANCED": "Yes"
             },
@@ -2608,7 +2620,7 @@
                 "ATTR_CLASS": "ATTRIBUTE",
                 "INTERNAL": "No",
                 "ATTR_ID": 2302,
-                "FTYPE_CODE": "GROUP_ASSOCIATION",
+                "FTYPE_CODE": "EMPLOYER",
                 "FELEM_CODE": "ORG_NAME",
                 "ADVANCED": "No"
             }
@@ -3861,6 +3873,22 @@
                 "FTYPE_ID": 58,
                 "FELEM_ID": 111,
                 "DISPLAY_LEVEL": 1
+            },
+            {
+                "EXEC_ORDER": 1,
+                "DISPLAY_DELIM": null,
+                "DERIVED": "No",
+                "FTYPE_ID": 59,
+                "FELEM_ID": 18,
+                "DISPLAY_LEVEL": 1
+            },
+            {
+                "EXEC_ORDER": 2,
+                "DISPLAY_DELIM": null,
+                "DERIVED": "No",
+                "FTYPE_ID": 59,
+                "FELEM_ID": 3,
+                "DISPLAY_LEVEL": 1
             }
         ],
         "CFG_DFBOM": [
@@ -5043,6 +5071,12 @@
                 "CFUNC_ID": 12,
                 "CFCALL_ID": 41,
                 "FTYPE_ID": 57
+            },
+            {
+                "EXEC_ORDER": 1,
+                "CFUNC_ID": 12,
+                "CFCALL_ID": 42,
+                "FTYPE_ID": 59
             }
         ],
         "CFG_SFUNC": [
@@ -5115,9 +5149,9 @@
             "COMPATIBILITY_VERSION": {
                 "CONFIG_VERSION": "2"
             },
-            "BUILD_DATE": "2019-03-18",
-            "VERSION": "1.6.19077",
-            "BUILD_NUMBER": "2019_03_18__02_00"
+            "BUILD_DATE": "2019-04-05",
+            "VERSION": "1.7.19095",
+            "BUILD_NUMBER": "2019_04_05__02_00"
         },
         "CFG_DFUNC": [
             {
@@ -8427,6 +8461,22 @@
                 "FTYPE_ID": 58,
                 "FTYPE_CODE": "AMBIGUOUS_ENTITY",
                 "FTYPE_DESC": "Ambiguous entity",
+                "FTYPE_EXCL": "No"
+            },
+            {
+                "VERSION": 1,
+                "DERIVATION": null,
+                "FCLASS_ID": 9,
+                "FTYPE_FREQ": "FF",
+                "RTYPE_ID": 0,
+                "ANONYMIZE": "No",
+                "DERIVED": "No",
+                "USED_FOR_CAND": "Yes",
+                "PERSIST_HISTORY": "Yes",
+                "FTYPE_STAB": "No",
+                "FTYPE_ID": 59,
+                "FTYPE_CODE": "EMPLOYER",
+                "FTYPE_DESC": "Employer",
                 "FTYPE_EXCL": "No"
             }
         ],

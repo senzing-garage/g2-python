@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+
 #--python imports
 import optparse
 import sys
@@ -512,6 +514,7 @@ class G2Project:
             fileData['DELIMITER'] = '\t'
         elif self.projectFileFormat == 'PIPE':
             fileData['DELIMITER'] = '|'
+        fileData['MULTICHAR_DELIMITER'] = False
 
         csvFile = openPossiblyCompressedFile(self.projectFileName, 'r')
         fileData['HEADER_ROW'] = [x.strip().upper() for x in fileRowParser(next(csvFile), fileData)]
@@ -566,7 +569,7 @@ class G2Project:
                 self.success = False
 
             #--csv stuff
-            sourceDict['ENCODING'] = sourceDict['ENCODING'] if 'ENCODING' in sourceDict else 'utf-8'
+            sourceDict['ENCODING'] = sourceDict['ENCODING'] if 'ENCODING' in sourceDict else 'utf-8-sig'
             sourceDict['DELIMITER'] = sourceDict['DELIMITER'] if 'DELIMITER' in sourceDict else None
             if not sourceDict['DELIMITER']:
                 if sourceDict['FILE_FORMAT'] == 'CSV':
@@ -575,6 +578,11 @@ class G2Project:
                     sourceDict['DELIMITER'] = '\t'
                 elif sourceDict['FILE_FORMAT'] == 'PIPE':
                     sourceDict['DELIMITER'] = '|'
+                else:
+                    sourceDict['DELIMITER'] = ''
+            else:
+                sourceDict['DELIMITER'] = str(sourceDict['DELIMITER'])
+            sourceDict['MULTICHAR_DELIMITER'] = len(sourceDict['DELIMITER']) > 1
             sourceDict['QUOTECHAR'] = sourceDict['QUOTECHAR'] if 'QUOTECHAR' in sourceDict else None
 
             #--csv mapping stuff

@@ -5,7 +5,6 @@
 SUBMODULES=(
     "compressedfile;1.2.0;CompressedFile.py"
     "dumpstack;1.0.0;DumpStack.py"
-    "g2anon;1.2.0;G2AnonModule.py"
     "g2audit;1.2.0;G2Audit.py"
     "g2audit;1.2.0;G2AuditModule.py"
     "g2command;1.7.0;G2Command.py"

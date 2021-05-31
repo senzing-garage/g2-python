@@ -1,6 +1,7 @@
 In https://github.com/Senzing/g2-python:
 
-1) Create a Pull Request titled "SenzingAPI M.m.P"
+1) Create a Pull Request titled
+SenzingAPI 1.8.1
 
 2) Create a new version that matches SenzingAPI version
 See [CHANGELOG.md]()

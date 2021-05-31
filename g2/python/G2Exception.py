@@ -82,16 +82,17 @@ class G2ModuleLicenseException(G2ModuleException):
         G2ModuleException.__init__(self, *args, **kwargs)
 
 def TranslateG2ModuleException(ex):
-    exInfo = ex.decode('utf-8').split('|', 1)
+    exInfo = ex.decode().split('|', 1)
     if exInfo[0] == '7213E':
         return G2ModuleMySQLNoSchema(ex)
     elif exInfo[0] == '0002E':
-        return G2ModuleInvalidXML(ex)
+        return G2ModuleInvalidXML(ex.decode())
     elif exInfo[0] == '0007E':
-        return G2ModuleEmptyMessage(ex)
+        return G2ModuleEmptyMessage(ex.decode())
     elif exInfo[0] == '2134E':
-        return G2ModuleResolveMissingResEnt(ex)
+        return G2ModuleResolveMissingResEnt(ex.decode())
     elif exInfo[0] == '9000E':
-        return G2ModuleLicenseException(ex)
+        return G2ModuleLicenseException(ex.decode())
     else:
-        return G2ModuleGenericException(ex)
+        return G2ModuleGenericException(ex.decode())
+

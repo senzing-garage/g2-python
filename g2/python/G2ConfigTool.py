@@ -5,6 +5,7 @@ import sys
 import json
 import os
 import platform
+import G2Paths
 from shutil import copyfile
 from collections import OrderedDict
 
@@ -2475,14 +2476,9 @@ def showMeTheThings(data, loc=''):
 
 # ===== The main function =====
 if __name__ == '__main__':
-
-    appPath = os.path.dirname(os.path.abspath(sys.argv[0]))
-    iniFileName = appPath + os.path.sep + 'G2Project.ini'
-    if not os.path.exists(iniFileName):
-        print('ERROR: The G2Project.ini file is missing from the application path!')
-        sys.exit(1)
-
+    
     #--get parameters from ini file
+    iniFileName = G2Paths.get_G2Project_ini_path()
     iniParser = configparser.ConfigParser()
     iniParser.read(iniFileName)
     try: g2configFile = iniParser.get('g2', 'G2ConfigFile')

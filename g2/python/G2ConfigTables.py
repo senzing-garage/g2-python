@@ -12,7 +12,7 @@ except: pass
 
 #--project classes
 import G2Exception
-from G2ConfigModule import G2ConfigModule
+from G2Config import G2Config
 
 #======================
 class G2ConfigTables:
@@ -75,14 +75,16 @@ class G2ConfigTables:
     def addDataSource(self, dataSource):
         ''' adds a data source if does not exist '''
         returnCode = 0  #--1=inserted, 2=updated
-        g2_config_module = G2ConfigModule('pyG2AddDataSource', self.g2iniPath, False)
-        g2_config_module.init()
+        g2_config_module = G2Config()
+        g2_config_module.init('pyG2AddDataSource', self.g2iniPath, False)
+
         with open(self.configFileName) as data_file:
             cfgDataRoot = data_file.read() #.decode('utf8')
             configHandle = g2_config_module.load(cfgDataRoot)
             dsrcExists = False
-            dsrcListDocString = g2_config_module.listDataSources(configHandle)
-            dsrcListDoc = json.loads(dsrcListDocString)
+            dsrcListDocString = bytearray()
+            ret_code = g2_config_module.listDataSources(configHandle,dsrcListDocString)
+            dsrcListDoc = json.loads(dsrcListDocString.decode())
             dsrcListNode = dsrcListDoc['DSRC_CODE']
             for dsrcNode in dsrcListNode:
                 if dsrcNode.upper() == dataSource:
@@ -90,9 +92,10 @@ class G2ConfigTables:
             if dsrcExists == False :
                 if self.configuredDatasourcesOnly == False:
                     g2_config_module.addDataSource(configHandle,dataSource)
-                    newConfig = g2_config_module.save(configHandle)
+                    newConfig = bytearray()
+                    ret_code = g2_config_module.save(configHandle,newConfig)
                     with open(self.configFileName, 'w') as data_file2:
-                        json.dump(json.loads(newConfig),data_file2, indent=4)
+                        json.dump(json.loads(newConfig.decode()),data_file2, indent=4)
                     returnCode = 1
                 else:
                     raise G2Exception.UnconfiguredDataSourceException(dataSource)

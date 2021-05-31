@@ -18,29 +18,38 @@ def find_replace_in_file(filename, old_string, new_string):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Create a per-user instance of Senzing in a new folder with the specified name.')
-    parser.add_argument('folder', metavar='F', nargs='?', default='senzing', help='the name of the folder to create (default is "senzing")')
+    parser.add_argument('folder', metavar='F', nargs='?', default='~/senzing', help='the name of the folder to create (default is "~/senzing"). It must not already exist')
     args = parser.parse_args()
 
-    fullPathName = os.path.normpath( os.path.join(os.getcwd(), args.folder) )
-    # if senzing is not the last folder, add it
-    if os.path.basename(fullPathName) != 'senzing':
-        fullPathName = os.path.join(fullPathName, 'senzing')
+    target_path = os.path.normpath(os.path.join(os.getcwd(), os.path.expanduser(args.folder)))
     
-    # Change this if senzing is installed to a different location
-    senzingPath = '/opt/senzing'
+    # check if folder exists. It shouldn't
+    if os.path.exists(target_path):
+        print('"' + target_path + '" already exists. Please specify a folder that does not already exist.')
+        sys.exit(1)
     
-    print("Create Senzing instance at " + fullPathName )
-    try:
-        shutil.copytree(senzingPath, fullPathName)
-    except OSError as e:
-        if e.errno == errno.EEXIST:
-            print('"' + args.folder + '" already exists. Please specify a folder that does not already exist')
-            sys.exit(1)
-        else:
-            raise
+    # Folders to copy from
+    senzing_paths = [
+        '/opt/senzing',
+        '/etc/opt/senzing',
+        '/var/opt/senzing'
+    ]
     
-    filesToUpdate = ['g2/setupEnv', 'g2/python/G2Module.ini', 'g2/python/G2Project.ini']
+    print("Creating Senzing instance at " + target_path )
+    for path in senzing_paths:
+        specific_target_path = os.path.join(target_path, path[1:])
+        shutil.copytree(path, specific_target_path)
+
+    files_to_update = [
+        'opt/senzing/g2/setupEnv',
+        'etc/opt/senzing/G2Module.ini',
+        'etc/opt/senzing/G2Project.ini'
+    ]
     
-    for f in filesToUpdate:
-        find_replace_in_file(os.path.join(fullPathName, f), '/opt/senzing', fullPathName)
+    for f in files_to_update:
+        for p in senzing_paths:
+            # Anchor the replace on the character that comes before the path. This ensures that we are only 
+            # replacing the begining of the path and not a substring of the path.
+            find_replace_in_file(os.path.join(target_path, f), '=' + p, '=' + os.path.join(target_path, p[1:]))
+            find_replace_in_file(os.path.join(target_path, f), '@' + p, '@' + os.path.join(target_path, p[1:]))
 

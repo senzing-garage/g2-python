@@ -45,7 +45,7 @@ class G2Config(object):
         self._debug = debug_
 
         if self._debug:
-            print("Initializing G2 config module")
+            print("Initializing G2 Config")
 
         resize_return_buffer(None, 65535)
 
@@ -65,7 +65,6 @@ class G2Config(object):
         elif retval < 0:
             raise G2ModuleGenericException("Failed to initialize G2 Config Module")
         return retval
-
 
     def __init__(self):
         # type: () -> None
@@ -146,10 +145,10 @@ class G2Config(object):
     def load(self,jsonConfig):
         """ Creates a new config handle from a json config string
         """
-        _jsonConfig = jsonConfig
+        _jsonConfig = self.prepareStringArgument(jsonConfig)
         self._lib_handle.G2Config_load.restype = c_void_p
         self._lib_handle.G2Config_load.argtypes = [c_char_p]
-        configHandle = self._lib_handle.G2Config_load(_jsonConfig.encode("utf-8"))
+        configHandle = self._lib_handle.G2Config_load(_jsonConfig)
         return configHandle
 
     def close(self,configHandle):
@@ -175,9 +174,7 @@ class G2Config(object):
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
-        stringRet = str(responseBuf.value.decode('utf-8'))
-        for i in stringRet:
-            response.append(i)
+        response += responseBuf.value
         return ret_code
 
     def listDataSources(self,configHandle,response):
@@ -197,9 +194,7 @@ class G2Config(object):
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
-        stringRet = str(responseBuf.value.decode('utf-8'))
-        for i in stringRet:
-            response.append(i)
+        response += responseBuf.value
         return ret_code
 
     def addDataSource(self,configHandle,dataSourceCode):
@@ -230,10 +225,11 @@ class G2Config(object):
 
     def restart(self):
         """  Internal function """
-        moduleName = self._engine_name
+        moduleName = self._module_name
         iniFilename = self._ini_file_name
+        debugFlag = self._debug
         self.destroy()
-        self.init(moduleName, iniFilename, False)
+        self.init(moduleName, iniFilename, debugFlag)
 
     def destroy(self):
         """ Uninitializes the engine

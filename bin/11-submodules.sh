@@ -13,7 +13,7 @@ SUBMODULES=(
     "g2configtool;1.5.0;G2ConfigTool.readme"
     "g2createinstance;1.2.0;G2CreateInstance.py"
     "g2database;1.3.0;G2Database.py"
-    "g2diagnostic;1.1.0;G2Diagnostic.py"
+    "g2diagnostic;1.2.0;G2Diagnostic.py"
     "g2engine;1.4.0;G2Engine.py"
     "g2exception;1.2.0;G2Exception.py"
     "g2export;1.6.0;G2Export.py"

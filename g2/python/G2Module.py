@@ -33,6 +33,46 @@ class G2Module(object):
         _module_name: CME module name
         _ini_file_name: name and location of .ini file
     """
+
+    # flags for exporting entity data
+    G2_EXPORT_INCLUDE_ALL_ENTITIES = ( 1 << 0 )
+    G2_EXPORT_CSV_INCLUDE_FULL_DETAILS = ( 1 << 1 )
+    G2_EXPORT_INCLUDE_RESOLVED = ( 1 << 2 )
+    G2_EXPORT_INCLUDE_POSSIBLY_SAME = ( 1 << 3 )
+    G2_EXPORT_INCLUDE_POSSIBLY_RELATED = ( 1 << 4 )
+    G2_EXPORT_INCLUDE_NAME_ONLY = ( 1 << 5 )
+    G2_EXPORT_INCLUDE_DISCLOSED = ( 1 << 6 )
+	
+    # flags for outputting entity feature data
+    G2_ENTITY_INCLUDE_ALL_FEATURES = ( 1 << 7 )
+    G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES = ( 1 << 8 )
+    G2_ENTITY_INCLUDE_SINGLE_FEATURES = ( 1 << 9 )
+    G2_ENTITY_INCLUDE_NO_FEATURES = ( 1 << 10 )
+	
+    # flags for finding entity path data
+    G2_FIND_PATH_PREFER_EXCLUDE = ( 1 << 11 )
+	
+    # flags for outputting entity relation data
+    G2_ENTITY_INCLUDE_ALL_RELATIONS = ( 1 << 12 )
+    G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS = ( 1 << 13 )
+    G2_ENTITY_INCLUDE_POSSIBLY_RELATED_RELATIONS = ( 1 << 14 )
+    G2_ENTITY_INCLUDE_NAME_ONLY_RELATIONS = ( 1 << 15 )
+    G2_ENTITY_INCLUDE_DISCLOSED_RELATIONS = ( 1 << 16 )
+    G2_ENTITY_INCLUDE_NO_RELATIONS = ( 1 << 17 )
+	
+    # flag for getting a minimal entity
+    G2_ENTITY_MINIMAL_FORMAT = ( 1 << 18 )
+
+    # recommended settings
+    G2_EXPORT_DEFAULT_FLAGS = G2_EXPORT_INCLUDE_ALL_ENTITIES
+    G2_ENTITY_DEFAULT_FLAGS = G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES | G2_ENTITY_INCLUDE_ALL_RELATIONS
+    G2_FIND_PATH_DEFAULT_FLAGS = G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES | G2_ENTITY_INCLUDE_ALL_RELATIONS
+
+    G2_SEARCH_BY_ATTRIBUTES_DEFAULT_FLAGS = G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES
+
+    # backwards compatability flags
+    G2_EXPORT_DEFAULT_REPORT_FLAGS = G2_EXPORT_INCLUDE_ALL_ENTITIES
+
     def init(self):
         """  Initializes the G2 engine
         This should only be called once per process.  Currently re-initializing the G2 engin
@@ -60,8 +100,9 @@ class G2Module(object):
 
         if retval == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif retval == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         elif retval < 0:
             raise G2ModuleGenericException("Failed to initialize G2 Module")
         return retval
@@ -93,6 +134,56 @@ class G2Module(object):
         self._ini_file_name = ini_file_name_
         self._debug = debug_
 
+    def primeEngine(self):
+        """ Primes the G2 engine
+
+        Return:
+            None
+        """
+
+        resize_return_buffer(None, 65535)
+        self._lib_handle.G2_primeEngine.restype = c_int
+        self._lib_handle.G2_primeEngine.argtypes = []
+        ret_code = self._lib_handle.G2_primeEngine()
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
+
+    def clearLastException(self):
+        """ Clears the last exception
+
+        Return:
+            None
+        """
+
+        resize_return_buffer(None, 65535)
+        self._lib_handle.G2_clearLastException.restype = None
+        self._lib_handle.G2_clearLastException.argtypes = []
+        self._lib_handle.G2_clearLastException()
+
+    def getLastException(self):
+        """ Gets the last exception
+        """
+
+        resize_return_buffer(None, 65535)
+        self._lib_handle.G2_getLastException.restype = c_int
+        self._lib_handle.G2_getLastException.argtypes = [c_char_p, c_size_t]
+        self._lib_handle.G2_getLastException(tls_var.buf,sizeof(tls_var.buf))
+        resultString = tls_var.buf.value.decode('utf-8')
+        return resultString
+
+    def getLastExceptionCode(self):
+        """ Gets the last exception code
+        """
+
+        resize_return_buffer(None, 65535)
+        self._lib_handle.G2_getLastExceptionCode.restype = c_int
+        self._lib_handle.G2_getLastExceptionCode.argtypes = []
+        exception_code = self._lib_handle.G2_getLastExceptionCode()
+        return exception_code
+
     def process(self, input_umf_):
         # type: (str) -> None
         """ Generic process function without return
@@ -117,8 +208,9 @@ class G2Module(object):
         ret_code = self._lib_handle.G2_process(input_umf_string)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         elif ret_code < 0:
             raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
 
@@ -159,7 +251,6 @@ class G2Module(object):
                                                                  self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
@@ -196,7 +287,6 @@ class G2Module(object):
                                                    self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
@@ -218,28 +308,28 @@ class G2Module(object):
         g2ExportFlags = 0
         if max_match_level == 1:
             # Include resolved entities
-            g2ExportFlags = 4
+            g2ExportFlags = self.G2_EXPORT_INCLUDE_RESOLVED
         elif max_match_level == 2:
             # Include possibly same relationships in addition to resolved entities
-            g2ExportFlags = 12
+            g2ExportFlags = self.G2_EXPORT_INCLUDE_RESOLVED | self.G2_EXPORT_INCLUDE_POSSIBLY_SAME
         elif max_match_level == 3:
             # Include possibly related relationships in addition to resolved entities & possibly same
-            g2ExportFlags = 28
+            g2ExportFlags = self.G2_EXPORT_INCLUDE_RESOLVED | self.G2_EXPORT_INCLUDE_POSSIBLY_SAME | self.G2_EXPORT_INCLUDE_POSSIBLY_RELATED
         elif max_match_level == 4:
             # Include name-only relationships in addition to resolved entities & possibly same & possibly related
-            g2ExportFlags = 60
+            g2ExportFlags = self.G2_EXPORT_INCLUDE_RESOLVED | self.G2_EXPORT_INCLUDE_POSSIBLY_SAME | self.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | self.G2_EXPORT_INCLUDE_NAME_ONLY
         elif max_match_level == 5:
             # Include disclosed relationships in addition to resolved entities & possibly same & possibly related & name-only
-            g2ExportFlags = 124
+            g2ExportFlags = self.G2_EXPORT_INCLUDE_RESOLVED | self.G2_EXPORT_INCLUDE_POSSIBLY_SAME | self.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | self.G2_EXPORT_INCLUDE_NAME_ONLY | self.G2_EXPORT_INCLUDE_DISCLOSED
         else:
             g2ExportFlags = 0
 
         #Add 1 to flags if we are including singletons
         if includeSingletons:
-            g2ExportFlags += 1
+            g2ExportFlags = g2ExportFlags | self.G2_EXPORT_INCLUDE_ALL_ENTITIES
         #Add 2 to flags if we are including extra header columns
         if includeExtraCols:
-            g2ExportFlags = g2ExportFlags + 2 
+            g2ExportFlags = g2ExportFlags | self.G2_EXPORT_CSV_INCLUDE_FULL_DETAILS 
 
         return g2ExportFlags
 
@@ -456,8 +546,9 @@ class G2Module(object):
         ret_code = self._lib_handle.G2_addRecord(_dataSourceCode,_recordId,_jsonData,_loadId)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         elif ret_code < 0:
             raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
         return ret_code
@@ -484,8 +575,9 @@ class G2Module(object):
         ret_code = self._lib_handle.G2_replaceRecord(_dataSourceCode,_recordId,_jsonData,_loadId)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         elif ret_code < 0:
             raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
         return ret_code
@@ -509,8 +601,56 @@ class G2Module(object):
         ret_code = self._lib_handle.G2_deleteRecord(_dataSourceCode,_recordId,_loadId)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
+        elif ret_code < 0:
+            raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
+        return ret_code
+
+    def reevaluateRecord(self,dataSourceCode,recordId,flags):
+        # type: (str,str,int) -> int
+        """ Reevaluate the JSON record
+        Args:
+            dataSourceCode: The data source for the observation.
+            recordID: The ID for the record
+            flags: Bitwise control flags
+
+        Return:
+            int: 0 on success
+        """
+   
+        _dataSourceCode = self.prepareStringArgument(dataSourceCode)
+        _recordId = self.prepareStringArgument(recordId)
+        resize_return_buffer(None, 65535)
+        ret_code = self._lib_handle.G2_reevaluateRecord(_dataSourceCode,_recordId,flags)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
+        elif ret_code < 0:
+            raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
+        return ret_code
+
+    def reevaluateEntity(self,entityID,flags):
+        # type: (int,int) -> int
+        """ Reevaluate the JSON record
+        Args:
+            entityID: The entity ID to reevaluate.
+            flags: Bitwise control flags
+
+        Return:
+            int: 0 on success
+        """
+   
+        resize_return_buffer(None, 65535)
+        ret_code = self._lib_handle.G2_reevaluateEntity(entityID,flags)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         elif ret_code < 0:
             raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
         return ret_code
@@ -538,8 +678,9 @@ class G2Module(object):
 
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         return tls_var.buf.value.decode('utf-8')
 
     def searchByAttributesV2(self,jsonData,flags):
@@ -566,8 +707,9 @@ class G2Module(object):
 
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         return tls_var.buf.value.decode('utf-8')
 
     def findPathByEntityID(self,startEntityID,endEntityID,maxDegree):
@@ -593,8 +735,9 @@ class G2Module(object):
                                                                  self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         return tls_var.buf.value.decode('utf-8')
 
     def findPathByEntityIDV2(self,startEntityID,endEntityID,maxDegree,flags):
@@ -621,8 +764,9 @@ class G2Module(object):
                                                                  self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         return tls_var.buf.value.decode('utf-8')
 
     def findNetworkByEntityID(self,entityList,maxDegree,buildOutDegree,maxEntities):
@@ -650,8 +794,9 @@ class G2Module(object):
                                                                  self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         return tls_var.buf.value.decode('utf-8')
 
     def findNetworkByEntityIDV2(self,entityList,maxDegree,buildOutDegree,maxEntities,flags):
@@ -680,8 +825,9 @@ class G2Module(object):
                                                                  self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         return tls_var.buf.value.decode('utf-8')
 
     def findPathByRecordID(self,startDsrcCode,startRecordId,endDsrcCode,endRecordId,maxDegree):
@@ -713,8 +859,9 @@ class G2Module(object):
                                                                  self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         return responseBuf.value.decode('utf-8')
 
     def findPathByRecordIDV2(self,startDsrcCode,startRecordId,endDsrcCode,endRecordId,maxDegree,flags):
@@ -747,8 +894,9 @@ class G2Module(object):
                                                                  self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         return responseBuf.value.decode('utf-8')
 
     def findNetworkByRecordID(self,recordList,maxDegree,buildOutDegree,maxEntities):
@@ -776,8 +924,9 @@ class G2Module(object):
                                                                  self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         return responseBuf.value.decode('utf-8')
 
     def findNetworkByRecordIDV2(self,recordList,maxDegree,buildOutDegree,maxEntities,flags):
@@ -806,8 +955,9 @@ class G2Module(object):
                                                                  self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         return responseBuf.value.decode('utf-8')
 
     def findPathExcludingByEntityID(self,startEntityID,endEntityID,maxDegree,excludedEntities,flags):
@@ -836,8 +986,9 @@ class G2Module(object):
                                                                  self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         return tls_var.buf.value.decode('utf-8')
 
     def findPathIncludingSourceByEntityID(self,startEntityID,endEntityID,maxDegree,excludedEntities,requiredDsrcs,flags):
@@ -860,16 +1011,17 @@ class G2Module(object):
         resize_return_buffer(None, 65535)
         responseBuf = c_char_p(None)
         responseSize = c_size_t(0)
-        self._lib_handle.G2_findPathExcludingByEntityID.restype = c_int
-        self._lib_handle.G2_findPathExcludingByEntityID.argtypes = [c_longlong, c_longlong, c_int, c_char_p, c_char_p, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        self._lib_handle.G2_findPathIncludingSourceByEntityID.restype = c_int
+        self._lib_handle.G2_findPathIncludingSourceByEntityID.argtypes = [c_longlong, c_longlong, c_int, c_char_p, c_char_p, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
         ret_code = self._lib_handle.G2_findPathIncludingSourceByEntityID(startEntityID,endEntityID,maxDegree,_excludedEntities,_requiredDsrcs,flags,
                                                                  pointer(responseBuf),
                                                                  pointer(responseSize),
                                                                  self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         return tls_var.buf.value.decode('utf-8')
 
     def findPathExcludingByRecordID(self,startDsrcCode,startRecordId,endDsrcCode,endRecordId,maxDegree,excludedEntities,flags):
@@ -905,8 +1057,9 @@ class G2Module(object):
                                                                  self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         return responseBuf.value.decode('utf-8')
 
     def findPathIncludingSourceByRecordID(self,startDsrcCode,startRecordId,endDsrcCode,endRecordId,maxDegree,excludedEntities,requiredDsrcs,flags):
@@ -944,8 +1097,9 @@ class G2Module(object):
                                                                  self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         return responseBuf.value.decode('utf-8')
 
     def getEntityByEntityID(self,entityID):
@@ -969,8 +1123,9 @@ class G2Module(object):
                                                                  self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         return tls_var.buf.value.decode('utf-8')
 
     def getEntityByEntityIDV2(self,entityID,flags):
@@ -996,8 +1151,9 @@ class G2Module(object):
                                                                  self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         return tls_var.buf.value.decode('utf-8')
 
     def getEntityByRecordID(self,dsrcCode,recordId):
@@ -1023,8 +1179,9 @@ class G2Module(object):
                                                                  self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         return responseBuf.value.decode('utf-8')
 
     def getEntityByRecordIDV2(self,dsrcCode,recordId,flags):
@@ -1052,8 +1209,9 @@ class G2Module(object):
                                                                  self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         return responseBuf.value.decode('utf-8')
 
     def getRecord(self,dsrcCode,recordId):
@@ -1079,8 +1237,9 @@ class G2Module(object):
                                                                  self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         return responseBuf.value.decode('utf-8')
 
     def getRecordV2(self,dsrcCode,recordId,flags):
@@ -1108,8 +1267,9 @@ class G2Module(object):
                                                                  self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         return responseBuf.value.decode('utf-8')
 
     def stats(self):
@@ -1132,7 +1292,6 @@ class G2Module(object):
                                              self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
@@ -1158,8 +1317,9 @@ class G2Module(object):
                                              self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         elif ret_code < 0:
             raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
         return responseBuf.value.decode('utf-8')
@@ -1179,8 +1339,9 @@ class G2Module(object):
         ret_code = self._lib_handle.G2_getActiveConfigID(configID)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         elif ret_code < 0:
             raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
         return configID.value
@@ -1201,8 +1362,9 @@ class G2Module(object):
         ret_code = self._lib_handle.G2_getRepositoryLastModifiedTime(lastModifiedTimeStamp)
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')
         elif ret_code < 0:
             raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
         return lastModifiedTimeStamp.value
@@ -1222,7 +1384,6 @@ class G2Module(object):
         retval = self._lib_handle.G2_purgeRepository()
         if retval == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif retval == -1:
             raise G2ModuleNotInitialized('G2Module has not been succesfully initialized')

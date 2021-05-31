@@ -45,7 +45,7 @@ class G2Product(object):
         self._debug = debug_
 
         if self._debug:
-            print("Initializing G2 product module")
+            print("Initializing G2Product")
 
         resize_return_buffer(None, 65535)
 
@@ -59,8 +59,9 @@ class G2Product(object):
 
         if retval == -2:
             self._lib_handle.G2Product_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2Product_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif retval == -1:
+            raise G2ModuleNotInitialized('G2Product has not been succesfully initialized')
         elif retval < 0:
             raise G2ModuleGenericException("Failed to initialize G2 Product Module")
         return retval
@@ -138,8 +139,9 @@ class G2Product(object):
                                                                  self._resize_func)
         if ret_code == -2:
             self._lib_handle.G2Product_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            self._lib_handle.G2Product_clearLastException()
             raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Product has not been succesfully initialized')
         elif ret_code < 0:
             raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
         return ret_code
@@ -178,16 +180,36 @@ class G2Product(object):
 
         return self._lib_handle.G2Product_destroy()
 
+    def clearLastException(self):
+        """ Clears the last exception
+
+        Return:
+            None
+        """
+
+        resize_return_buffer(None, 65535)
+        self._lib_handle.G2Product_clearLastException.restype = None
+        self._lib_handle.G2Product_clearLastException.argtypes = []
+        self._lib_handle.G2Product_clearLastException()
+
     def getLastException(self):
-        responseBuf = c_char_p(None)
-        responseSize = c_size_t(256)
-        ret_code = self._lib_handle.G2Product_getLastException(responseBuf, responseSize)
-        return str(responseBuf.value)
+        """ Gets the last exception
+        """
+
+        resize_return_buffer(None, 65535)
+        self._lib_handle.G2Product_getLastException.restype = c_int
+        self._lib_handle.G2Product_getLastException.argtypes = [c_char_p, c_size_t]
+        self._lib_handle.G2Product_getLastException(tls_var.buf,sizeof(tls_var.buf))
+        resultString = tls_var.buf.value.decode('utf-8')
+        return resultString
 
     def getLastExceptionCode(self):
-        return self._lib_handle.G2Product_getLastExceptionCode(tls_var.buf, sizeof(tls_var.buf))
+        """ Gets the last exception code
+        """
 
-    def clearLastException(self):
-        self._lib_handle.G2Product_clearLastException()        
-
+        resize_return_buffer(None, 65535)
+        self._lib_handle.G2Product_getLastExceptionCode.restype = c_int
+        self._lib_handle.G2Product_getLastExceptionCode.argtypes = []
+        exception_code = self._lib_handle.G2Product_getLastExceptionCode()
+        return exception_code
 

@@ -1,6 +1,7 @@
 import gzip
 import io
 import json
+import csv
 
 def peekLine(file_):
     pos = file_.tell()
@@ -21,7 +22,7 @@ def isCompressedFile(filename_):
 
 def openPossiblyCompressedFile(filename_, options_, encoding_ = None):
     if not encoding_:
-        encoding = 'utf-8-sig'
+        encoding_ = 'utf-8-sig'
     suffix = getSuffix(filename_).lower()
     if suffix and suffix == '.zip':
         raise G2UnsupportedFileTypeException('zip files are not currently supported.  try gzip')
@@ -68,12 +69,20 @@ def fileRowParser(line, fileData, rowNum = 0):
 
     #--its a csv variant
     else:
-        try: rowData = [removeQuoteChar(x.strip()) for x in line.split(fileData['DELIMITER'])]
+
+        #--handling for multi-character delimiters as csv module does not allow for it
+        try: 
+            if fileData['MULTICHAR_DELIMITER']:
+                rowData = [removeQuoteChar(x.strip()) for x in line.split(fileData['DELIMITER'])]
+            else:
+                rowData = [removeQuoteChar(x.strip()) for x in next(csv.reader([line], delimiter=fileData['DELIMITER']))]
+                
         except: 
             print('  WARNING: row %s could not be parsed' % rowNum)
             try: print(line)
             except: pass
             return '' #--skip rows with no data
+
         if len(''.join(map(str, rowData)).strip()) == 0:
             print('  WARNING: row %s is blank' % rowNum) 
             return '' #--skip rows with no data
@@ -82,7 +91,7 @@ def fileRowParser(line, fileData, rowNum = 0):
         return rowData
 
 def removeQuoteChar(s):
-    if len(s)>2 and s[0] + s[-1] in ("''", '""'):
+    if len(s)>1 and s[0] + s[-1] in ("''", '""'):
         return s[1:-1] 
     return s 
 

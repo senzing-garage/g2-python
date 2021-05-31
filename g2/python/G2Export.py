@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+
 #--python imports
 import optparse
 try: import configparser
@@ -22,23 +24,16 @@ from G2Exception import G2ModuleException
 #---------------------------------------
 def exportEntityResume(appError):
 
-    exportFlags = 0
     if outputFilter == 1:
         outputFilterDisplay = 'Resolved entities only'
-        exportFlags = 131076
     elif outputFilter == 2:
         outputFilterDisplay = 'Including possible matches'
-        exportFlags = 8204
     elif outputFilter == 3:
         outputFilterDisplay = 'Including relationships'
-        exportFlags = 24604
     elif outputFilter == 4:
         outputFilterDisplay = 'Including relationships'
-        exportFlags = 122940
     elif outputFilter >= 5:
         outputFilterDisplay = 'Including relationships'
-        exportFlags = 4220
-    exportFlags = exportFlags + 3
     print('')    
     print('Writing to %s ... (%s)' % (outputFileName, outputFilterDisplay))
     print('')
@@ -57,6 +52,20 @@ def exportEntityResume(appError):
         print('ERROR: could not start the G2 module at ' + g2iniPath)
         print(ex)
         return 1
+
+    #--determine the output flags
+    exportFlags = 0
+    if outputFilter == 1:
+        exportFlags = g2_module.G2_EXPORT_INCLUDE_RESOLVED | g2_module.G2_ENTITY_INCLUDE_NO_RELATIONS
+    elif outputFilter == 2:
+        exportFlags = g2_module.G2_EXPORT_INCLUDE_RESOLVED | g2_module.G2_EXPORT_INCLUDE_POSSIBLY_SAME | g2_module.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS
+    elif outputFilter == 3:
+        exportFlags = g2_module.G2_EXPORT_INCLUDE_RESOLVED | g2_module.G2_EXPORT_INCLUDE_POSSIBLY_SAME | g2_module.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | g2_module.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS | g2_module.G2_ENTITY_INCLUDE_POSSIBLY_RELATED_RELATIONS
+    elif outputFilter == 4:
+        exportFlags = g2_module.G2_EXPORT_INCLUDE_RESOLVED | g2_module.G2_EXPORT_INCLUDE_POSSIBLY_SAME | g2_module.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | g2_module.G2_EXPORT_INCLUDE_NAME_ONLY | g2_module.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS | g2_module.G2_ENTITY_INCLUDE_POSSIBLY_RELATED_RELATIONS | g2_module.G2_ENTITY_INCLUDE_NAME_ONLY_RELATIONS
+    elif outputFilter >= 5:
+        exportFlags = g2_module.G2_EXPORT_INCLUDE_RESOLVED | g2_module.G2_EXPORT_INCLUDE_POSSIBLY_SAME | g2_module.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | g2_module.G2_EXPORT_INCLUDE_NAME_ONLY | g2_module.G2_EXPORT_INCLUDE_DISCLOSED | g2_module.G2_ENTITY_INCLUDE_ALL_RELATIONS
+    exportFlags = exportFlags | g2_module.G2_EXPORT_INCLUDE_ALL_ENTITIES | g2_module.G2_EXPORT_CSV_INCLUDE_FULL_DETAILS
 
     #--initialize the g2module export
     print('Executing query ...')
@@ -400,5 +409,4 @@ if __name__ == '__main__':
     print('')
 
     sys.exit(appError)
-
 

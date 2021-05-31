@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+
 #--python imports
 import cmd
 import sys
@@ -32,6 +34,9 @@ class G2CmdShell(cmd.Cmd, object):
       
         jsonOnly_parser = subparsers.add_parser('jsonOnly', usage=argparse.SUPPRESS)
         jsonOnly_parser.add_argument('jsonData')
+
+        interfaceName_parser = subparsers.add_parser('interfaceName', usage=argparse.SUPPRESS)  
+        interfaceName_parser.add_argument('interfaceName')
 
         searchByAttributesV2_parser = subparsers.add_parser('searchByAttributesV2', usage=argparse.SUPPRESS)
         searchByAttributesV2_parser.add_argument('jsonData')
@@ -169,6 +174,15 @@ class G2CmdShell(cmd.Cmd, object):
         getRecordV2_parser.add_argument('dataSourceCode')
         getRecordV2_parser.add_argument('recordID')
         getRecordV2_parser.add_argument('flags', type=int)
+
+        reevaluateRecord_parser = subparsers.add_parser('reevaluateRecord', usage=argparse.SUPPRESS)
+        reevaluateRecord_parser.add_argument('dataSourceCode')
+        reevaluateRecord_parser.add_argument('recordID')
+        reevaluateRecord_parser.add_argument('flags', type=int)
+
+        reevaluateEntity_parser = subparsers.add_parser('reevaluateEntity', usage=argparse.SUPPRESS)
+        reevaluateEntity_parser.add_argument('entityID', type=int)
+        reevaluateEntity_parser.add_argument('flags', type=int)
 
         getEntityByRecordIDV2_parser = subparsers.add_parser('getEntityByRecordIDV2', usage=argparse.SUPPRESS)
         getEntityByRecordIDV2_parser.add_argument('dataSourceCode')
@@ -352,6 +366,11 @@ class G2CmdShell(cmd.Cmd, object):
               'The -f and -m are mutually exclusive. For further details see: http://docs.senzing.com/?c#entity-export-flags\n' \
               )
 
+    def help_InterfaceName(self):
+        print (
+              '\nThe name of a G2 interface (engine, audit, product, diagnostic, anon).\n\n' \
+              )
+
     def help_KnowledgeCenter(self):
         print('\nSenzing Knowledge Center: https://senzing.zendesk.com/hc/en-us\n')
 
@@ -368,7 +387,89 @@ class G2CmdShell(cmd.Cmd, object):
         output = os.popen(line).read()
         print(output)
         
+    # ----- exception commands -----
+
+    def do_clearLastException(self,arg):
+        '\nClear the last exception:  clearLastException <interfaceName>\n'
+        try:
+            args = self.parser.parse_args(['interfaceName'] + parse(arg))
+        except SystemExit:
+            print(self.do_clearLastException.__doc__)
+            return
+        try: 
+            if args.interfaceName == 'engine':
+                self.g2_module.clearLastException()
+            elif args.interfaceName == 'anon':
+                self.g2_anon_module.clearLastException()
+            elif args.interfaceName == 'audit':
+                self.g2_audit_module.clearLastException()
+            elif args.interfaceName == 'product':
+                self.g2_product_module.clearLastException()
+            elif args.interfaceName == 'diagnostic':
+                self.g2_diagnostic_module.clearLastException()
+            else:
+                raise G2Exception.G2ModuleGenericException("ERROR: Unknown interface name '" + args.interfaceName + "'")
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_getLastException(self,arg):
+        '\nGet the last exception:  getLastException <interfaceName>\n'
+        try:
+            args = self.parser.parse_args(['interfaceName'] + parse(arg))
+        except SystemExit:
+            print(self.do_getLastException.__doc__)
+            return
+        try: 
+            resultString = ''
+            if args.interfaceName == 'engine':
+                resultString = self.g2_module.getLastException()
+            elif args.interfaceName == 'anon':
+                resultString = self.g2_anon_module.getLastException()
+            elif args.interfaceName == 'audit':
+                resultString = self.g2_audit_module.getLastException()
+            elif args.interfaceName == 'product':
+                resultString = self.g2_product_module.getLastException()
+            elif args.interfaceName == 'diagnostic':
+                resultString = self.g2_diagnostic_module.getLastException()
+            else:
+                raise G2Exception.G2ModuleGenericException("ERROR: Unknown interface name '" + args.interfaceName + "'")
+            printWithNewLine('Last exception: "%s"' % (resultString))
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_getLastExceptionCode(self,arg):
+        '\nGet the last exception:  getLastExceptionCode <interfaceName>\n'
+        try:
+            args = self.parser.parse_args(['interfaceName'] + parse(arg))
+        except SystemExit:
+            print(self.do_getLastExceptionCode.__doc__)
+            return
+        try: 
+            resultInt = 0
+            if args.interfaceName == 'engine':
+                resultInt = self.g2_module.getLastExceptionCode()
+            elif args.interfaceName == 'anon':
+                resultInt = self.g2_anon_module.getLastExceptionCode()
+            elif args.interfaceName == 'audit':
+                resultInt = self.g2_audit_module.getLastExceptionCode()
+            elif args.interfaceName == 'product':
+                resultInt = self.g2_product_module.getLastExceptionCode()
+            elif args.interfaceName == 'diagnostic':
+                resultInt = self.g2_diagnostic_module.getLastExceptionCode()
+            else:
+                raise G2Exception.G2ModuleGenericException("ERROR: Unknown interface name '" + args.interfaceName + "'")
+            printWithNewLine('Last exception code: %d' % (resultInt))
+        except G2Exception.G2Exception as err:
+            print(err)
+
     # ----- basic G2 commands -----
+
+    def do_primeEngine(self,arg):
+        '\nPrime the G2 engine:  primeEngine\n'
+        try: 
+            self.g2_module.primeEngine()
+        except G2Exception.G2Exception as err:
+            print(err)
 
     def do_process(self, arg):
         '\nProcess a generic record:  process <json_data>\n'
@@ -559,6 +660,38 @@ class G2CmdShell(cmd.Cmd, object):
                 returnCode = self.g2_module.addRecord(args.dataSourceCode, args.recordID, args.jsonData)
             if returnCode == 0:
                 printWithNewLine('Record added.')
+            else:
+                printWithNewLine('Error encountered!  Return code = %s' % (returnCode))
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_reevaluateRecord(self, arg):
+        '\n Reevaluate record:  reevaluateRecord <dataSourceCode> <recordID> <flags>\n'
+        try:
+            args = self.parser.parse_args(['reevaluateRecord'] + parse(arg))
+        except SystemExit:
+            print(self.do_reevaluateRecord.__doc__)
+            return
+        try: 
+            returnCode = self.g2_module.reevaluateRecord(args.dataSourceCode, args.recordID, args.flags)
+            if returnCode == 0:
+                printWithNewLine('Record reevaluated.')
+            else:
+                printWithNewLine('Error encountered!  Return code = %s' % (returnCode))
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_reevaluateEntity(self, arg):
+        '\n Reevaluate entity:  reevaluateEntity <entityID> <flags>\n'
+        try:
+            args = self.parser.parse_args(['reevaluateEntity'] + parse(arg))
+        except SystemExit:
+            print(self.do_reevaluateEntity.__doc__)
+            return
+        try: 
+            returnCode = self.g2_module.reevaluateEntity(args.entityID, args.flags)
+            if returnCode == 0:
+                printWithNewLine('Entity reevaluated.')
             else:
                 printWithNewLine('Error encountered!  Return code = %s' % (returnCode))
         except G2Exception.G2Exception as err:

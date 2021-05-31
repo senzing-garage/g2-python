@@ -267,10 +267,12 @@ def loadProject():
         actionStr = 'Testing'
     elif dsrcAction == 'D':
         actionStr = 'Deleting'
+    elif dsrcAction == 'X':
+        actionStr = 'Reprocessing'
     else:
         actionStr = 'Loading'
 
-    print('\n%s %s\n' % (actionStr, projectFileName if projectFileName else projectFileSpec))
+    #print('\n%s %s\n' % (actionStr, projectFileName if projectFileName else projectFileSpec))
 
     #--prepare G2 database
     if not prepareG2db():
@@ -296,7 +298,12 @@ def loadProject():
         print('')
         print('-' * 50)
         if not testMode:
-            print('Loading %s ...' % filePath)
+            if dsrcAction == 'D':
+                print('*** Deleting *** %s ...' % filePath)
+            elif dsrcAction == 'X':
+                print('*** Reprocessing *** %s ...' % filePath)
+            else:
+                print('Loading %s ...' % filePath)
         else:
             if not createJsonOnly:
                 print('Testing %s ... ' % filePath)
@@ -309,8 +316,15 @@ def loadProject():
                     exitCode = 1
                     return
 
-        #--shuffle if directed
-        if (not noShuffle) and (not testMode):
+        #--drop to a single thread for files under 500k
+        if os.path.getsize(filePath) < (100000 if isCompressedFile(filePath) else 500000):
+            print(' dropping to single thread due to small file size')
+            transportThreadCount = 1
+        else:
+            transportThreadCount = defaultThreadCount
+
+        #--shuffle unless directed not to or in test mode or single threaded
+        if (not noShuffle) and (not testMode) and transportThreadCount > 1:
             print (' shuffling file ...')
             #if not os.path.exists(tempFolderPath):
             #    try: os.makedirs(tempFolderPath)
@@ -324,7 +338,8 @@ def loadProject():
             if sourceDict['FILE_FORMAT'] in ('JSON', 'UMF'):
                 cmd = 'shuf %s > %s' % (filePath, shufFilePath)
             else:
-                cmd = 'cat ' + filePath + ' | (read -r; printf "%s\n" "$REPLY"; shuf) > ' + shufFilePath
+                #cmd = 'cat ' + filePath + ' | (read -r; printf "%s\n" "$REPLY"; shuf) > ' + shufFilePath
+                cmd = 'head -n1 ' + filePath + ' > ' + shufFilePath + ' && tail -n+2 ' + filePath + ' | shuf >> ' + shufFilePath
             try: os.system(cmd)
             except: 
                 print('ERROR: shuffle command failed: %s' % cmd)
@@ -332,18 +347,13 @@ def loadProject():
                 return
             else:
                 filePath = shufFilePath
+
         fileReader = openPossiblyCompressedFile(filePath, 'r')
         #--fileReader = safe_csv_reader(csv.reader(csvFile, fileFormat), cntBadParse)
+
         if sourceDict['FILE_FORMAT'] not in ('JSON', 'UMF'):
             next(fileReader) #--use previously stored header row, so get rid of this one
                 
-        #--drop to a single thread for files under 500k
-        if os.path.getsize(filePath) < (100000 if isCompressedFile(filePath) else 500000):
-            print(' dropping to single thread due to small file size')
-            transportThreadCount = 1
-        else:
-            transportThreadCount = defaultThreadCount
-
         threadList, workQueue = startLoaderProcessAndThreads(transportThreadCount)
         if threadStop.value != 0:
             return exitCode
@@ -463,9 +473,9 @@ def loadProject():
             outputFile.close()
 
         #--remove shuffled file
-        if not noShuffle and not testMode:
-            print(" Removing shuffled file " +  filePath)
+        if (not noShuffle) and (not testMode) and transportThreadCount > 1:
             os.remove(shufFilePath)
+
         #--print the stats if not error or they pressed control-c
         if exitCode in (0, 9):
             elapsedSecs = time.time() - fileStartTime
@@ -665,8 +675,20 @@ def g2Thread(threadId_, workQueue_, g2Engine_, threadStop, workloadStats, dsrcAc
 
             #--only umf is not a dict (csv and json are)
             if type(row) == dict:
-                if dsrcAction == 'D':
-                    row['DSRC_ACTION'] = dsrcAction
+                if dsrcAction in ('D', 'X'): #--strip deletes and reprocess (x) messages down to key only
+                    newRow = {}
+                    newRow['DATA_SOURCE'] = row['DATA_SOURCE']
+                    newRow['DSRC_ACTION'] = dsrcAction
+                    if 'ENTITY_TYPE' in row:
+                        newRow['ENTITY_TYPE'] = row['ENTITY_TYPE'] 
+                    if 'ENTITY_KEY' in row:
+                        newRow['ENTITY_KEY'] = row['ENTITY_KEY']
+                    if 'RECORD_ID' in row:
+                        newRow['RECORD_ID'] = row['RECORD_ID']
+                    newRow['DSRC_ACTION'] = dsrcAction
+                    #print ('-'* 25)
+                    #print(json.dumps(newRow, indent=4))
+                    row = newRow
                 row = json.dumps(row, sort_keys=True)
 
             numProcessed += 1
@@ -782,7 +804,8 @@ if __name__ == '__main__':
     argParser.add_argument('-f', '--fileSpec', dest='projectFileSpec', default='', help='the name of a file to load such as /data/*.json/?data_source=?,file_format=?')
     argParser.add_argument('-P', '--purgeFirst', dest='purgeFirst', action='store_true', default=False, help='purge the g2 repository first')
     argParser.add_argument('-T', '--testMode', dest='testMode', action='store_true', default=False, help='run in test mode to get stats without loading, ctrl-c anytime')
-    argParser.add_argument('-D', '--delete', dest='deleteMode', action='store_true', default=False, help='run in delete mode')
+    argParser.add_argument('-D', '--delete', dest='deleteMode', action='store_true', default=False, help='force deletion of a previously loaded file')
+    argParser.add_argument('-X', '--reprocess', dest='reprocessMode', action='store_true', default=False, help='force reprocessing of previously loaded file')
     argParser.add_argument('-t', '--debugTrace', dest='debugTrace', action='store_true', default=False, help='output debug trace information')
     argParser.add_argument('-ns', '--noShuffle', dest='noShuffle', action='store_true', default=False, help='shuffle the file to improve performance')
     argParser.add_argument('-w', '--workloadStats', dest='workloadStats', action='store_true', default=False, help='output workload statistics information')
@@ -791,6 +814,8 @@ if __name__ == '__main__':
     argParser.add_argument('-i', '--redoModeInterval', dest='redoModeInterval', type=int, default=60, help='time to wait between redo processing runs, in seconds. Only used in redo mode')
     argParser.add_argument('-k', '--knownDatasourcesOnly', dest='configuredDatasourcesOnly', action='store_true', default=False, help='only accepts configured(known) data sources')
     argParser.add_argument('-j', '--createJsonOnly', dest='createJsonOnly', action='store_true', default=False, help='only create json files from mapped csv files')
+    argParser.add_argument('-nt', '--defaultThreadCount', dest='defaultThreadCount', type=int, help='total number of threads to start, default=' + str(defaultThreadCount))
+    argParser.add_argument('-mtp', '--maxThreadsPerProcess', dest='maxThreadsPerProcess', type=int, help='maximum threads per process, default=' + str(maxThreadsPerProcess))
     args = argParser.parse_args()
 
     if len(sys.argv) < 2:
@@ -809,12 +834,18 @@ if __name__ == '__main__':
             testMode = args.testMode
         if args.deleteMode:
             dsrcAction = 'D'
+        if args.reprocessMode:
+            dsrcAction = 'X'
         if args.debugTrace:
             debugTrace = 1
         if args.noShuffle:
             noShuffle = 1
         if args.workloadStats:
             workloadStats = 1
+        if args.defaultThreadCount:
+            defaultThreadCount = args.defaultThreadCount
+        if args.maxThreadsPerProcess:
+            maxThreadsPerProcess = args.maxThreadsPerProcess
         processRedoQueue = args.noRedo        
         redoMode = args.redoMode
         redoModeInterval = args.redoModeInterval
@@ -830,7 +861,6 @@ if __name__ == '__main__':
     if not configTableFile:
         print('ERROR: A G2 setup configuration file is not specified')
         sys.exit(1)
-
 
     if redoMode:
         runSetupProcess(False) # no purge because we would purge the redo queue

@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+
 #--python imports
 import optparse
 import sys

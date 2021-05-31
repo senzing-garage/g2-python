@@ -54,23 +54,88 @@ class G2Hasher(object):
         p_ini_file_name = self.prepareStringArgument(self._ini_file_name)
 
         self._lib_handle.G2Hasher_init.argtypes = [c_char_p, c_char_p, c_int]
-        retval = self._lib_handle.G2Hasher_init(p_hasher_name,
+        ret_code = self._lib_handle.G2Hasher_init(p_hasher_name,
                                  p_ini_file_name,
                                  self._debug)
 
 
         if self._debug:
-            print("Initialization Status: " + str(retval))
+            print("Initialization Status: " + str(ret_code))
 
-        if retval == -2:
+        if ret_code == -2:
             self._lib_handle.G2Hasher_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
-        elif retval == -1:
+        elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Hasher has not been succesfully initialized')
-        elif retval < 0:
+        elif ret_code < 0:
             raise G2ModuleGenericException("Failed to initialize G2 Hasher")
-        return retval
+        return ret_code
 
+
+    def initV2(self, hasher_name_, ini_params_, debug_=False):
+
+        if self._hasherSupported == False:
+            return 0
+
+        self._hasher_name = hasher_name_
+        self._ini_params = ini_params_
+        self._debug = debug_
+        if self._debug:
+            print("Initializing G2 Hasher")
+
+        resize_return_buffer(None, 65535)
+
+        self._lib_handle.G2Hasher_init_V2.argtypes = [c_char_p, c_char_p, c_int]
+        ret_code = self._lib_handle.G2Hasher_init_V2(self._hasher_name.encode('utf-8'),
+                                 self._ini_params.encode('utf-8'),
+                                 self._debug)
+
+        if self._debug:
+            print("Initialization Status: " + str(ret_code))
+
+        if ret_code == -2:
+            self._lib_handle.G2Hasher_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Hasher has not been succesfully initialized')
+        elif ret_code < 0:
+            raise G2ModuleGenericException("Failed to initialize G2 Hasher")
+
+        return ret_code
+
+    def initWithConfigV2(self, hasher_name_, ini_params_, config_, debug_):
+
+        if self._hasherSupported == False:
+            return 0
+
+        self._hasher_name = hasher_name_
+        self._ini_params = ini_params_
+        self._config = self.prepareStringArgument(config_)
+        self._debug = debug_
+
+        if self._debug:
+            print("Initializing G2 Hasher")
+
+        resize_return_buffer(None, 65535)
+
+        self._lib_handle.G2Hasher_initWithConfig_V2.argtypes = [ c_char_p, c_char_p, c_char_p, c_int ]
+        ret_code = self._lib_handle.G2Hasher_initWithConfig_V2(self._hasher_name.encode('utf-8'),
+                                 self._ini_params.encode('utf-8'),
+                                 self._config,
+                                 self._debug)
+
+        if self._debug:
+            print("Initialization Status: " + str(ret_code))
+
+        if ret_code == -2:
+            self._lib_handle.G2Hasher_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2 Hasher has not been succesfully initialized')
+        elif ret_code < 0:
+            raise G2ModuleGenericException("Failed to initialize G2 Hasher")
+
+        return ret_code
 
     def __init__(self):
         try:
@@ -178,14 +243,6 @@ class G2Hasher(object):
             raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
         response += responseBuf.value
         return ret_code
-
-    def restart(self):
-        """  restarts G2 resolver """
-        moduleName = self._engine_name
-        iniFilename = self._ini_file_name
-        debugFlag = self._debug
-        self.destroy()
-        self.init(moduleName, iniFilename, debugFlag)
 
     def destroy(self):
         """ shuts down G2Module

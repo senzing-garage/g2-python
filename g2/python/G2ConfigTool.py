@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
 import cmd
 import sys
@@ -6,6 +6,7 @@ import json
 import os
 import platform
 import G2Paths
+import argparse
 from shutil import copyfile
 from collections import OrderedDict
 
@@ -2476,9 +2477,24 @@ def showMeTheThings(data, loc=''):
 
 # ===== The main function =====
 if __name__ == '__main__':
+
+    #--capture the command line arguments
+    iniFileName = ''
+    file_to_process = ''
     
+    argParser = argparse.ArgumentParser()
+    argParser.add_argument("fileToProcess", nargs='?')
+    argParser.add_argument('-c', '--iniFile', dest='iniFile', default='', help='the name of a G2Project.ini file to use', nargs='?')
+    args = argParser.parse_args()
+    
+    if args.iniFile and len(args.iniFile) > 0:
+        iniFileName = os.path.abspath(args.iniFile)
+    if args.fileToProcess and len(args.fileToProcess) > 0:
+        file_to_process = args.fileToProcess
+            
     #--get parameters from ini file
-    iniFileName = G2Paths.get_G2Project_ini_path()
+    if not iniFileName:
+        iniFileName = G2Paths.get_G2Project_ini_path()
     iniParser = configparser.ConfigParser()
     iniParser.read(iniFileName)
     try: g2configFile = iniParser.get('g2', 'G2ConfigFile')
@@ -2503,7 +2519,9 @@ if __name__ == '__main__':
         if os.path.exists(g2iniFile): 
             with open(g2iniFile) as fileHandle:
                 for line in fileHandle:
-                    if line.strip().upper().startswith('SUPPORTPATH') and '=' in line:
+                    if line.strip().upper().startswith('CONFIGPATH') and '=' in line:
+                        g2variantFile = line.split('=')[1].strip() + os.sep + 'cfgVariant.json'
+                    elif line.strip().upper().startswith('SUPPORTPATH') and '=' in line:
                         g2variantFile = line.split('=')[1].strip() + os.sep + 'cfgVariant.json'
     
         
@@ -2513,8 +2531,8 @@ if __name__ == '__main__':
         userInput = raw_input
 
     #--execute a file of commands or cmdloop()
-    if len(sys.argv) > 1:
-        G2CmdShell().fileloop(sys.argv[1])
+    if file_to_process:
+        G2CmdShell().fileloop(file_to_process)
     else:
         G2CmdShell().cmdloop()
 

@@ -50,21 +50,50 @@ class G2Product(object):
         resize_return_buffer(None, 65535)
 
         self._lib_handle.G2Product_init.argtypes = [c_char_p, c_char_p, c_int]
-        retval = self._lib_handle.G2Product_init(self._module_name.encode('utf-8'),
+        ret_code = self._lib_handle.G2Product_init(self._module_name.encode('utf-8'),
                                  self._ini_file_name.encode('utf-8'),
                                  self._debug)
 
         if self._debug:
-            print("Initialization Status: " + str(retval))
+            print("Initialization Status: " + str(ret_code))
 
-        if retval == -2:
+        if ret_code == -2:
             self._lib_handle.G2Product_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
-        elif retval == -1:
+        elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Product has not been succesfully initialized')
-        elif retval < 0:
+        elif ret_code < 0:
             raise G2ModuleGenericException("Failed to initialize G2 Product Module")
-        return retval
+        return ret_code
+
+
+    def initV2(self, module_name_, ini_params_, debug_=False):
+
+        self._module_name = module_name_
+        self._ini_params = ini_params_
+        self._debug = debug_
+
+        if self._debug:
+            print("Initializing G2Product")
+
+        resize_return_buffer(None, 65535)
+
+        self._lib_handle.G2Product_init_V2.argtypes = [c_char_p, c_char_p, c_int]
+        ret_code = self._lib_handle.G2Product_init_V2(self._module_name.encode('utf-8'),
+                                 self._ini_params.encode('utf-8'),
+                                 self._debug)
+
+        if self._debug:
+            print("Initialization Status: " + str(ret_code))
+
+        if ret_code == -2:
+            self._lib_handle.G2Product_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Product has not been succesfully initialized')
+        elif ret_code < 0:
+            raise G2ModuleGenericException("Failed to initialize G2 Product Module")
+        return ret_code
 
 
     def __init__(self):
@@ -159,13 +188,6 @@ class G2Product(object):
         self._lib_handle.G2Product_version.restype = c_char_p
         ret = self._lib_handle.G2Product_version()
         return str(ret.decode('utf-8'))
-
-    def restart(self):
-        """  Internal function """
-        moduleName = self._engine_name
-        iniFilename = self._ini_file_name
-        self.destroy()
-        self.init(moduleName, iniFilename, False)
 
     def destroy(self):
         """ Uninitializes the engine

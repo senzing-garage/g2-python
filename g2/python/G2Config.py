@@ -50,25 +50,53 @@ class G2Config(object):
         resize_return_buffer(None, 65535)
 
         self._lib_handle.G2Config_init.argtypes = [c_char_p, c_char_p, c_int]
-        retval = self._lib_handle.G2Config_init(self._module_name.encode('utf-8'),
+        ret_code = self._lib_handle.G2Config_init(self._module_name.encode('utf-8'),
                                  self._ini_file_name.encode('utf-8'),
                                  self._debug)
 
         if self._debug:
-            print("Initialization Status: " + str(retval))
+            print("Initialization Status: " + str(ret_code))
 
-        if retval == -2:
+        if ret_code == -2:
             self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
-        elif retval == -1:
+        elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
-        elif retval < 0:
+        elif ret_code < 0:
             raise G2ModuleGenericException("Failed to initialize G2 Config Module")
-        return retval
+        return ret_code
+
+    def initV2(self, module_name_, ini_params_, debug_=False):
+
+        self._module_name = module_name_
+        self._ini_params = ini_params_
+        self._debug = debug_
+
+        if self._debug:
+            print("Initializing G2 Config")
+
+        resize_return_buffer(None, 65535)
+
+        self._lib_handle.G2Config_init_V2.argtypes = [c_char_p, c_char_p, c_int]
+        ret_code = self._lib_handle.G2Config_init_V2(self._module_name.encode('utf-8'),
+                                 self._ini_params.encode('utf-8'),
+                                 self._debug)
+
+        if self._debug:
+            print("Initialization Status: " + str(ret_code))
+
+        if ret_code == -2:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        elif ret_code < 0:
+            raise G2ModuleGenericException("Failed to initialize G2 Config Module")
+        return ret_code
 
     def __init__(self):
         # type: () -> None
-        """ G2ConfigModule class initialization
+        """ G2Config class initialization
         """
 
         try:
@@ -149,6 +177,9 @@ class G2Config(object):
         self._lib_handle.G2Config_load.restype = c_void_p
         self._lib_handle.G2Config_load.argtypes = [c_char_p]
         configHandle = self._lib_handle.G2Config_load(_jsonConfig)
+        if configHandle == None:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
         return configHandle
 
     def close(self,configHandle):
@@ -222,14 +253,6 @@ class G2Config(object):
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
         return ret_code
-
-    def restart(self):
-        """  Internal function """
-        moduleName = self._module_name
-        iniFilename = self._ini_file_name
-        debugFlag = self._debug
-        self.destroy()
-        self.init(moduleName, iniFilename, debugFlag)
 
     def destroy(self):
         """ Uninitializes the engine

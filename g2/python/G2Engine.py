@@ -87,7 +87,7 @@ class G2Engine(object):
     # backwards compatability flags
     G2_EXPORT_DEFAULT_REPORT_FLAGS = G2_EXPORT_INCLUDE_ALL_ENTITIES
 
-    def init(self, engine_name_, ini_file_name_, debug_=False, configID = 1):
+    def init(self, engine_name_, ini_file_name_, debug_=False):
         """  Initializes the G2 engine
         This should only be called once per process.  Currently re-initializing the G2 engin
         after a destroy requires unloaded the class loader used to load this class.
@@ -109,40 +109,145 @@ class G2Engine(object):
         resize_return_buffer(None, 65535)
 
         self._lib_handle.G2_init.argtypes = [c_char_p, c_char_p, c_int]
-        retval = self._lib_handle.G2_init(self._engine_name.encode('utf-8'),
+        ret_code = self._lib_handle.G2_init(self._engine_name.encode('utf-8'),
                                  self._ini_file_name.encode('utf-8'),
                                  self._debug)
 
         if self._debug:
-            print("Initialization Status: " + str(retval))
+            print("Initialization Status: " + str(ret_code))
 
-        if retval == -2:
+        if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
-        elif retval == -1:
+        elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
-        elif retval < 0:
+        elif ret_code < 0:
             raise G2ModuleGenericException("Failed to initialize G2 Engine")
 
-        if type(configID) == bytearray:
-            configID = b''
-            cID = c_longlong(0)
-            self._lib_handle.G2_getActiveConfigID.argtypes = [POINTER(c_longlong)]
-            ret_code = self._lib_handle.G2_getActiveConfigID(cID)
-            if ret_code == -2:
-                self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-                raise TranslateG2ModuleException(tls_var.buf.value)
-            elif ret_code == -1:
-                raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
-            elif ret_code < 0:
-                raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
-            for i in bytes(cID.value):
-                configID.append(i)
-        else:
-            ret_code = 0
-        return min(ret_code, retval)
+        return ret_code
+        
 
+    def initAndGetConfigID(self, engine_name_, ini_file_name_, debug_, configID):
+        """  Initializes the G2 engine
+        This should only be called once per process.  Currently re-initializing the G2 engin
+        after a destroy requires unloaded the class loader used to load this class.
+        Args:
+            engineName: A short name given to this instance of the engine
+            iniFilename: A fully qualified path to the G2 engine INI file (often /opt/senzing/g2/python/G2Module.ini)
+            verboseLogging: Enable diagnostic logging which will print a massive amount of information to stdout
 
+        Returns:
+            int: 0 on success
+        """
+
+        configID[::]=b''
+        configIDValue = c_longlong(0)
+
+        self._engine_name = engine_name_
+        self._ini_file_name = ini_file_name_
+        self._debug = debug_
+        if self._debug:
+            print("Initializing G2 engine")
+
+        resize_return_buffer(None, 65535)
+
+        self._lib_handle.G2_initAndGetConfigID.argtypes = [ c_char_p, c_char_p, c_int, POINTER(c_longlong) ]
+        ret_code = self._lib_handle.G2_initAndGetConfigID(self._engine_name.encode('utf-8'),
+                                 self._ini_file_name.encode('utf-8'),
+                                 self._debug,
+                                 configIDValue)
+
+        if self._debug:
+            print("Initialization Status: " + str(ret_code))
+
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
+        elif ret_code < 0:
+            raise G2ModuleGenericException("Failed to initialize G2 Engine")
+
+        configID += (str(configIDValue.value).encode())
+        return ret_code
+
+    def initV2(self, engine_name_, ini_params_, debug_=False):
+
+        self._engine_name = engine_name_
+        self._ini_params = ini_params_
+        self._debug = debug_
+        if self._debug:
+            print("Initializing G2 engine")
+
+        resize_return_buffer(None, 65535)
+
+        self._lib_handle.G2_init_V2.argtypes = [c_char_p, c_char_p, c_int]
+        ret_code = self._lib_handle.G2_init_V2(self._engine_name.encode('utf-8'),
+                                 self._ini_params.encode('utf-8'),
+                                 self._debug)
+
+        if self._debug:
+            print("Initialization Status: " + str(ret_code))
+
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
+        elif ret_code < 0:
+            raise G2ModuleGenericException("Failed to initialize G2 Engine")
+
+        return ret_code
+
+    def initWithConfigIDV2(self, engine_name_, ini_params_, debug_, configID):
+
+        configIDValue = int(configID.decode())
+
+        self._engine_name = engine_name_
+        self._ini_params = ini_params_
+        self._debug = debug_
+        if self._debug:
+            print("Initializing G2 engine")
+
+        resize_return_buffer(None, 65535)
+
+        self._lib_handle.G2_initWithConfigID_V2.argtypes = [ c_char_p, c_char_p, c_int, c_longlong ]
+        ret_code = self._lib_handle.G2_initWithConfigID_V2(self._engine_name.encode('utf-8'),
+                                 self._ini_params.encode('utf-8'),
+                                 configIDValue,
+                                 self._debug)
+
+        if self._debug:
+            print("Initialization Status: " + str(ret_code))
+
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
+        elif ret_code < 0:
+            raise G2ModuleGenericException("Failed to initialize G2 Engine")
+
+        return ret_code
+
+    def reinitV2(self, configID):
+
+        configIDValue = int(configID.decode())
+
+        resize_return_buffer(None, 65535)
+
+        self._lib_handle.G2_reinit_V2.argtypes = [ c_longlong ]
+        ret_code = self._lib_handle.G2_reinit_V2(configIDValue)
+
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
+        elif ret_code < 0:
+            raise G2ModuleGenericException("Failed to initialize G2 Engine")
+
+        return ret_code
 
     def __init__(self):
         # type: () -> None
@@ -197,18 +302,18 @@ class G2Engine(object):
         return exception_code
 
     def primeEngine(self):
-        retval = self._lib_handle.G2_primeEngine()
+        ret_code = self._lib_handle.G2_primeEngine()
         if self._debug:
-            print("Initialization Status: " + str(retval))
+            print("Initialization Status: " + str(ret_code))
 
-        if retval == -2:
+        if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
-        elif retval == -1:
+        elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
-        elif retval < 0:
+        elif ret_code < 0:
             raise G2ModuleGenericException("Failed to initialize G2 Engine")
-        return retval
+        return ret_code
 
     def process(self, input_umf_):
         # type: (str) -> None
@@ -1425,23 +1530,13 @@ class G2Engine(object):
         """
 
         resize_return_buffer(None, 65535)
-        retval = self._lib_handle.G2_purgeRepository()
-        if retval == -2:
+        ret_code = self._lib_handle.G2_purgeRepository()
+        if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
-        elif retval == -1:
+        elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
 
-        if reset_resolver_ == True:
-            self.restart()
-
-    def restart(self):
-        """  Internal function """
-        moduleName = self._engine_name
-        iniFilename = self._ini_file_name
-        debugFlag = self._debug
-        self.destroy()
-        self.init(moduleName, iniFilename, debugFlag)
 
     def destroy(self):
         """ Uninitializes the engine

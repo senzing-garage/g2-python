@@ -3154,6 +3154,22 @@
                 "DISPLAY_LEVEL": 0
             },
             {
+                "EXEC_ORDER": 6,
+                "DISPLAY_DELIM": null,
+                "DERIVED": "Yes",
+                "FTYPE_ID": 2,
+                "FELEM_ID": 112,
+                "DISPLAY_LEVEL": 0
+            },
+            {
+                "EXEC_ORDER": 7,
+                "DISPLAY_DELIM": null,
+                "DERIVED": "Yes",
+                "FTYPE_ID": 2,
+                "FELEM_ID": 113,
+                "DISPLAY_LEVEL": 0
+            },
+            {
                 "EXEC_ORDER": 1,
                 "DISPLAY_DELIM": null,
                 "DERIVED": "No",
@@ -3191,6 +3207,22 @@
                 "DERIVED": "Yes",
                 "FTYPE_ID": 3,
                 "FELEM_ID": 71,
+                "DISPLAY_LEVEL": 0
+            },
+            {
+                "EXEC_ORDER": 6,
+                "DISPLAY_DELIM": null,
+                "DERIVED": "Yes",
+                "FTYPE_ID": 3,
+                "FELEM_ID": 112,
+                "DISPLAY_LEVEL": 0
+            },
+            {
+                "EXEC_ORDER": 7,
+                "DISPLAY_DELIM": null,
+                "DERIVED": "Yes",
+                "FTYPE_ID": 3,
+                "FELEM_ID": 113,
                 "DISPLAY_LEVEL": 0
             },
             {
@@ -5604,9 +5636,9 @@
             "COMPATIBILITY_VERSION": {
                 "CONFIG_VERSION": "2"
             },
-            "BUILD_DATE": "2019-06-10",
-            "VERSION": "1.9.19161",
-            "BUILD_NUMBER": "2019_06_10__11_29"
+            "BUILD_DATE": "2019-07-09",
+            "VERSION": "1.10.19190",
+            "BUILD_NUMBER": "2019_07_09__02_00"
         },
         "CFG_DFUNC": [
             {
@@ -6357,6 +6389,20 @@
                 "DATA_TYPE": "number",
                 "TOKENIZE": "No",
                 "FELEM_DESC": "Ambiguous Tier"
+            },
+            {
+                "FELEM_ID": 112,
+                "FELEM_CODE": "MMYY_HASH",
+                "DATA_TYPE": "string",
+                "TOKENIZE": "No",
+                "FELEM_DESC": "Month and Year Hash"
+            },
+            {
+                "FELEM_ID": 113,
+                "FELEM_CODE": "MMDD_HASH",
+                "DATA_TYPE": "string",
+                "TOKENIZE": "No",
+                "FELEM_DESC": "Month and Day Hash"
             }
         ],
         "CFG_ETYPE": [
@@ -6913,6 +6959,12 @@
                 "SFUNC_ID": 6,
                 "SFCALL_ID": 12,
                 "FTYPE_ID": 52
+            },
+            {
+                "EXEC_ORDER": 1,
+                "SFUNC_ID": 2,
+                "SFCALL_ID": 13,
+                "FTYPE_ID": 3
             }
         ],
         "CFG_LENS": [
@@ -8114,7 +8166,7 @@
                 "FTYPE_EXCL": "No"
             },
             {
-                "VERSION": 1,
+                "VERSION": 2,
                 "DERIVATION": null,
                 "FCLASS_ID": 2,
                 "FTYPE_FREQ": "FM",
@@ -8130,7 +8182,7 @@
                 "FTYPE_EXCL": "Yes"
             },
             {
-                "VERSION": 1,
+                "VERSION": 2,
                 "DERIVATION": null,
                 "FCLASS_ID": 2,
                 "FTYPE_FREQ": "FM",

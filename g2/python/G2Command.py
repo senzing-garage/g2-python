@@ -1410,6 +1410,39 @@ class G2CmdShell(cmd.Cmd, object):
         except G2Exception.G2Exception as err:
             print(err)
 
+    def do_getPhysicalCores(self,arg):
+        '\nGet the number of physical cores:  getPhysicalCores\n'
+        try: 
+            numCores = self.g2_diagnostic_module.getPhysicalCores()
+            printWithNewLine('\nPhysical Cores: %d' % numCores)
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_getLogicalCores(self,arg):
+        '\nGet the number of logical cores:  getLogicalCores\n'
+        try: 
+            numCores = self.g2_diagnostic_module.getLogicalCores()
+            printWithNewLine('\nLogical Cores: %d' % numCores)
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_getTotalSystemMemory(self,arg):
+        '\nGet the total system memory:  getTotalSystemMemory\n'
+        try: 
+            memory = self.g2_diagnostic_module.getTotalSystemMemory()
+            printWithNewLine('\nTotal System Memory: %d' % memory)
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_getAvailableMemory(self,arg):
+        '\nGet the available memrory:  getAvailableMemory\n'
+        try: 
+            memory = self.g2_diagnostic_module.getAvailableMemory()
+            printWithNewLine('\nAvailable Memory: %d' % memory)
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
 # ----- Utility functions -----
 
 def parse(argumentString):

@@ -318,6 +318,54 @@ class G2CmdShell(cmd.Cmd):
                     printWithNewLines('Saved!', 'B')
                     self.variantUpdated = False
 
+# ===== Compatibility version commands =====
+
+    # -----------------------------
+    def do_verifyCompatibilityVersion(self,arg):
+        '\n\tverifyCompatibilityVersion {"expectedVersion": "2"}\n'
+
+        if not argCheck('verifyCompatibilityVersion', arg, self.do_verifyCompatibilityVersion.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+        except (ValueError, KeyError) as e:
+            print('\nError with argument(s) or parsing JSON - %s \n' % e)
+        else:
+
+            if self.cfgData['G2_CONFIG']['CONFIG_BASE_VERSION']['COMPATIBILITY_VERSION']['CONFIG_VERSION'] != parmData['EXPECTEDVERSION']:
+                printWithNewLines('Compatibility version does not match specified value [%s]!  Actual version is [%s].' % (parmData['EXPECTEDVERSION'],self.cfgData['G2_CONFIG']['CONFIG_BASE_VERSION']['COMPATIBILITY_VERSION']['CONFIG_VERSION']), 'B')
+                if self.isInteractive == False:
+                    # throw an exception, so that we abort running scripts
+                    raise Exception('Incorrect compatibility version.')
+                else:
+                    # just finish normally, for the interactive command shell.
+                    return
+            printWithNewLines('Compatibility version successfully verified!', 'B')
+
+
+    # -----------------------------
+    def do_updateCompatibilityVersion(self,arg):
+        '\n\tupdateCompatibilityVersion {"fromVersion": "1", "toVersion": "2"}\n'
+
+        if not argCheck('updateCompatibilityVersion', arg, self.do_updateCompatibilityVersion.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+        except (ValueError, KeyError) as e:
+            print('\nError with argument(s) or parsing JSON - %s \n' % e)
+        else:
+
+            if self.cfgData['G2_CONFIG']['CONFIG_BASE_VERSION']['COMPATIBILITY_VERSION']['CONFIG_VERSION'] != parmData['FROMVERSION']:
+                printWithNewLines('Compatibility version to change does not match specified value [%s] !' % parmData['FROMVERSION'], 'B')
+                return
+
+            self.cfgData['G2_CONFIG']['CONFIG_BASE_VERSION']['COMPATIBILITY_VERSION']['CONFIG_VERSION'] = parmData['TOVERSION']
+            self.configUpdated = True
+            printWithNewLines('Compatibility version successfully changed!', 'B')
+
+
 # ===== data Source commands =====
 
     # -----------------------------
@@ -1417,27 +1465,28 @@ class G2CmdShell(cmd.Cmd):
 
                 #--default for missing values
                 if 'DATATYPE' not in parmData or len(parmData['DATATYPE'].strip()) == 0:
-                    parmData['DATATYPE'] = 'STRING'
+                    parmData['DATATYPE'] = 'string'
                 else:
-                    if parmData['DATATYPE'].upper() not in ('DATE', 'DATEIME', 'JSON', 'NUMBER', 'STRING'):
-                        printWithNewLines('Invalid datatype value: %s  (must be "DATE", "DATEIME", "JSON", "NUMBER", or "STRING")' % parmData['DATATYPE'], 'B')
+                    if parmData['DATATYPE'].upper() not in ('DATE', 'DATETIME', 'JSON', 'NUMBER', 'STRING'):
+                        printWithNewLines('Invalid datatype value: %s  (must be "DATE", "DATETIME", "JSON", "NUMBER", or "STRING")' % parmData['DATATYPE'], 'B')
                         return
+                    parmData['DATATYPE'] = parmData['DATATYPE'].lower()
 
                 if 'TOKENIZE' not in parmData or len(parmData['TOKENIZE'].strip()) == 0:
-                    parmData['TOKENIZE'] = 0
+                    parmData['TOKENIZE'] = 'No'
                 else:
-                    if parmData['TOKENIZE'] not in ('0', '1'):
-                        printWithNewLines('Invalid tokenize value: %s  (must be "0" or "1")' % parmData['TOKENIZE'], 'B')
+                    if parmData['TOKENIZE'] not in ('0', '1', 'No', 'Yes'):
+                        printWithNewLines('Invalid tokenize value: %s  (must be "0", "1", "No", or "Yes")' % parmData['TOKENIZE'], 'B')
                         return
 
                 maxID = []
                 for i in range(len(self.cfgData['G2_CONFIG']['CFG_FELEM'])) :
                     maxID.append(self.cfgData['G2_CONFIG']['CFG_FELEM'][i]['FELEM_ID'])
 
-            if 'ID' in parmData: 
-                felemID = parmData['ID']
-            else:
-                felemID = max(maxID) + 1 if max(maxID) >=1000 else 1000
+                if 'ID' in parmData: 
+                    felemID = parmData['ID']
+                else:
+                    felemID = max(maxID) + 1 if max(maxID) >=1000 else 1000
 
                 newRecord = {}
                 newRecord['FELEM_ID'] = felemID
@@ -1501,25 +1550,36 @@ class G2CmdShell(cmd.Cmd):
                     return
 
             if 'DATATYPE' not in parmData or len(parmData['DATATYPE'].strip()) == 0:
-                parmData['DATATYPE'] = 'STRING'
+                parmData['DATATYPE'] = 'string'
             else:
-                if parmData['DATATYPE'].upper() not in ('DATE', 'DATEIME', 'JSON', 'NUMBER', 'STRING'):
-                    printWithNewLines('Invalid datatype value: %s  (must be "DATE", "DATEIME", "JSON", "NUMBER", or "STRING")' % parmData['DATATYPE'], 'B')
+                if parmData['DATATYPE'].upper() not in ('DATE', 'DATETIME', 'JSON', 'NUMBER', 'STRING'):
+                    printWithNewLines('Invalid datatype value: %s  (must be "DATE", "DATETIME", "JSON", "NUMBER", or "STRING")' % parmData['DATATYPE'], 'B')
                     return
+                parmData['DATATYPE'] = parmData['DATATYPE'].lower()
 
             if 'TOKENIZE' not in parmData or len(parmData['TOKENIZE'].strip()) == 0:
-                parmData['TOKENIZE'] = 0
+                parmData['TOKENIZE'] = 'No'
             else:
-                if parmData['TOKENIZE'] not in ('0', '1'):
-                    printWithNewLines('Invalid tokenize value: %s  (must be "0" or "1")' % parmData['TOKENIZE'], 'B')
+                if parmData['TOKENIZE'] not in ('0', '1', 'No', 'Yes'):
+                    printWithNewLines('Invalid tokenize value: %s  (must be "0", "1", "No", or "Yes")' % parmData['TOKENIZE'], 'B')
                     return
+
+            if 'DERIVED' not in parmData:
+                parmData['DERIVED'] = 'No'
+            else:
+                if parmData['DERIVED'] not in ('0', '1', 'No', 'Yes'):
+                    printWithNewLines('Invalid derived value: %s  (must be "0", "1", "No", or "Yes")' % parmData['DERIVED'], 'B')
+                    return
+
+            if 'DISPLAY_DELIM' not in parmData:
+                parmData['DISPLAY_DELIM'] = ''
 
             #--does the element exist already and has conflicting parms to what was requested? 
             if felemRecord:
-                print(felemRecord)
+                felemID = felemRecord['FELEM_ID']
                 if ( 
                     ( parmData['DATATYPE'] and len(parmData['DATATYPE'].strip()) > 0 and parmData['DATATYPE'] != felemRecord['DATA_TYPE'] ) or
-                    ( parmData['TOKENIZE'] and len(parmData['TOKENIZE'].strip()) > 0 and int(parmData['TOKENIZE']) != int(felemRecord['TOKENIZE']) )
+                    ( parmData['TOKENIZE'] and len(parmData['TOKENIZE'].strip()) > 0 and parmData['TOKENIZE'] != felemRecord['TOKENIZE'] )
                    ) :
                     printWithNewLines('Element %s already exists with conflicting parameters, check with listElement %s' % (parmData['ELEMENT'], parmData['ELEMENT']), 'B')
                     return
@@ -1550,19 +1610,26 @@ class G2CmdShell(cmd.Cmd):
                     if self.doDebug:
                         showMeTheThings(newRecord)
 
-                #--add the fbom
-                maxExec = []
-                for i in range(len(self.cfgData['G2_CONFIG']['CFG_FBOM'])):
-                    if int(self.cfgData['G2_CONFIG']['CFG_FBOM'][i]['FTYPE_ID']) == ftypeRecord['FTYPE_ID']:
-                        maxExec.append(self.cfgData['G2_CONFIG']['CFG_FBOM'][i]['EXEC_ORDER'])
-    
+            #--add the fbom, if it does not already exist
+            alreadyExists = False
+            maxExec = [0]
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_FBOM'])):
+                if int(self.cfgData['G2_CONFIG']['CFG_FBOM'][i]['FTYPE_ID']) == ftypeRecord['FTYPE_ID']:
+                    maxExec.append(self.cfgData['G2_CONFIG']['CFG_FBOM'][i]['EXEC_ORDER'])
+                    if int(self.cfgData['G2_CONFIG']['CFG_FBOM'][i]['FELEM_ID']) == felemID:
+                        alreadyExists = True
+                        break
+
+            if alreadyExists:
+                printWithNewLines('Element already exists for feature!', 'B')
+            else:
                 newRecord = {}
                 newRecord['FTYPE_ID'] = ftypeRecord['FTYPE_ID']
                 newRecord['FELEM_ID'] = felemID
                 newRecord['EXEC_ORDER'] = max(maxExec) + 1
-                newRecord['DISPLAY_DELIM'] = ""
+                newRecord['DISPLAY_DELIM'] = parmData['DISPLAY_DELIM']
                 newRecord['DISPLAY_LEVEL'] = 2 if ftypeRecord['FTYPE_CODE'] =='ADDRESS' else 1
-                newRecord['DERIVED'] = 0
+                newRecord['DERIVED'] = parmData['DERIVED']
                 self.cfgData['G2_CONFIG']['CFG_FBOM'].append(newRecord)
                 self.configUpdated = True
                 printWithNewLines('Successfully added to feature!', 'E')
@@ -1601,7 +1668,7 @@ class G2CmdShell(cmd.Cmd):
                 return
 
             deleteCnt = 0
-            for i in range(len(self.cfgData['G2_CONFIG']['CFG_FBOM'])):
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_FBOM'])-1,-1,-1):
                 if int(self.cfgData['G2_CONFIG']['CFG_FBOM'][i]['FTYPE_ID']) == ftypeRecord['FTYPE_ID'] and int(self.cfgData['G2_CONFIG']['CFG_FBOM'][i]['FELEM_ID']) == felemRecord['FELEM_ID'] :
                     del self.cfgData['G2_CONFIG']['CFG_FBOM'][i]
                     deleteCnt = 1
@@ -1792,7 +1859,7 @@ class G2CmdShell(cmd.Cmd):
         
     # -----------------------------
     def do_addFragment(self,arg):
-        '\n\taddFragment {"id": "<fragment_id>", "fragment": "<fragment_code>", "source": "<fragment_source>"' \
+        '\n\taddFragment {"id": "<fragment_id>", "fragment": "<fragment_code>", "source": "<fragment_source>"}' \
         '\n\n\tFor additional example structures, use getFragment or listFragments\n'
 
         if not argCheck('addFragment', arg, self.do_addFragment.__doc__):
@@ -1966,7 +2033,7 @@ class G2CmdShell(cmd.Cmd):
 
     # -----------------------------
     def do_addRule(self,arg):
-        '\n\taddRule {"id": "130", "tier": "30", "resolve": "Yes", "relate": "No", "ref_score": "8", "fragment": "SF1_CNAME", "disqualifier": "DIFF_EXCL", "rtype_id": "1"}' \
+        '\n\taddRule {"id": 130, "rule": "SF1_CNAME", "tier": 30, "resolve": "Yes", "relate": "No", "ref_score": 8, "fragment": "SF1_CNAME", "disqualifier": "DIFF_EXCL", "rtype_id": 1}' \
         '\n\n\tFor additional example structures, use getRule or listRules\n'
 
         if not argCheck('addRule', arg, self.do_addRule.__doc__):
@@ -1981,7 +2048,7 @@ class G2CmdShell(cmd.Cmd):
 
             maxID = 0
             for i in range(len(self.cfgData['G2_CONFIG']['CFG_ERRULE'])):
-                if self.cfgData['G2_CONFIG']['CFG_ERRULE'][i]['ERRULE_CODE'] == parmData['FRAGMENT']:
+                if self.cfgData['G2_CONFIG']['CFG_ERRULE'][i]['ERRULE_CODE'] == parmData['RULE']:
                     printWithNewLines('Rule %s already exists!' % parmData['FRAGMENT'], 'B')
                     return
                 if 'ID' in parmData and int(self.cfgData['G2_CONFIG']['CFG_ERRULE'][i]['ERRULE_ID']) == int(parmData['ID']):
@@ -2006,8 +2073,8 @@ class G2CmdShell(cmd.Cmd):
                     return
 
             #--default or validate the disqualifier
-            if 'DISQUALIFIER' not in parmData or len(parmData['DISQUALIFIER'].strip()) == 0: 
-                parmData['DISQUALIFIER'] = ''
+            if 'DISQUALIFIER' not in parmData or not parmData['DISQUALIFIER']: 
+                parmData['DISQUALIFIER'] = None
             else:
                 #--lookup the disqualifier code
                 fragRecord = self.getRecord('CFG_ERFRAG', 'ERFRAG_CODE', parmData['DISQUALIFIER'])
@@ -2017,15 +2084,15 @@ class G2CmdShell(cmd.Cmd):
 
             newRecord = {}
             newRecord['ERRULE_ID'] = int(parmData['ID'])
-            newRecord['ERRULE_CODE'] = parmData['FRAGMENT']
-            newRecord['ERRULE_DESC'] = parmData['FRAGMENT']
-            newRecord['RESOLVE'] = 1 if parmData['RESOLVE'].upper() == 'YES' else 0
-            newRecord['RELATE'] = 1 if parmData['RELATE'].upper() == 'YES' else 0
+            newRecord['ERRULE_CODE'] = parmData['RULE']
+            newRecord['ERRULE_DESC'] = parmData['RULE']
+            newRecord['RESOLVE'] = parmData['RESOLVE']
+            newRecord['RELATE'] = parmData['RELATE']
             newRecord['REF_SCORE'] = int(parmData['REF_SCORE'])
             newRecord['RTYPE_ID'] = int(parmData['RTYPE_ID'])
             newRecord['QUAL_ERFRAG_CODE'] = parmData['FRAGMENT']
-            newRecord['DISQ_ERFRAG_CODE'] = parmData['DISQUALIFIER']
-            newRecord['ERRULE_TIER'] = int(parmData['TIER'])
+            newRecord['DISQ_ERFRAG_CODE'] = storeNullableJsonString(parmData['DISQUALIFIER'])
+            newRecord['ERRULE_TIER'] = storeNullableJsonNumeric(parmData['TIER'])
 
 
             self.cfgData['G2_CONFIG']['CFG_ERRULE'].append(newRecord)
@@ -2084,6 +2151,13 @@ class G2CmdShell(cmd.Cmd):
                         self.cfgData['G2_CONFIG']['CFG_RTYPE'][i]['BREAK_RES'] = breakRes
                         self.configUpdated = True
             
+    # -----------------------------
+    def do_touch(self,arg):
+        '\n\touch' 
+
+        # this is a no-op.  It just marks the database as modified, without doing anything to it.
+        self.configUpdated = True
+
             
 # ===== database functions =====
 
@@ -2467,6 +2541,30 @@ def printWithNewLines(ln, pos=''):
 
 def dictKeysUpper(dict):
     return {k.upper():v for k,v in dict.items()}
+
+def showNullableJsonString(val):
+    if not val:
+        return 'null'
+    else:
+        return '"%s"' % val
+
+def showNullableJsonNumeric(val):
+    if not val:
+        return 'null'
+    else:
+        return '%s' % val
+
+def storeNullableJsonString(val):
+    if not val or val == 'null':
+        return None
+    else:
+        return val
+
+def storeNullableJsonNumeric(val):
+    if not val or val == 'null':
+        return None
+    else:
+        return val
 
 def showMeTheThings(data, loc=''):
     printWithNewLines('<---- DEBUG')

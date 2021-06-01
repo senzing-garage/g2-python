@@ -674,20 +674,18 @@ def g2Thread(threadId_, workQueue_, g2Engine_, threadStop, workloadStats, dsrcAc
         #--call g2engine
         for row in rowList:
 
-            dataSource = ''
-            recordID = ''
             #--only umf is not a dict (csv and json are)
             if type(row) == dict:
                 if dsrcAction in ('D', 'X'): #--strip deletes and reprocess (x) messages down to key only
                     newRow = {}
-                    dataSource = newRow['DATA_SOURCE'] = row['DATA_SOURCE']
+                    newRow['DATA_SOURCE'] = row['DATA_SOURCE']
                     newRow['DSRC_ACTION'] = dsrcAction
                     if 'ENTITY_TYPE' in row:
                         newRow['ENTITY_TYPE'] = row['ENTITY_TYPE'] 
                     if 'ENTITY_KEY' in row:
                         newRow['ENTITY_KEY'] = row['ENTITY_KEY']
                     if 'RECORD_ID' in row:
-                        recordID = newRow['RECORD_ID'] = row['RECORD_ID']
+                        newRow['RECORD_ID'] = row['RECORD_ID']
                     newRow['DSRC_ACTION'] = dsrcAction
                     #print ('-'* 25)
                     #print(json.dumps(newRow, indent=4))
@@ -701,11 +699,7 @@ def g2Thread(threadId_, workQueue_, g2Engine_, threadStop, workloadStats, dsrcAc
               print(statsResponse.decode())
 
             try: 
-                returnCode = 0
-                if dsrcAction == 'X':
-                  returnCode = g2Engine_.reevaluateRecord(dataSource, recordID, 0)
-                else:
-                  returnCode = g2Engine_.process(row)
+                returnCode = g2Engine_.process(row)
             except G2ModuleLicenseException as err:
                 print(err)
                 print('ERROR: G2Engine licensing error!')
@@ -713,9 +707,6 @@ def g2Thread(threadId_, workQueue_, g2Engine_, threadStop, workloadStats, dsrcAc
                     threadStop.value = 1
                 return
             except G2ModuleException as err:
-                print(row)
-                print('exception: %s' % err)
-            except Exception as err:
                 print(row)
                 print('exception: %s' % err)
 

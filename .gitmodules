@@ -64,3 +64,9 @@
 [submodule "g2iniparams"]
   path = g2iniparams
   url = https://github.com/Senzing/g2iniparams.git
+[submodule "g2createproject"]
+	path = g2createproject
+	url = https://github.com/Senzing/g2createproject.git
+[submodule "g2updateproject"]
+	path = g2updateproject
+	url = https://github.com/Senzing/g2updateproject.git

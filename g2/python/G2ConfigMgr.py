@@ -3,7 +3,13 @@ import threading
 import json
 import os
 
-tls_var = threading.local()
+class MyBuffer(threading.local):
+  def __init__(self):
+    self.buf = create_string_buffer(65535)
+    self.bufSize = sizeof(self.buf)
+    #print("Created new Buffer {}".format(self.buf))
+
+tls_var = MyBuffer()
 
 from G2Exception import TranslateG2ModuleException, G2ModuleNotInitialized, G2ModuleGenericException
 
@@ -13,11 +19,23 @@ def resize_return_buffer(buf_, size_):
   size_: size the return buffer needs to be
   """
   try:
-    if (sizeof(tls_var.buf) < size_) :
+    if not tls_var.buf:
+      #print("New RESIZE_RETURN_BUF {}:{}".format(buf_,size_))
       tls_var.buf = create_string_buffer(size_)
+      tls_var.bufSize = size_
+    elif (tls_var.bufSize < size_):
+      #print("RESIZE_RETURN_BUF {}:{}/{}".format(buf_,size_,tls_var.bufSize))
+      foo = tls_var.buf
+      tls_var.buf = create_string_buffer(size_)
+      tls_var.bufSize = size_
+      memmove(tls_var.buf, foo, sizeof(foo))
   except AttributeError:
+      #print("AttributeError RESIZE_RETURN_BUF {}:{}".format(buf_,size_))
       tls_var.buf = create_string_buffer(size_)
+      #print("Created new Buffer {}".format(tls_var.buf))
+      tls_var.bufSize = size_
   return addressof(tls_var.buf)
+  
 
 
 class G2ConfigMgr(object):
@@ -40,18 +58,16 @@ class G2ConfigMgr(object):
         Returns:
             int: 0 on success
         """
-        self._module_name = module_name_
-        self._ini_params = ini_params_
+        self._module_name = self.prepareStringArgument(module_name_)
+        self._ini_params = self.prepareStringArgument(ini_params_)
         self._debug = debug_
 
         if self._debug:
             print("Initializing G2 Config Manager")
 
-        resize_return_buffer(None, 65535)
-
         self._lib_handle.G2ConfigMgr_init_V2.argtypes = [c_char_p, c_char_p, c_int]
-        ret_code = self._lib_handle.G2ConfigMgr_init_V2(self._module_name.encode('utf-8'),
-                                 self._ini_params.encode('utf-8'),
+        ret_code = self._lib_handle.G2ConfigMgr_init_V2(self._module_name,
+                                 self._ini_params,
                                  self._debug)
 
         if self._debug:
@@ -90,6 +106,7 @@ class G2ConfigMgr(object):
         # type: (str) -> str
         """ Internal processing function """
 
+        #handle null string
         if stringToPrepare == None:
             return None
         #if string is unicode, transcode to utf-8 str
@@ -97,7 +114,9 @@ class G2ConfigMgr(object):
             return stringToPrepare.encode('utf-8')
         #if input is bytearray, assumt utf-8 and convert to str
         elif type(stringToPrepare) == bytearray:
-            return str(stringToPrepare)
+            return stringToPrepare.decode().encode('utf-8')
+        elif type(stringToPrepare) == bytes:
+            return str(stringToPrepare).encode('utf-8')
         #input is already a str
         return stringToPrepare
 
@@ -125,9 +144,8 @@ class G2ConfigMgr(object):
         """ retrieves the registered configuration document from the datastore
         """
         response[::]=b''
-        resize_return_buffer(None, 65535)
-        responseBuf = c_char_p(None)
-        responseSize = c_size_t(0)
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
         self._lib_handle.G2ConfigMgr_getConfig.restype = c_int
         self._lib_handle.G2ConfigMgr_getConfig.argtypes = [c_longlong, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
         ret_code = self._lib_handle.G2ConfigMgr_getConfig(configID,
@@ -150,9 +168,8 @@ class G2ConfigMgr(object):
         """ retrieves a list of known configurations from the datastore
         """
         response[::]=b''
-        resize_return_buffer(None, 65535)
-        responseBuf = c_char_p(None)
-        responseSize = c_size_t(0)
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
         self._lib_handle.G2ConfigMgr_getConfigList.restype = c_int
         self._lib_handle.G2ConfigMgr_getConfigList.argtypes = [POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
         ret_code = self._lib_handle.G2ConfigMgr_getConfigList(
@@ -211,7 +228,6 @@ class G2ConfigMgr(object):
             None
         """
 
-        resize_return_buffer(None, 65535)
         self._lib_handle.G2ConfigMgr_clearLastException.restype = None
         self._lib_handle.G2ConfigMgr_clearLastException.argtypes = []
         self._lib_handle.G2ConfigMgr_clearLastException()
@@ -220,7 +236,6 @@ class G2ConfigMgr(object):
         """ Gets the last exception
         """
 
-        resize_return_buffer(None, 65535)
         self._lib_handle.G2ConfigMgr_getLastException.restype = c_int
         self._lib_handle.G2ConfigMgr_getLastException.argtypes = [c_char_p, c_size_t]
         self._lib_handle.G2ConfigMgr_getLastException(tls_var.buf,sizeof(tls_var.buf))
@@ -231,7 +246,6 @@ class G2ConfigMgr(object):
         """ Gets the last exception code
         """
 
-        resize_return_buffer(None, 65535)
         self._lib_handle.G2ConfigMgr_getLastExceptionCode.restype = c_int
         self._lib_handle.G2ConfigMgr_getLastExceptionCode.argtypes = []
         exception_code = self._lib_handle.G2ConfigMgr_getLastExceptionCode()

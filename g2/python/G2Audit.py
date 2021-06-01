@@ -3,7 +3,13 @@ import threading
 import json
 import os
 
-tls_var = threading.local()
+class MyBuffer(threading.local):
+  def __init__(self):
+    self.buf = create_string_buffer(65535)
+    self.bufSize = sizeof(self.buf)
+    #print("Created new Buffer {}".format(self.buf))
+
+tls_var = MyBuffer()
 
 from G2Exception import TranslateG2ModuleException, G2ModuleNotInitialized, G2ModuleGenericException
 
@@ -13,11 +19,23 @@ def resize_return_buffer(buf_, size_):
   size_: size the return buffer needs to be
   """
   try:
-    if (sizeof(tls_var.buf) < size_) :
+    if not tls_var.buf:
+      #print("New RESIZE_RETURN_BUF {}:{}".format(buf_,size_))
       tls_var.buf = create_string_buffer(size_)
+      tls_var.bufSize = size_
+    elif (tls_var.bufSize < size_):
+      #print("RESIZE_RETURN_BUF {}:{}/{}".format(buf_,size_,tls_var.bufSize))
+      foo = tls_var.buf
+      tls_var.buf = create_string_buffer(size_)
+      tls_var.bufSize = size_
+      memmove(tls_var.buf, foo, sizeof(foo))
   except AttributeError:
+      #print("AttributeError RESIZE_RETURN_BUF {}:{}".format(buf_,size_))
       tls_var.buf = create_string_buffer(size_)
+      #print("Created new Buffer {}".format(tls_var.buf))
+      tls_var.bufSize = size_
   return addressof(tls_var.buf)
+  
 
 
 class G2Audit(object):
@@ -41,18 +59,16 @@ class G2Audit(object):
             int: 0 on success
         """
 
-        self._module_name = module_name_
-        self._ini_file_name = ini_file_name_
+        self._module_name = self.prepareStringArgument(module_name_)
+        self._ini_file_name = self.prepareStringArgument(ini_file_name_)
         self._debug = debug_
 
         if self._debug:
             print("Initializing G2 audit module")
 
-        resize_return_buffer(None, 65535)
-
         self._lib_handle.G2Audit_init.argtypes = [c_char_p, c_char_p, c_int]
-        ret_code = self._lib_handle.G2Audit_init(self._module_name.encode('utf-8'),
-                                 self._ini_file_name.encode('utf-8'),
+        ret_code = self._lib_handle.G2Audit_init(self._module_name,
+                                 self._ini_file_name,
                                  self._debug)
 
         if self._debug:
@@ -70,18 +86,16 @@ class G2Audit(object):
 
     def initV2(self, module_name_, ini_params_, debug_=False):
 
-        self._module_name = module_name_
-        self._ini_params = ini_params_
+        self._module_name = self.prepareStringArgument(module_name_)
+        self._ini_params = self.prepareStringArgument(ini_params_)
         self._debug = debug_
 
         if self._debug:
             print("Initializing G2 audit module")
 
-        resize_return_buffer(None, 65535)
-
         self._lib_handle.G2Audit_init_V2.argtypes = [c_char_p, c_char_p, c_int]
-        ret_code = self._lib_handle.G2Audit_init_V2(self._module_name.encode('utf-8'),
-                                 self._ini_params.encode('utf-8'),
+        ret_code = self._lib_handle.G2Audit_init_V2(self._module_name,
+                                 self._ini_params,
                                  self._debug)
 
         if self._debug:
@@ -97,21 +111,19 @@ class G2Audit(object):
         return ret_code
 
 
-    def initWithConfigIDV2(self, engine_name_, ini_params_, debug_, configID):
+    def initWithConfigIDV2(self, engine_name_, ini_params_, initConfigID_, debug_):
 
-        configIDValue = int(configID.decode())
+        configIDValue = self.prepareIntArgument(initConfigID_)
 
-        self._engine_name = engine_name_
-        self._ini_params = ini_params_
+        self._engine_name = self.prepareStringArgument(engine_name_)
+        self._ini_params = self.prepareStringArgument(ini_params_)
         self._debug = debug_
         if self._debug:
             print("Initializing G2 audit module")
 
-        resize_return_buffer(None, 65535)
-
-        self._lib_handle.G2Audit_initWithConfigID_V2.argtypes = [ c_char_p, c_char_p, c_int, c_longlong ]
-        ret_code = self._lib_handle.G2Audit_initWithConfigID_V2(self._engine_name.encode('utf-8'),
-                                 self._ini_params.encode('utf-8'),
+        self._lib_handle.G2Audit_initWithConfigID_V2.argtypes = [ c_char_p, c_char_p, c_longlong, c_int ]
+        ret_code = self._lib_handle.G2Audit_initWithConfigID_V2(self._engine_name,
+                                 self._ini_params,
                                  configIDValue,
                                  self._debug)
 
@@ -128,11 +140,9 @@ class G2Audit(object):
 
         return ret_code
 
-    def reinitV2(self, configID):
+    def reinitV2(self, initConfigID):
 
-        configIDValue = int(configID.decode())
-
-        resize_return_buffer(None, 65535)
+        configIDValue = int(self.prepareStringArgument(initConfigID))
 
         self._lib_handle.G2Audit_reinit_V2.argtypes = [ c_longlong ]
         ret_code = self._lib_handle.G2Audit_reinit_V2(configIDValue)
@@ -171,6 +181,7 @@ class G2Audit(object):
         # type: (str) -> str
         """ Internal processing function """
 
+        #handle null string
         if stringToPrepare == None:
             return None
         #if string is unicode, transcode to utf-8 str
@@ -178,9 +189,30 @@ class G2Audit(object):
             return stringToPrepare.encode('utf-8')
         #if input is bytearray, assumt utf-8 and convert to str
         elif type(stringToPrepare) == bytearray:
-            return str(stringToPrepare)
+            return stringToPrepare.decode().encode('utf-8')
+        elif type(stringToPrepare) == bytes:
+            return str(stringToPrepare).encode('utf-8')
         #input is already a str
         return stringToPrepare
+
+    def prepareIntArgument(self, valueToPrepare):
+        # type: (str) -> int
+        """ Internal processing function """
+        """ This converts many types of values to an integer """
+
+        #handle null string
+        if valueToPrepare == None:
+            return None
+        #if string is unicode, transcode to utf-8 str
+        if type(valueToPrepare) == str:
+            return int(valueToPrepare.encode('utf-8'))
+        #if input is bytearray, assumt utf-8 and convert to str
+        elif type(valueToPrepare) == bytearray:
+            return int(valueToPrepare)
+        elif type(valueToPrepare) == bytes:
+            return int(valueToPrepare)
+        #input is already an int
+        return valueToPrepare
 
     def clearLastException(self):
         """ Clears the last exception
@@ -189,7 +221,6 @@ class G2Audit(object):
             None
         """
 
-        resize_return_buffer(None, 65535)
         self._lib_handle.G2Audit_clearLastException.restype = None
         self._lib_handle.G2Audit_clearLastException.argtypes = []
         self._lib_handle.G2Audit_clearLastException()
@@ -198,7 +229,6 @@ class G2Audit(object):
         """ Gets the last exception
         """
 
-        resize_return_buffer(None, 65535)
         self._lib_handle.G2Audit_getLastException.restype = c_int
         self._lib_handle.G2Audit_getLastException.argtypes = [c_char_p, c_size_t]
         self._lib_handle.G2Audit_getLastException(tls_var.buf,sizeof(tls_var.buf))
@@ -209,7 +239,6 @@ class G2Audit(object):
         """ Gets the last exception code
         """
 
-        resize_return_buffer(None, 65535)
         self._lib_handle.G2Audit_getLastExceptionCode.restype = c_int
         self._lib_handle.G2Audit_getLastExceptionCode.argtypes = []
         exception_code = self._lib_handle.G2Audit_getLastExceptionCode()
@@ -231,9 +260,8 @@ class G2Audit(object):
         """ Get the summary data for the G2 data repository.
         """
 
-        resize_return_buffer(None, 65535)
-        responseBuf = c_char_p(None)
-        responseSize = c_size_t(0)
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
         self._lib_handle.G2Audit_openSession.restype = c_void_p
         sessionHandle = self._lib_handle.G2Audit_openSession()
         self._lib_handle.G2Audit_getSummaryData.restype = c_int
@@ -258,9 +286,8 @@ class G2Audit(object):
         """ Get the summary data for the G2 data repository, with optimizations.
         """
 
-        resize_return_buffer(None, 65535)
-        responseBuf = c_char_p(None)
-        responseSize = c_size_t(0)
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
         self._lib_handle.G2Audit_getSummaryDataDirect.restype = c_int
         self._lib_handle.G2Audit_getSummaryDataDirect.argtypes = [POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
         ret_code = self._lib_handle.G2Audit_getSummaryDataDirect(
@@ -291,9 +318,8 @@ class G2Audit(object):
         _fromDataSource = self.prepareStringArgument(fromDataSource)
         _toDataSource = self.prepareStringArgument(toDataSource)
         _matchLevel = matchLevel
-        resize_return_buffer(None, 65535)
-        responseBuf = c_char_p(None)
-        responseSize = c_size_t(0)
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
         self._lib_handle.G2Audit_getUsedMatchKeys.restype = c_int
         self._lib_handle.G2Audit_getUsedMatchKeys.argtypes = [c_void_p, c_char_p, c_char_p, c_longlong, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
         ret_code = self._lib_handle.G2Audit_getUsedMatchKeys(sessionHandle,_fromDataSource,_toDataSource,_matchLevel,
@@ -324,9 +350,8 @@ class G2Audit(object):
         _fromDataSource = self.prepareStringArgument(fromDataSource)
         _toDataSource = self.prepareStringArgument(toDataSource)
         _matchLevel = matchLevel
-        resize_return_buffer(None, 65535)
-        responseBuf = c_char_p(None)
-        responseSize = c_size_t(0)
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
         self._lib_handle.G2Audit_getUsedPrinciples.restype = c_int
         self._lib_handle.G2Audit_getUsedPrinciples.argtypes = [c_void_p, c_char_p, c_char_p, c_longlong, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
         ret_code = self._lib_handle.G2Audit_getUsedPrinciples(sessionHandle,_fromDataSource,_toDataSource,_matchLevel,
@@ -372,7 +397,6 @@ class G2Audit(object):
         if reportHandle == None:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
-        resize_return_buffer(None,65535)
         self._lib_handle.G2Audit_fetchNext.argtypes = [c_void_p, c_char_p, c_size_t]
         rowData = self._lib_handle.G2Audit_fetchNext(c_void_p(reportHandle),tls_var.buf,sizeof(tls_var.buf))
 

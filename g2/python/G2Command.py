@@ -751,7 +751,7 @@ class G2CmdShell(cmd.Cmd, object):
         try:
             configID = bytearray() 
             self.g2_configmgr_module.getDefaultConfigID(configID)
-            print('{}'.format(configID.decode()))
+            printWithNewLine('Default Config ID: \'%s\'' % (configID.decode()))
         except G2Exception.G2Exception as err:
             print(err)
 
@@ -763,7 +763,7 @@ class G2CmdShell(cmd.Cmd, object):
             print(self.do_setDefaultConfigID.__doc__)
             return
         try:
-            self.g2_configmgr_module.setDefaultConfigID(args.configID)
+            self.g2_configmgr_module.setDefaultConfigID(str(args.configID).encode())
             printWithNewLine('Default config set')
         except G2Exception.G2Exception as err:
             print(err)

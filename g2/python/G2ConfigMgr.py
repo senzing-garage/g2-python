@@ -143,7 +143,7 @@ class G2ConfigMgr(object):
         #Add the bytes to the response bytearray from calling function
         response += tls_var.buf.value
 
-        #Return the RC 
+        #Return the RC
         return ret_code
 
     def getConfigList(self,response):
@@ -168,7 +168,7 @@ class G2ConfigMgr(object):
         #Add the bytes to the response bytearray from calling function
         response += tls_var.buf.value
 
-        #Return the RC 
+        #Return the RC
         return ret_code
 
     def setDefaultConfigID(self,configID):
@@ -176,7 +176,7 @@ class G2ConfigMgr(object):
         """
         self._lib_handle.G2ConfigMgr_setDefaultConfigID.restype = c_int
         self._lib_handle.G2ConfigMgr_setDefaultConfigID.argtypes = [c_longlong]
-        ret_code = self._lib_handle.G2ConfigMgr_setDefaultConfigID(configID)
+        ret_code = self._lib_handle.G2ConfigMgr_setDefaultConfigID(int(configID.decode()))
         if ret_code == -2:
             self._lib_handle.G2ConfigMgr_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
@@ -199,7 +199,8 @@ class G2ConfigMgr(object):
             raise TranslateG2ModuleException(tls_var.buf.value)
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2ConfigMgr has not been succesfully initialized')
-        configID += (str(cID.value).encode())
+        if cID.value:
+            configID += (str(cID.value).encode())
         return ret_code
 
 

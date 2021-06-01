@@ -348,6 +348,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - See [Senzing API Version History](https://senzing.com/releases/)
 - Packaged in `senzingapi-1.11.0-19246.x86_64.rpm`
 
+## [1.10.5] - 2019-11-06
+
+### Changed in 1.10.5
+
 ## [1.10.4] - 2019-10-22
 
 ### Changed in 1.10.4

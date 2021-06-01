@@ -19,7 +19,7 @@ SUBMODULES=(
     "g2export;1.7.0;G2Export.py"
     "g2hasher;1.2.0;G2Hasher.py"
     "g2iniparams;1.0.0;G2IniParams.py"
-    "g2loader;1.9.0;G2Loader.py"
+    "g2loader;1.9.1;G2Loader.py"
     "g2module;1.8.0;G2Module.ini"
     "g2paths;1.1.0;G2Paths.py"
     "g2product;1.3.0;G2Product.py"

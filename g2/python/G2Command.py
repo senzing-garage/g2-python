@@ -18,6 +18,7 @@ import shlex
 import argparse
 import os
 import csv
+import inspect
 
 class G2CmdShell(cmd.Cmd, object):
 
@@ -44,6 +45,10 @@ class G2CmdShell(cmd.Cmd, object):
       
         jsonOnly_parser = subparsers.add_parser('jsonOnly', usage=argparse.SUPPRESS)
         jsonOnly_parser.add_argument('jsonData')
+        
+        jsonWithInfo_parser = subparsers.add_parser('jsonWithInfo', usage=argparse.SUPPRESS)
+        jsonWithInfo_parser.add_argument('jsonData')
+        jsonWithInfo_parser.add_argument('-f', '--flags', required=False, type=int)
 
         addConfigFile_parser = subparsers.add_parser('addConfigFile', usage=argparse.SUPPRESS)
         addConfigFile_parser.add_argument('configJsonFile')
@@ -97,10 +102,23 @@ class G2CmdShell(cmd.Cmd, object):
         recordModify_parser.add_argument('jsonData')
         recordModify_parser.add_argument('-l', '--loadID', required=False)
 
+        recordModify_parser = subparsers.add_parser('recordModifyWithInfo', usage=argparse.SUPPRESS)
+        recordModify_parser.add_argument('dataSourceCode')
+        recordModify_parser.add_argument('recordID')
+        recordModify_parser.add_argument('jsonData')
+        recordModify_parser.add_argument('-l', '--loadID', required=False)
+        recordModify_parser.add_argument('-f', '--flags', required=False, type=int)
+
         recordDelete_parser = subparsers.add_parser('recordDelete', usage=argparse.SUPPRESS)
         recordDelete_parser.add_argument('dataSourceCode')
         recordDelete_parser.add_argument('recordID')
         recordDelete_parser.add_argument('-l', '--loadID', required=False)
+
+        recordDeleteWithInfo_parser = subparsers.add_parser('recordDeleteWithInfo', usage=argparse.SUPPRESS)
+        recordDeleteWithInfo_parser.add_argument('dataSourceCode')
+        recordDeleteWithInfo_parser.add_argument('recordID')
+        recordDeleteWithInfo_parser.add_argument('-l', '--loadID', required=False)
+        recordDeleteWithInfo_parser.add_argument('-f', '--flags', required=False, type=int)
 
         getEntityByEntityID_parser = subparsers.add_parser('getEntityByEntityID', usage=argparse.SUPPRESS)
         getEntityByEntityID_parser.add_argument('entityID', type=int)
@@ -201,10 +219,19 @@ class G2CmdShell(cmd.Cmd, object):
         reevaluateRecord_parser.add_argument('dataSourceCode')
         reevaluateRecord_parser.add_argument('recordID')
         reevaluateRecord_parser.add_argument('flags', type=int)
+        
+        reevaluateRecordWithInfo_parser = subparsers.add_parser('reevaluateRecordWithInfo', usage=argparse.SUPPRESS)
+        reevaluateRecordWithInfo_parser.add_argument('dataSourceCode')
+        reevaluateRecordWithInfo_parser.add_argument('recordID')
+        reevaluateRecordWithInfo_parser.add_argument('-f', '--flags', required=False, type=int)
 
         reevaluateEntity_parser = subparsers.add_parser('reevaluateEntity', usage=argparse.SUPPRESS)
         reevaluateEntity_parser.add_argument('entityID', type=int)
         reevaluateEntity_parser.add_argument('flags', type=int)
+        
+        reevaluateEntityWithInfo_parser = subparsers.add_parser('reevaluateEntityWithInfo', usage=argparse.SUPPRESS)
+        reevaluateEntityWithInfo_parser.add_argument('entityID', type=int)
+        reevaluateEntityWithInfo_parser.add_argument('-f', '--flags', required=False, type=int)
 
         getEntityByRecordIDV2_parser = subparsers.add_parser('getEntityByRecordIDV2', usage=argparse.SUPPRESS)
         getEntityByRecordIDV2_parser.add_argument('dataSourceCode')
@@ -276,24 +303,31 @@ class G2CmdShell(cmd.Cmd, object):
         print("Initializing engine...")
 
         self.g2_module.initV2('pyG2E', iniParams, False)
-        self.g2_hasher_module.initV2('pyG2Hasher', iniParams, False)
         self.g2_audit_module.initV2('pyG2Audit', iniParams, False)
         self.g2_product_module.initV2('pyG2Product', iniParams, False)
         self.g2_diagnostic_module.initV2('pyG2Diagnostic', iniParams, False)
         self.g2_config_module.initV2('pyG2Config', iniParams, False)
         self.g2_configmgr_module.initV2('pyG2ConfigMgr', iniParams, False)
+
+        exportedConfig = bytearray() 
+        exportedConfigID = bytearray() 
+        self.g2_module.exportConfig(exportedConfig,exportedConfigID)
+        self.g2_hasher_module.initWithConfigV2('pyG2Hasher', iniParams, exportedConfig, False)
+
         self.initialized = True
         print('\nWelcome to the G2 shell. Type help or ? to list commands.\n')
 
     def postloop(self):
         if (self.initialized):
             self.g2_module.destroy()
-            self.g2_hasher_module.destroy()
             self.g2_audit_module.destroy()
             self.g2_product_module.destroy()
             self.g2_diagnostic_module.destroy()
             self.g2_config_module.destroy()
             self.g2_configmgr_module.destroy()
+
+            self.g2_hasher_module.destroy()
+
         self.initialized = False
 
     # ----- terminal operations -----
@@ -501,6 +535,27 @@ class G2CmdShell(cmd.Cmd, object):
         try: 
             self.g2_module.process(args.jsonData)
             printWithNewLine('')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_processWithInfo(self, arg):
+        '\nProcess a generic record with returned info:  process <json_data> [-f flags]\n'
+        try:
+            args = self.parser.parse_args(['jsonWithInfo'] + parse(arg))
+        except SystemExit:
+            print(self.do_processWithInfo.__doc__)
+            return
+        try:
+            flags = inspect.signature(self.g2_module.processWithInfo).parameters['flags'].default
+            if args.flags:
+                flags = int(args.flags)
+
+            response = bytearray()    
+            self.g2_module.processWithInfo(args.jsonData,response,flags=flags)
+            if response:
+                print('{}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
         except G2Exception.G2Exception as err:
             print(err)
 
@@ -786,6 +841,30 @@ class G2CmdShell(cmd.Cmd, object):
                 printWithNewLine('Error encountered!  Return code = %s' % (returnCode))
         except G2Exception.G2Exception as err:
             print(err)
+    
+    def do_addRecordWithInfo(self, arg):
+        '\nAdd record with returned info:  addRecordWithInfo <dataSourceCode> <recordID> <jsonData> [-l <loadID> -f <flags>]\n'
+        try:
+            args = self.parser.parse_args(['recordModifyWithInfo'] + parse(arg))
+        except SystemExit:
+            print(self.do_addRecordWithInfo.__doc__)
+            return
+        try:
+            loadID = inspect.signature(self.g2_module.addRecordWithInfo).parameters['loadId'].default
+            flags = inspect.signature(self.g2_module.addRecordWithInfo).parameters['flags'].default
+            if args.loadID:
+                loadID = args.loadID
+            if args.flags:
+                flags = int(args.flags)
+
+            response = bytearray() 
+            returnCode = self.g2_module.addRecordWithInfo(args.dataSourceCode, args.recordID, args.jsonData,response,loadId=loadID,flags=flags)
+            if response:
+                print('{}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
+        except G2Exception.G2Exception as err:
+            print(err)
 
     def do_reevaluateRecord(self, arg):
         '\n Reevaluate record:  reevaluateRecord <dataSourceCode> <recordID> <flags>\n'
@@ -802,6 +881,32 @@ class G2CmdShell(cmd.Cmd, object):
                 printWithNewLine('Error encountered!  Return code = %s' % (returnCode))
         except G2Exception.G2Exception as err:
             print(err)
+    
+    def do_reevaluateRecordWithInfo(self, arg):
+        '\n Reevaluate record with returned info:  reevaluateRecordWithInfo <dataSourceCode> <recordID> [-f flags]\n'
+        try:
+            args = self.parser.parse_args(['reevaluateRecordWithInfo'] + parse(arg))
+        except SystemExit:
+            print(self.do_reevaluateRecordWithInfo.__doc__)
+            return
+        try:
+            flags = inspect.signature(self.g2_module.reevaluateRecordWithInfo).parameters['flags'].default
+            if args.flags:
+                flags = int(args.flags)
+
+            response = bytearray() 
+            returnCode = self.g2_module.reevaluateRecordWithInfo(args.dataSourceCode,args.recordID,response,flags=flags)            
+            if response:
+                print('{}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
+
+            if returnCode == 0:
+                printWithNewLine('Record reevaluated.')
+            else:
+                printWithNewLine('Error encountered!  Return code = %s' % (returnCode))
+        except G2Exception.G2Exception as err:
+            print(err)
 
     def do_reevaluateEntity(self, arg):
         '\n Reevaluate entity:  reevaluateEntity <entityID> <flags>\n'
@@ -812,6 +917,32 @@ class G2CmdShell(cmd.Cmd, object):
             return
         try: 
             returnCode = self.g2_module.reevaluateEntity(args.entityID, args.flags)
+            if returnCode == 0:
+                printWithNewLine('Entity reevaluated.')
+            else:
+                printWithNewLine('Error encountered!  Return code = %s' % (returnCode))
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_reevaluateEntityWithInfo(self, arg):
+        '\n Reevaluate entity with returned info:  reevaluateEntityWithInfo <entityID> [-f flags]\n'
+        try:
+            args = self.parser.parse_args(['reevaluateEntityWithInfo'] + parse(arg))
+        except SystemExit:
+            print(self.do_reevaluateEntityWithInfo.__doc__)
+            return
+        try:
+            flags = inspect.signature(self.g2_module.reevaluateEntityWithInfo).parameters['flags'].default
+            if args.flags:
+                flags = int(args.flags)
+
+            response = bytearray()
+            returnCode = self.g2_module.reevaluateEntityWithInfo(args.entityID,response,flags=flags)            
+            if response:
+                print('{}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
+
             if returnCode == 0:
                 printWithNewLine('Entity reevaluated.')
             else:
@@ -838,6 +969,35 @@ class G2CmdShell(cmd.Cmd, object):
         except G2Exception.G2Exception as err:
             print(err)
 
+    def do_replaceRecordWithInfo(self, arg):
+        '\nReplace record with returned info:  replaceRecordWithInfo <dataSourceCode> <recordID> <jsonData> [-l loadID -f flags]\n'
+        try:
+            args = self.parser.parse_args(['recordModifyWithInfo'] + parse(arg))
+        except SystemExit:
+            print(self.do_replaceRecordWithInfo.__doc__)
+            return
+        try:
+            loadID = inspect.signature(self.g2_module.replaceRecordWithInfo).parameters['loadId'].default
+            flags = inspect.signature(self.g2_module.replaceRecordWithInfo).parameters['flags'].default
+            if args.loadID:
+                loadID = args.loadID
+            if args.flags:
+                flags = int(args.flags)
+
+            response = bytearray()
+            returnCode = self.g2_module.replaceRecordWithInfo(args.dataSourceCode,args.recordID,args.jsonData,response,loadId=loadID,flags=flags)
+            
+            if response:
+                print('{}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
+
+            if returnCode == 0:
+                printWithNewLine('Record replaced.')
+            else:
+                printWithNewLine('Error encountered!  Return code = %s' % (returnCode))
+        except G2Exception.G2Exception as err:
+            print(err)
 
     def do_deleteRecord(self, arg):
         '\nDelete record:  deleteRecord <dataSourceCode> <recordID> [-l loadID]\n' 
@@ -858,6 +1018,35 @@ class G2CmdShell(cmd.Cmd, object):
         except G2Exception.G2Exception as err:
             print(err)
 
+    def do_deleteRecordWithInfo(self, arg):
+        '\nDelete record with returned info:  deleteRecord <dataSourceCode> <recordID> [-l loadID -f flags]\n' 
+        try:
+            args = self.parser.parse_args(['recordDeleteWithInfo'] + parse(arg))
+        except SystemExit:
+            print(self.do_deleteRecordWithInfo.__doc__)
+            return
+        try:
+            loadID = inspect.signature(self.g2_module.deleteRecordWithInfo).parameters['loadId'].default
+            flags = inspect.signature(self.g2_module.deleteRecordWithInfo).parameters['flags'].default
+            if args.loadID:
+                loadID = args.loadID
+            if args.flags:
+                flags = int(args.flags)
+                
+            response = bytearray()
+            returnCode = self.g2_module.deleteRecordWithInfo(args.dataSourceCode,args.recordID,response,loadId=args.loadID,flags=flags)
+
+            if response:
+                print('{}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
+
+            if returnCode == 0:
+                printWithNewLine('Record deleted.')
+            else:
+                printWithNewLine('Error encountered!  Return code = %s' % (returnCode))
+        except G2Exception.G2Exception as err:
+            print(err)
 
     def do_searchByAttributes(self, arg):
         '\nSearch by attributes:  searchByAttributes <jsonData>\n'

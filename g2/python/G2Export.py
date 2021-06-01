@@ -400,7 +400,7 @@ if __name__ == '__main__':
         optParser.add_option('-o', '--output-file', dest='outputFileName', default=outputFileName, help='the name of a file to write the output to')
         optParser.add_option('-f', '--outputFilter', dest='outputFilter', type='int', default=0, help='0=All; 1=Resolved Entities only; 2=add possible matches; 3=add relationships; 4=add name-only (internal); 5=add disclosed relationships')
         optParser.add_option('-F', '--outputFormat', dest='outputFormat', default=outputFormat, help='json or csv style')
-        optParser.add_option('-x', '--extended', dest='extended', action="store_true", help='Should return extended details')
+        optParser.add_option('-x', '--extended', dest='extended', action="store_true", help='Returns extended details - RESOLVED_ENTITY_NAME, JSON_DATA')
         (options, args) = optParser.parse_args()
         if options.outputFileName:
             outputFileName = options.outputFileName

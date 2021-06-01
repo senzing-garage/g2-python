@@ -124,7 +124,7 @@ class G2Database:
                 cursorData['OBJECT'] = exec_cursor
                 cursorData['ROWS_AFFECTED'] = exec_cursor.rowcount
                 if exec_cursor.description:
-                    cursorData['COLUMN_HEADERS'] = [columnData[0] for columnData in exec_cursor.description]
+                    cursorData['COLUMN_HEADERS'] = [columnData[0].upper() for columnData in exec_cursor.description]
         return cursorData
 
     #----------------------------------------

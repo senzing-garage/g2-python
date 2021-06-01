@@ -4182,7 +4182,7 @@
                 "DISPLAY_DELIM": null,
                 "DERIVED": "Yes",
                 "FTYPE_ID": 58,
-                "FELEM_ID": 110,
+                "FELEM_ID": 115,
                 "DISPLAY_LEVEL": 1
             },
             {
@@ -4190,7 +4190,23 @@
                 "DISPLAY_DELIM": null,
                 "DERIVED": "Yes",
                 "FTYPE_ID": 58,
+                "FELEM_ID": 110,
+                "DISPLAY_LEVEL": 1
+            },
+            {
+                "EXEC_ORDER": 3,
+                "DISPLAY_DELIM": null,
+                "DERIVED": "Yes",
+                "FTYPE_ID": 58,
                 "FELEM_ID": 111,
+                "DISPLAY_LEVEL": 1
+            },
+            {
+                "EXEC_ORDER": 4,
+                "DISPLAY_DELIM": null,
+                "DERIVED": "Yes",
+                "FTYPE_ID": 58,
+                "FELEM_ID": 114,
                 "DISPLAY_LEVEL": 1
             },
             {
@@ -5634,11 +5650,11 @@
         ],
         "CONFIG_BASE_VERSION": {
             "COMPATIBILITY_VERSION": {
-                "CONFIG_VERSION": "3"
+                "CONFIG_VERSION": "3.1"
             },
-            "BUILD_DATE": "2019-08-17",
-            "VERSION": "1.10.19229",
-            "BUILD_NUMBER": "2019_08_17__02_00"
+            "BUILD_DATE": "2019-10-22",
+            "VERSION": "1.10.19295",
+            "BUILD_NUMBER": "2019_10_22__02_00"
         },
         "CFG_DFUNC": [
             {
@@ -6403,6 +6419,20 @@
                 "DATA_TYPE": "string",
                 "TOKENIZE": "No",
                 "FELEM_DESC": "Month and Day Hash"
+            },
+            {
+                "FELEM_ID": 114,
+                "FELEM_CODE": "AMBIGUOUS_SUPRESSED_LIBFEAT",
+                "DATA_TYPE": "number",
+                "TOKENIZE": "No",
+                "FELEM_DESC": "Ambiguous Suppressed Library Feature ID"
+            },
+            {
+                "FELEM_ID": 115,
+                "FELEM_CODE": "AMBIGUOUS_TYPE",
+                "DATA_TYPE": "number",
+                "TOKENIZE": "No",
+                "FELEM_DESC": "Ambiguous Type"
             }
         ],
         "CFG_ETYPE": [
@@ -6653,11 +6683,11 @@
                 "REF_SCORE": 6,
                 "RELATE": "No",
                 "ERRULE_DESC": "SAME_F1+NO_CONF",
-                "DISQ_ERFRAG_CODE": null,
+                "DISQ_ERFRAG_CODE": "NAME_CONFL",
                 "ERRULE_ID": 170,
                 "ERRULE_CODE": "SF1_NCONF",
                 "ERRULE_TIER": 60,
-                "QUAL_ERFRAG_CODE": "SF1_NCONF",
+                "QUAL_ERFRAG_CODE": "SAME_F1",
                 "RTYPE_ID": 1
             },
             {
@@ -7917,6 +7947,13 @@
                 "ERFRAG_ID": 71,
                 "ERFRAG_DESC": "NO_NAME_CONF",
                 "ERFRAG_SOURCE": "./FRAGMENT[./NO_NAME=1 and sum(./DIFF_EXCL)=0]",
+                "ERFRAG_DEPENDS": "17,55"
+            },
+            {
+                "ERFRAG_CODE": "NAME_CONFL",
+                "ERFRAG_ID": 72,
+                "ERFRAG_DESC": "NAME_CONFL",
+                "ERFRAG_SOURCE": "./FRAGMENT[./NO_NAME=0 or sum(./DIFF_EXCL)>0]",
                 "ERFRAG_DEPENDS": "17,55"
             },
             {

@@ -1,3 +1,5 @@
+#! /usr/bin/env python3
+
 #--python imports
 import optparse
 try: import configparser
@@ -10,10 +12,18 @@ import os
 import json
 import csv
 import time
+import G2Paths
+from datetime import datetime, timedelta
+
+#--extended format (with lens_id, errule code, etc) is hard coded to false for now
+extendedFormat = False
+
 
 #--project classes
-from G2Module import G2Module
+from G2Engine import G2Engine
 from G2Exception import G2ModuleException
+from G2IniParams import G2IniParams
+from G2Health import G2Health
 
 #---------------------------------------------------------------------
 #-- g2 export
@@ -22,11 +32,17 @@ from G2Exception import G2ModuleException
 #---------------------------------------
 def exportEntityResume(appError):
 
-    if outputFilter == 1:
+    if outputFilter == 0:
+        outputFilterDisplay = 'All'
+    elif outputFilter == 1:
         outputFilterDisplay = 'Resolved entities only'
     elif outputFilter == 2:
         outputFilterDisplay = 'Including possible matches'
-    elif outputFilter >= 3:
+    elif outputFilter == 3:
+        outputFilterDisplay = 'Including relationships'
+    elif outputFilter == 4:
+        outputFilterDisplay = 'Including relationships'
+    elif outputFilter >= 5:
         outputFilterDisplay = 'Including relationships'
     print('')    
     print('Writing to %s ... (%s)' % (outputFileName, outputFilterDisplay))
@@ -40,16 +56,64 @@ def exportEntityResume(appError):
 
     # initialize G2
     try:
-        g2_module = G2Module('pyG2Export', g2iniPath, False)
-        g2_module.init()
+        iniParamCreator = G2IniParams()
+        iniParams = iniParamCreator.getJsonINIParams(g2iniPath)
+
+        g2_module = G2Engine()
+        g2_module.initV2('pyG2Export', iniParams, False)
     except G2ModuleException as ex:
         print('ERROR: could not start the G2 module at ' + g2iniPath)
         print(ex)
         return 1
 
+    #--determine the output flags
+    exportFlags = 0
+    if outputFilter == 1:
+        exportFlags = g2_module.G2_EXPORT_INCLUDE_RESOLVED | g2_module.G2_ENTITY_INCLUDE_NO_RELATIONS
+    elif outputFilter == 2:
+        exportFlags = g2_module.G2_EXPORT_INCLUDE_RESOLVED | g2_module.G2_EXPORT_INCLUDE_POSSIBLY_SAME | g2_module.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS
+    elif outputFilter == 3:
+        exportFlags = g2_module.G2_EXPORT_INCLUDE_RESOLVED | g2_module.G2_EXPORT_INCLUDE_POSSIBLY_SAME | g2_module.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | g2_module.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS | g2_module.G2_ENTITY_INCLUDE_POSSIBLY_RELATED_RELATIONS
+    elif outputFilter == 4:
+        exportFlags = g2_module.G2_EXPORT_INCLUDE_RESOLVED | g2_module.G2_EXPORT_INCLUDE_POSSIBLY_SAME | g2_module.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | g2_module.G2_EXPORT_INCLUDE_NAME_ONLY | g2_module.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS | g2_module.G2_ENTITY_INCLUDE_POSSIBLY_RELATED_RELATIONS | g2_module.G2_ENTITY_INCLUDE_NAME_ONLY_RELATIONS
+    elif outputFilter >= 5:
+        exportFlags = g2_module.G2_EXPORT_INCLUDE_RESOLVED | g2_module.G2_EXPORT_INCLUDE_POSSIBLY_SAME | g2_module.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | g2_module.G2_EXPORT_INCLUDE_NAME_ONLY | g2_module.G2_EXPORT_INCLUDE_DISCLOSED | g2_module.G2_ENTITY_INCLUDE_ALL_RELATIONS
+    else:
+        exportFlags = g2_module.G2_EXPORT_INCLUDE_ALL_ENTITIES
+
+    if not extended:
+      exportFlags |= g2_module.G2_ENTITY_MINIMAL_FORMAT
+
+    #--but use these headers as this export includes computed column: resolved name
+    csvFields = []
+    csvFields.append('RESOLVED_ENTITY_ID')
+    if extended: csvFields.append('RESOLVED_ENTITY_NAME')
+    csvFields.append('RELATED_ENTITY_ID')
+    csvFields.append('MATCH_LEVEL')
+    csvFields.append('MATCH_KEY')
+    csvFields.append('DATA_SOURCE')
+    csvFields.append('RECORD_ID')
+    if extended: csvFields.append('JSON_DATA')
+    csvFields.append('LENS_CODE')
+    if extendedFormat: #--hard coded to false for now
+        csvFields.append('REF_SCORE')
+        csvFields.append('ENTITY_TYPE')
+        csvFields.append('ERRULE_CODE')
+
     #--initialize the g2module export
     print('Executing query ...')
-    try: exportHandle = g2_module.getExportHandle(outputFormat, outputFilter)
+    try:
+        if outputFormat == "CSV":
+            if csvFields and isinstance(csvFields, list):
+                csvFields = ",".join(csvFields)
+            exportHandle = g2_module.exportCSVEntityReportV2(csvFields,exportFlags)
+        else:
+            exportHandle = g2_module.exportJSONEntityReport(exportFlags)
+        if not exportHandle:
+            print('ERROR: could not initialize export')
+            print(g2_module.getLastException())
+            return 1
+
     except G2ModuleException as ex:
         print('ERROR: could not initialize export')
         print(ex)
@@ -71,10 +135,13 @@ def jsonExport(g2_module, exportHandle, outputFileHandle):
 
     appError = 0
     rowCount = 0
-    row = g2_module.fetchExportRecord(exportHandle)
+    batchStartTime = time.time()
+    rowResponse = bytearray()
+    rowData = g2_module.fetchNext(exportHandle,rowResponse)
+    row = rowResponse.decode()
     while row:
 
-        try: outputFileHandle.write(row + '\n')
+        try: outputFileHandle.write(row)
         except IOError as err:
             print('ERROR: could not write to json file')
             print(err)
@@ -83,9 +150,11 @@ def jsonExport(g2_module, exportHandle, outputFileHandle):
 
         rowCount += 1
         if rowCount % sqlCommitSize == 0:
-            print(' %s records written' % rowCount)
+            print('  %s entities processed at %s (%s per second)' % (rowCount, datetime.now().strftime('%I:%M%p').lower(), int(float(sqlCommitSize) / (float(time.time() - batchStartTime if time.time() - batchStartTime != 0 else 1)))))
+            batchStartTime = time.time()
 
-        row = g2_module.fetchExportRecord(exportHandle)
+        rowData = g2_module.fetchNext(exportHandle,rowResponse)
+        row = rowResponse.decode()
 
     if not appError:
         print(' %s records written, complete!' % rowCount)
@@ -98,35 +167,22 @@ def jsonExport(g2_module, exportHandle, outputFileHandle):
 #---------------------------------------
 def csvExport(g2_module, exportHandle, outputFileHandle):
 
-    #--extended format (with lens_id, errule code, etc) is hard coded to false for now
-    extendedFormat = False
+    #--first row is header for CSV
+    rowResponse = bytearray()
+    rowData = g2_module.fetchNext(exportHandle,rowResponse)
+    exportColumnHeaders = rowResponse.decode()
+    if exportColumnHeaders[-1] == '\n':
+        exportColumnHeaders = exportColumnHeaders[0:-1]
+    exportColumnHeaders = exportColumnHeaders.split(',')
 
-    #--wite rows with csv module for proper quoting
-    try: outputFileWriter = csv.writer(outputFileHandle, dialect=csv.excel, quoting=csv.QUOTE_ALL)
+    #--write rows with csv module for proper quoting
+    try: outputFileWriter = csv.DictWriter(outputFileHandle, exportColumnHeaders, dialect=csv.excel, quoting=csv.QUOTE_ALL)
     except csv.Error as err:
         print('ERROR: Could not open %s for writing' % outputFilePath)
         print(err)
         return 1
     
-    #--first row is header for CSV
-    exportColumnHeaders = g2_module.fetchExportRecord(exportHandle).split(',')
-
-    #--but use these headers as this export includes computed column: resolved name
-    csvFields = []
-    csvFields.append('RESOLVED_ENTITY_ID')
-    csvFields.append('RESOLVED_NAME')
-    csvFields.append('RELATED_ENTITY_ID')
-    csvFields.append('MATCH_LEVEL')
-    csvFields.append('MATCH_KEY')
-    csvFields.append('DATA_SOURCE')
-    csvFields.append('RECORD_ID')
-    csvFields.append('JSON_DATA')
-    if extendedFormat: #--hard coded to false for now
-        csvFields.append('LENS_ID')
-        csvFields.append('REF_SCORE')
-        csvFields.append('ENTITY_TYPE')
-        csvFields.append('ERRULE_CODE')
-    try: outputFileWriter.writerow(csvFields)
+    try: outputFileWriter.writeheader()
     except csv.Error as err:
         print('ERROR: writing to CSV file')
         print(err)
@@ -138,16 +194,30 @@ def csvExport(g2_module, exportHandle, outputFileHandle):
     badCnt2 = 0
     appError = 0
     rowCount = 0
-    rowData = g2_module.fetchCsvExportRecord(exportHandle, exportColumnHeaders)
+    entityCnt = 0
+    totEntityCnt = 0
+    rowDataVal = g2_module.fetchNext(exportHandle,rowResponse)
+    rowData = rowResponse.decode()
+    if rowData:
+        csvRecord = next(csv.DictReader([rowData], fieldnames=exportColumnHeaders))
+    else:
+        csvRecord = None
     lineCount += 1
+    batchStartTime = time.time()
     while rowData:
 
         #--bypass bad rows
-        if 'LENS_ID' not in rowData:
+        if 'LENS_CODE' not in csvRecord:
             print('ERROR on line %s' % lineCount)           
             print(rowData)
+            print(csvRecord)
             badCnt1 += 1
-            rowData = g2_module.fetchCsvExportRecord(exportHandle, exportColumnHeaders)
+            rowDataVal = g2_module.fetchNext(exportHandle,rowResponse)
+            rowData = rowResponse.decode()
+            if rowData:
+                csvRecord = next(csv.DictReader([rowData], fieldnames=exportColumnHeaders))
+            else:
+                csvRecord = None
             lineCount += 1
             continue
 
@@ -155,47 +225,44 @@ def csvExport(g2_module, exportHandle, outputFileHandle):
         rowList = []
         resolvedRecordID = None
         resolvedName = None
-        resolvedID = rowData['RESOLVED_ENTITY_ID']
-        lensID = rowData['LENS_ID']
-        while rowData and rowData['RESOLVED_ENTITY_ID'] == resolvedID and rowData['LENS_ID'] == lensID:
+        resolvedID = csvRecord['RESOLVED_ENTITY_ID']
+        lensID = csvRecord['LENS_CODE']
+        while csvRecord and csvRecord['RESOLVED_ENTITY_ID'] == resolvedID and csvRecord['LENS_CODE'] == lensID:
 
             #--bypass bad rows
-            if 'RECORD_ID' not in rowData:
+            if 'RECORD_ID' not in csvRecord:
                 print('ERROR on line %s' % lineCount)           
                 print(rowData)
+                print(csvRecord)
                 badCnt2 += 1
-                rowData = g2_module.fetchCsvExportRecord(exportHandle, exportColumnHeaders)
+                rowDataVal = g2_module.fetchNext(exportHandle,rowResponse)
+                rowData = rowResponse.decode()
+                if rowData:
+                    csvRecord = next(csv.DictReader([rowData], fieldnames=exportColumnHeaders))
+                else:
+                    csvRecord = None
                 lineCount += 1
                 continue
 
-            if not resolvedRecordID or (rowData['RECORD_ID'] < resolvedRecordID and rowData['MATCH_LEVEL'] == 0):
-                resolvedName = rowData['ENTITY_NAME']
-                resolvedRecordID = rowData['RECORD_ID']
+            if not resolvedRecordID or (csvRecord['RECORD_ID'] < resolvedRecordID and csvRecord['MATCH_LEVEL'] == 0):
+                if extended: resolvedName = csvRecord['RESOLVED_ENTITY_NAME']
+                resolvedRecordID = csvRecord['RECORD_ID']
 
-            rowList.append(rowData)
-            rowData = g2_module.fetchCsvExportRecord(exportHandle, exportColumnHeaders)
+            rowList.append(csvRecord)
+            rowDataVal = g2_module.fetchNext(exportHandle,rowResponse)
+            rowData = rowResponse.decode()
+            if rowData:
+                csvRecord = next(csv.DictReader([rowData], fieldnames=exportColumnHeaders))
+            else:
+                csvRecord = None
             lineCount += 1
 
+        entityCnt += 1
+        totEntityCnt += 1
         #--write the rows for the entity
         for row in rowList:
-
-            csvFields = []
-            csvFields.append(row['RESOLVED_ENTITY_ID'])
-            csvFields.append(resolvedName)
-            csvFields.append(row['RELATED_ENTITY_ID'])
-            csvFields.append(row['MATCH_LEVEL'])
-            csvFields.append(row['MATCH_KEY'])
-            csvFields.append(row['DATA_SOURCE'])
-            csvFields.append(row['RECORD_ID'])
-            csvFields.append(row['JSON_DATA'])
-            if extendedFormat:
-                csvFields.append(row['LENS_ID'])
-                csvFields.append(row['ENTITY_TYPE'])
-                csvFields.append(row['REF_SCORE'])
-                csvFields.append(row['ERRULE_CODE'])
-
             #--write to output file
-            try: outputFileWriter.writerow(csvFields)
+            try: outputFileWriter.writerow(row)
             except csv.Error as err:
                 print('ERROR: writing to CSV file')
                 print(err)
@@ -203,8 +270,12 @@ def csvExport(g2_module, exportHandle, outputFileHandle):
                 break
 
             rowCount += 1
-            if rowCount % sqlCommitSize == 0:
-                print(' %s records written' % rowCount)
+
+        if totEntityCnt % sqlCommitSize == 0:
+                print('  %s entities processed at %s (%s per second), %s rows per second' % (totEntityCnt, datetime.now().strftime('%I:%M%p').lower(), int(float(sqlCommitSize) / (float(time.time() - batchStartTime if time.time() - batchStartTime != 0 else 1))),int(float(rowCount) / (float(time.time() - batchStartTime if time.time() - batchStartTime != 0 else 1)))))
+                batchStartTime = time.time()
+                entityCnt = 0
+                rowCount = 0
 
         #--shut down if errors hit
         if appError:
@@ -286,15 +357,9 @@ def parseUri(uriString):
 #----------------------------------------
 def fileCreate(fileName):
     ''' open json for writing '''
-    #--remove file if exists
-    if os.path.exists(fileName):
-        try: os.remove(fileName)
-        except:
-            print('ERROR: could not remove %s' % (fileName))
-            return None
     
-    #--open file for append
-    try: fileHandle = open(fileName, 'a')
+    #--open file for writing, truncating if it exists
+    try: fileHandle = open(fileName, 'w')
     except:
         print('ERROR: could not open %s' % (fileName))
         return None
@@ -321,32 +386,22 @@ def pause(question='PRESS ENTER TO CONTINUE ...'):
 #----------------------------------------
 if __name__ == '__main__':
 
-    appPath = os.path.dirname(os.path.abspath(sys.argv[0]))
-    iniFileName = appPath + os.path.sep + 'G2Project.ini'
-    if not os.path.exists(iniFileName):
-        print('ERROR: The G2Project.ini file is missing from the application path!')
-        sys.exit(1)
-
-    #--get parameters from ini file
-    iniParser = configparser.ConfigParser()
-    iniParser.read(iniFileName)
-    try: sqlCommitSize = int(iniParser.get('report', 'sqlCommitSize'))
-    except: sqlCommitSize = 1000
-    try: g2iniPath = os.path.expanduser(iniParser.get('g2', 'iniPath'))
-    except: g2iniPath = None
-
     #--defaults
     appError = 0
-    outputFilter = 3
+    outputFilter = 0
     outputFormat = 'csv'
+    extended = False
     outputFileName = 'g2export.csv'
+    iniFileName = ''
 
     #--capture the command line arguments
     if len(sys.argv) > 1:
         optParser = optparse.OptionParser()
+        optParser.add_option('-c', '--iniFile', dest='iniFile', default=iniFileName, help='the name of a G2Project.ini file to use')
         optParser.add_option('-o', '--output-file', dest='outputFileName', default=outputFileName, help='the name of a file to write the output to')
-        optParser.add_option('-f', '--outputFilter', dest='outputFilter', type='int', default=3, help='1=Resolved Entities only; 2=add possible matches; 3=add relationships')
+        optParser.add_option('-f', '--outputFilter', dest='outputFilter', type='int', default=0, help='0=All; 1=Resolved Entities only; 2=add possible matches; 3=add relationships; 4=add name-only (internal); 5=add disclosed relationships')
         optParser.add_option('-F', '--outputFormat', dest='outputFormat', default=outputFormat, help='json or csv style')
+        optParser.add_option('-x', '--extended', dest='extended', action="store_true", help='Returns extended details - RESOLVED_ENTITY_NAME, JSON_DATA')
         (options, args) = optParser.parse_args()
         if options.outputFileName:
             outputFileName = options.outputFileName
@@ -354,6 +409,20 @@ if __name__ == '__main__':
             outputFilter = options.outputFilter
         if options.outputFormat:
             outputFormat = options.outputFormat
+        if options.extended:
+            extended = options.extended
+        if options.iniFile and len(options.iniFile) > 0:
+            iniFileName = os.path.abspath(options.iniFile)
+
+    #--get parameters from ini file
+    if not iniFileName:
+        iniFileName = G2Paths.get_G2Project_ini_path()
+    iniParser = configparser.ConfigParser()
+    iniParser.read(iniFileName)
+    try: sqlCommitSize = int(iniParser.get('report', 'sqlCommitSize'))
+    except: sqlCommitSize = 1000
+    try: g2iniPath = os.path.expanduser(iniParser.get('g2', 'iniPath'))
+    except: g2iniPath = None
 
     #--validations
     if not g2iniPath:
@@ -362,12 +431,12 @@ if __name__ == '__main__':
     if not outputFileName:
         print('ERROR: Output file name must be specified')
         sys.exit(1)
-    if not outputFilter:
-        print('ERROR: Resume filter value must be specified')
+    if outputFilter not in (0,1,2,3,4,5):
+        print('ERROR: Resume filter must be 1, 2, 3, 4 or 5')
         sys.exit(1)
-    if outputFilter not in (1,2,3,4):
-        print('ERROR: Resume filter must be 1, 2, 3 or 4')
-        sys.exit(1)
+
+    g2health = G2Health()
+    g2health.checkIniParams(g2iniPath)
 
     #--adjust from default of csv to json if they did not change it themselves
     outputFormat = outputFormat.upper()
@@ -389,5 +458,4 @@ if __name__ == '__main__':
     print('')
 
     sys.exit(appError)
-
 

@@ -76,3 +76,9 @@
 [submodule "bin/g2setupconfig"]
 	path = bin/g2setupconfig
 	url = https://github.com/Senzing/g2setupconfig.git
+[submodule "g2health"]
+	path = g2health
+	url = https://github.com/Senzing/g2health.git
+[submodule "g2setupconfig"]
+	path = g2setupconfig
+	url = https://github.com/Senzing/g2setupconfig.git

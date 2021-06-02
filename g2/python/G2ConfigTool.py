@@ -124,7 +124,7 @@ class G2CmdShell(cmd.Cmd):
 
         if readline:
             global histfile
-            histFileName = '.' + sys.argv[0].lower().replace('.py','') + '_history'
+            histFileName = '.' + os.path.basename(sys.argv[0].lower().replace('.py','')) + '_history'
             histfile = os.path.join(os.path.expanduser("~"), histFileName)
             if not os.path.isfile(histfile):
                 open(histfile, 'a').close()

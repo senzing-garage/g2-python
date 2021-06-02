@@ -7,9 +7,16 @@ class MyBuffer(threading.local):
   def __init__(self):
     self.buf = create_string_buffer(65535)
     self.bufSize = sizeof(self.buf)
-    #print("Created new Buffer {}".format(self.buf))
+    #print("Created new Buffer {} of type {}".format(self.buf,type(self.buf)))
 
 tls_var = MyBuffer()
+
+class MyBuffer2(threading.local):
+  def __init__(self, g2_engine, size = 65535):
+    self.bufSize = c_size_t(size)
+    g2_engine._lib_handle.G2_malloc.restype = c_void_p
+    self.buf = g2_engine._lib_handle.G2_malloc(self.bufSize)
+    #print("Created new Buffer {} of type {}".format(self.buf,type(self.buf)))
 
 from csv import reader as csvreader
 
@@ -265,6 +272,11 @@ class G2Engine(object):
 
         self._resize_func_def = CFUNCTYPE(c_char_p, c_char_p, c_size_t)
         self._resize_func = self._resize_func_def(resize_return_buffer)
+        self._resize_func_def2 = CFUNCTYPE(c_void_p, c_void_p, c_size_t)
+        self._resize_func2 = self._resize_func_def2(self._lib_handle.G2_realloc)
+
+        self.tls_var2 = MyBuffer2(self)
+        self.info_buf = MyBuffer2(self)
 
     def clearLastException(self):
         """ Clears the last exception
@@ -653,6 +665,7 @@ class G2Engine(object):
         responseSize = c_size_t(tls_var.bufSize)
         self._lib_handle.G2_addRecordWithInfo.argtypes = [c_char_p, c_char_p, c_char_p, c_char_p, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
         ret_code = self._lib_handle.G2_addRecordWithInfo(_dataSourceCode,_recordId,_jsonData,_loadId,flags,pointer(responseBuf),pointer(responseSize),self._resize_func)
+
         if ret_code == -2:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
@@ -1515,6 +1528,39 @@ class G2Engine(object):
         elif ret_code == -1:
             raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
         response += responseBuf.value
+        return ret_code
+
+    def processRedoRecordWithInfo(self, response, info, flags=0):
+        # type: (bytearray) -> int
+        """ Process the next Redo record
+        Args:
+            response: A bytearray for returning the response document; if an error occurred, an error response is stored here.
+            response: A bytearray for returning the info about changed resolved entities
+
+        Return:
+            int: 0 upon success, other for error.  response is empty if there was nothing to process.
+        """
+
+        response[::]=b''
+        info[::]=b''
+        responseBuf = c_char_p(self.tls_var2.buf)
+        infoBuf = c_char_p(self.info_buf.buf)
+
+        self._lib_handle.G2_processRedoRecordWithInfo.restype = c_int
+        self._lib_handle.G2_processRedoRecordWithInfo.argtypes = [c_int,POINTER(c_char_p), POINTER(c_size_t),POINTER(c_char_p), POINTER(c_size_t),self._resize_func_def2]
+        ret_code = self._lib_handle.G2_processRedoRecordWithInfo(flags,
+                                                                 pointer(responseBuf),
+                                                                 pointer(self.tls_var2.bufSize),
+                                                                 pointer(infoBuf),
+                                                                 pointer(self.info_buf.bufSize),
+                                                                 self._resize_func2)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
+        response += responseBuf.value
+        info += infoBuf.value
         return ret_code
 
     def countRedoRecords(self):

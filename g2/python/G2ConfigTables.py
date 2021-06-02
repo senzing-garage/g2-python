@@ -10,21 +10,14 @@ except: pass
 try: import sqlite3
 except: pass
 
-#--project classes
-import G2Exception
-from G2Config import G2Config
-
 #======================
 class G2ConfigTables:
 #======================
 
 
     #----------------------------------------
-    def __init__(self, configFile,g2iniParams,configuredDatasourcesOnly=False):
-        self.configFileName = configFile
-        self.g2iniParams = g2iniParams
-        self.success = True
-        self.configuredDatasourcesOnly = configuredDatasourcesOnly
+    def __init__(self,configJson):
+        self.configJsonDoc = configJson
 
 		
     #----------------------------------------
@@ -34,8 +27,7 @@ class G2ConfigTables:
     #----------------------------------------
     def loadConfig(self, tableName):
         cfgDict = {}
-        with open(self.configFileName) as data_file:
-            cfgDataRoot = json.load(data_file, encoding="utf-8")
+        cfgDataRoot = json.loads(self.configJsonDoc)
         configNode = cfgDataRoot['G2_CONFIG']
         tableNode = configNode[tableName.upper()]
         for rowNode in tableNode:
@@ -70,55 +62,4 @@ class G2ConfigTables:
             else:
             	return None
         return cfgDict
-
-    #----------------------------------------
-    def addDataSource(self, dataSource):
-        ''' adds a data source if does not exist '''
-        returnCode = 0  #--1=inserted, 2=updated
-        g2_config_module = G2Config()
-        g2_config_module.initV2('pyG2AddDataSource', self.g2iniParams, False)
-
-        with open(self.configFileName) as data_file:
-            cfgDataRoot = data_file.read() #.decode('utf8')
-            configHandle = g2_config_module.load(cfgDataRoot)
-            dsrcExists = False
-            dsrcListDocString = bytearray()
-            ret_code = g2_config_module.listDataSources(configHandle,dsrcListDocString)
-            dsrcListDoc = json.loads(dsrcListDocString.decode())
-            dsrcListNode = dsrcListDoc['DSRC_CODE']
-            for dsrcNode in dsrcListNode:
-                if dsrcNode.upper() == dataSource:
-                    dsrcExists = True
-            if dsrcExists == False :
-                if self.configuredDatasourcesOnly == False:
-                    g2_config_module.addDataSource(configHandle,dataSource)
-                    newConfig = bytearray()
-                    ret_code = g2_config_module.save(configHandle,newConfig)
-                    with open(self.configFileName, 'w') as data_file2:
-                        json.dump(json.loads(newConfig.decode()),data_file2, indent=4)
-                    returnCode = 1
-                else:
-                    raise G2Exception.UnconfiguredDataSourceException(dataSource)
-            g2_config_module.close(configHandle)
-            g2_config_module.destroy()
-            del g2_config_module
-        return returnCode
-
-    #----------------------------------------
-    def addEntityType(self, entityType):
-        ''' adds an entity type if does not exist '''
-        # For now, we just add a data source, which includes creating the entity type.
-        return self.addDataSource(entityType)
-
-    #----------------------------------------
-    def verifyEntityTypeExists(self,entityType):
-        etypeExists = False
-        with open(self.configFileName) as data_file:
-            cfgDataRoot = json.load(data_file, encoding="utf-8")
-        configNode = cfgDataRoot['G2_CONFIG']
-        tableNode = configNode['CFG_ETYPE']
-        for rowNode in tableNode:
-            if rowNode['ETYPE_CODE'] == entityType:
-                etypeExists = True
-        return etypeExists
 

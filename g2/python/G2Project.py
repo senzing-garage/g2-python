@@ -826,7 +826,7 @@ if __name__ == "__main__":
         optParser.add_option('-m', '--mappingFile', dest='mappingFileName', default='', help='the name of a g2 attribute mapping file')
         optParser.add_option('-p', '--projectFile', dest='projectFileName', default='', help='the name of a g2 project csv or json file')
         (options, args) = optParser.parse_args()
-        mappingFileName = options.configtFileName
+        mappingFileName = options.mappingFileName
         projectFileName = options.projectFileName
   
     #--create an instance

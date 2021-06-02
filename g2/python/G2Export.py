@@ -23,6 +23,7 @@ extendedFormat = False
 from G2Engine import G2Engine
 from G2Exception import G2ModuleException
 from G2IniParams import G2IniParams
+from G2Health import G2Health
 
 #---------------------------------------------------------------------
 #-- g2 export
@@ -433,6 +434,9 @@ if __name__ == '__main__':
     if outputFilter not in (0,1,2,3,4,5):
         print('ERROR: Resume filter must be 1, 2, 3, 4 or 5')
         sys.exit(1)
+
+    g2health = G2Health()
+    g2health.checkIniParams(g2iniPath)
 
     #--adjust from default of csv to json if they did not change it themselves
     outputFormat = outputFormat.upper()

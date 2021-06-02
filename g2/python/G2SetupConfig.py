@@ -41,7 +41,7 @@ def setupConfig(iniFileName,autoMode):
         shouldContinue = False
         reply = ''
         if autoMode == False:
-            reply = userInput('\nA configuration document already exists in the database.  Do you want to replace it?  ')
+            reply = userInput('\nA configuration document already exists in the database.  Do you want to replace it (yes/no)?  ')
         else:
             reply = os.environ.get("G2SETUPCONFIG_OVERWRITE_CONFIGURATION_DOC")
         if reply in ['y','Y', 'yes', 'YES']:
@@ -62,7 +62,7 @@ def setupConfig(iniFileName,autoMode):
         shouldContinue = False
         reply = ''
         if autoMode == False:
-            reply = userInput('\nMigrating configuration from file to database.  Do you want to continue?  ')
+            reply = userInput('\nMigrating configuration from file to database.  Do you want to continue (yes/no)?  ')
         else:
             reply = os.environ.get("G2SETUPCONFIG_MIGRATE_CONFIG_TO_DATABASE")
         if reply in ['y','Y', 'yes', 'YES']:
@@ -76,7 +76,7 @@ def setupConfig(iniFileName,autoMode):
         shouldContinue = False
         reply = ''
         if autoMode == False:
-            reply = userInput('\nInstalling template configuration to database.  Do you want to continue?  ')
+            reply = userInput('\nInstalling template configuration to database.  Do you want to continue (yes/no)?  ')
         else:
             reply = os.environ.get("G2SETUPCONFIG_INSTALL_TEMPLATE_CONFIG_TO_DATABASE")
         if reply in ['y','Y', 'yes', 'YES']:

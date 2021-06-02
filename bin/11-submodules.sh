@@ -26,6 +26,6 @@ SUBMODULES=(
     "g2product;1.4.0;G2Product.py"
     "g2project;1.7.0;G2Project.py"
     "g2s3;1.0.0;G2S3.py"
-    "g2setupconfig;1.0.0;G2SetupConfig.py"
+    "g2setupconfig;1.0.1;G2SetupConfig.py"
     "g2updateproject;1.1.0;G2UpdateProject.py"
 )

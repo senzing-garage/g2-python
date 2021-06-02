@@ -120,6 +120,24 @@ class G2ConfigMgr(object):
         #input is already a str
         return stringToPrepare
 
+    def prepareIntArgument(self, valueToPrepare):
+        # type: (str) -> int
+        """ Internal processing function """
+        """ This converts many types of values to an integer """
+
+        #handle null string
+        if valueToPrepare == None:
+            return None
+        #if string is unicode, transcode to utf-8 str
+        if type(valueToPrepare) == str:
+            return int(valueToPrepare.encode('utf-8'))
+        #if input is bytearray, assumt utf-8 and convert to str
+        elif type(valueToPrepare) == bytearray:
+            return int(valueToPrepare)
+        elif type(valueToPrepare) == bytes:
+            return int(valueToPrepare)
+        #input is already an int
+        return valueToPrepare
 
     def addConfig(self, configStr, configComments, configID):
         """ registers a new configuration document in the datastore
@@ -143,12 +161,13 @@ class G2ConfigMgr(object):
     def getConfig(self,configID,response):
         """ retrieves the registered configuration document from the datastore
         """
+        configID_ = self.prepareIntArgument(configID)
         response[::]=b''
         responseBuf = c_char_p(addressof(tls_var.buf))
         responseSize = c_size_t(tls_var.bufSize)
         self._lib_handle.G2ConfigMgr_getConfig.restype = c_int
         self._lib_handle.G2ConfigMgr_getConfig.argtypes = [c_longlong, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
-        ret_code = self._lib_handle.G2ConfigMgr_getConfig(configID,
+        ret_code = self._lib_handle.G2ConfigMgr_getConfig(configID_,
                                                                  pointer(responseBuf),
                                                                  pointer(responseSize),
                                                                  self._resize_func)
@@ -191,9 +210,10 @@ class G2ConfigMgr(object):
     def setDefaultConfigID(self,configID):
         """ sets the default config identifier in the datastore
         """
+        configID_ = self.prepareIntArgument(configID)
         self._lib_handle.G2ConfigMgr_setDefaultConfigID.restype = c_int
         self._lib_handle.G2ConfigMgr_setDefaultConfigID.argtypes = [c_longlong]
-        ret_code = self._lib_handle.G2ConfigMgr_setDefaultConfigID(int(configID.decode()))
+        ret_code = self._lib_handle.G2ConfigMgr_setDefaultConfigID(configID_)
         if ret_code == -2:
             self._lib_handle.G2ConfigMgr_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)

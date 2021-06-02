@@ -15,7 +15,10 @@ try: import configparser
 except: import ConfigParser as configparser
 
 try: 
+    from G2IniParams import G2IniParams
+    from G2Health import G2Health
     from G2Database import G2Database
+    from G2ConfigMgr import G2ConfigMgr
     import G2Exception
 except: 
     pass
@@ -41,19 +44,49 @@ class G2CmdShell(cmd.Cmd):
         self.intro = '\nWelcome to the G2 Configuration shell. Type help or ? to list commands.\n'
         self.prompt = '(g2) '
 
-        self.g2configFile = g2configFile
-        try: self.cfgData = json.load(open(self.g2configFile), encoding="utf-8")
-        except ValueError as e:
-            print('')
-            print('ERROR: %s is broken!' % g2configFile)
-            print(e)
-            print('')
-            sys.exit(1)
+        #--define variables for where the config is stored.
+        self.g2ConfigFileUsed = False
+        self.g2configFile = ''
+
+        #--determine where to get the current configuration from
+        iniParamCreator = G2IniParams()
+        shouldUseG2ConfigFile = iniParamCreator.hasINIParam(iniFileName,'Sql','G2ConfigFile')
+        if shouldUseG2ConfigFile == True:
+            #--get the current configuration from a config file.
+            self.g2ConfigFileUsed = True
+            self.g2configFile = iniParamCreator.getINIParam(iniFileName,'Sql','G2ConfigFile')
+            try: self.cfgData = json.load(open(self.g2configFile), encoding="utf-8")
+            except ValueError as e:
+                print('')
+                print('ERROR: %s is broken!' % g2configFile)
+                print(e)
+                print('')
+                sys.exit(1)
+        else:
+            #--get the current configuration from the database
+            iniParams = iniParamCreator.getJsonINIParams(iniFileName)
+            g2ConfigMgr = G2ConfigMgr()
+            g2ConfigMgr.initV2('pyG2ConfigMgr', iniParams, False)
+            defaultConfigID = bytearray() 
+            g2ConfigMgr.getDefaultConfigID(defaultConfigID)
+            if len(defaultConfigID) == 0:
+                print('')
+                print('ERROR: No default config stored in database. (see https://senzing.zendesk.com/hc/en-us/articles/360036587313)')
+                print('')
+                sys.exit(1)
+            defaultConfigDoc = bytearray() 
+            g2ConfigMgr.getConfig(defaultConfigID, defaultConfigDoc)
+            if len(defaultConfigDoc) == 0:
+                print('')
+                print('ERROR: No default config stored in database. (see https://senzing.zendesk.com/hc/en-us/articles/360036587313)')
+                print('')
+                sys.exit(1)
+            self.cfgData = json.loads(defaultConfigDoc.decode())
+            g2ConfigMgr.destroy()
+
         self.configUpdated = False
 
-        self.g2variantFile = g2variantFile
-        self.cfgVariant = json.load(open(self.g2variantFile), encoding="utf-8")
-        self.variantUpdated = False
+        self.forceMode = forceMode
 
         self.attributeClassList = ('NAME', 'ATTRIBUTE', 'IDENTIFIER', 'ADDRESS', 'PHONE', 'RELATIONSHIP', 'OTHER')
         self.lockedFeatureList = ('NAME','ADDRESS', 'PHONE', 'DOB', 'REL_LINK')
@@ -103,6 +136,10 @@ class G2CmdShell(cmd.Cmd):
             atexit.register(readline.write_history_file, histfile)
         else:
             printWithNewLines('INFO: Command history isn\'t available. Try installing python readline module.', 'S')
+
+    def postloop(self):
+        # currently do nothing
+        pass
 
     #Hide do_shell from list of APIs. Seperate help section for it
     def get_names(self):
@@ -215,10 +252,11 @@ class G2CmdShell(cmd.Cmd):
                                 execCmd = 'self.' + cmd + "('" + parm + "')"
                                 exec(execCmd)
 
-                            reply = userInput('Press enter to continue of (Q)uit ... ')
-                            if reply and reply.upper().startswith('Q'):
-                                break
-                            print('')
+                            if self.forceMode == False:
+                                reply = userInput('Press enter to continue or (Q)uit ... ')
+                                if reply and reply.upper().startswith('Q'):
+                                    break
+                                print('')
 
         else:
             print('%s not found' % fileName)
@@ -254,73 +292,130 @@ class G2CmdShell(cmd.Cmd):
 
 # ===== global commands =====
 
+    # -----------------------------
     def do_configReload(self,arg):
         '\n\tReload configuration and discard all unsaved changes\n'
 
+        #-- check to see if the config has unsaved changes.
         if self.configUpdated:
             ans = userInput('\nYou have unsaved changes, are you sure you want to discard them? ')
             if ans not in ['y','Y', 'yes', 'YES']:
-                printWithNewLines('Configuration wasn\'t reloaded, your changes remain but are still unsaved.')
-                return
-        
-        self.cfgData = json.load(open(self.g2configFile), encoding="utf-8")
-        printWithNewLines('%s has been reloaded.' % self.g2configFile, 'B')
-        
-    def do_configReloadFromDB(self,arg):
-        '\n\tReload configuration from the database and discard all unsaved changes\n'
-
-        if not g2Dbo:
-            printWithNewLines('There is no database connection!')
-            return
-
-        if self.configUpdated:
-            ans = userInput('\nYou have unsaved changes, are you sure you want to discard them? ')
-            if ans not in ['y','Y', 'yes', 'YES']:
-                printWithNewLines('Configuration wasn\'t reloaded, your changes remain but are still unsaved.')
+                printWithNewLines('Configuration wasn\'t reloaded.  Your changes remain but are still unsaved.')
                 return
 
-        cfgCursor = g2Dbo.sqlExec('select CONFIG_DATA from SYS_CFG where CFG_ID = (select max(CFG_ID) from SYS_CFG)')
-        if not cfgCursor:
-            printWithNewLines('There is no configuration data in the database!')
-            return
-        
-        configData = g2Dbo.fetchNext(cfgCursor)['CONFIG_DATA']
+        #-- reload the configuration
+        iniParamCreator = G2IniParams()
+        shouldUseG2ConfigFile = iniParamCreator.hasINIParam(iniFileName,'Sql','G2ConfigFile')
+        if self.g2ConfigFileUsed == True:
+            #--get the current configuration from a config file.
+            try: self.cfgData = json.load(open(self.g2configFile), encoding="utf-8")
+            except ValueError as e:
+                print('')
+                print('ERROR: %s is broken!' % g2configFile)
+                print(e)
+                print('')
+                sys.exit(1)
+        else:
+            #--get the current configuration from the database
+            iniParams = iniParamCreator.getJsonINIParams(iniFileName)
+            g2ConfigMgr = G2ConfigMgr()
+            g2ConfigMgr.initV2('pyG2ConfigMgr', iniParams, False)
+            defaultConfigID = bytearray()
+            g2ConfigMgr.getDefaultConfigID(defaultConfigID)
+            if len(defaultConfigID) == 0:
+                print('')
+                print('ERROR: No default config stored in database. (see https://senzing.zendesk.com/hc/en-us/articles/360036587313)')
+                print('')
+                sys.exit(1)
+            defaultConfigDoc = bytearray()
+            g2ConfigMgr.getConfig(defaultConfigID, defaultConfigDoc)
+            if len(defaultConfigDoc) == 0:
+                print('')
+                print('ERROR: No default config stored in database. (see https://senzing.zendesk.com/hc/en-us/articles/360036587313)')
+                print('')
+                sys.exit(1)
+            self.cfgData = json.loads(defaultConfigDoc.decode())
+            g2ConfigMgr.destroy()
 
-        self.cfgData = json.loads(configData)
-        printWithNewLines('Config has been loaded from database.', 'B')
+        self.configUpdated = False
+        printWithNewLines('Config has been reloaded.', 'B')
+
 
     # -----------------------------
     def do_save(self, args):
-        '\n\tSave changes to g2config.json and attempt a backup of the original\n'
+        '\n\tSave changes to the config\n'
 
-        if self.configUpdated or self.variantUpdated:
-            if args == 'ask':
-                ans = userInput('\nSave changes? ')
+        if self.configUpdated:
+
+            # Prompt if asked to (do_quit) or if prompts have not been turned off when reading from input file 
+            if args == 'ask' or self.forceMode == False: 
+
+                if self.g2ConfigFileUsed == True:
+                    ans = userInput('\nSave changes? ')
+                else:
+                    printWithNewLines('WARNING: This will immediately update the current configuration in the Senzing repository with the current configuration!','B')
+                    ans = userInput('Are you certain you wish to proceed and save changes?  ')
             else: 
                 ans = 'y'
+
             if ans in ['y','Y', 'yes', 'YES']:
-            
-                if self.configUpdated:
+                
+                if self.g2ConfigFileUsed == True:
                     try: copyfile(self.g2configFile, self.g2configFile + '.bk')
                     except:
                         printWithNewLines("Could not create %s" % self.g2configFile + '.bk', 'B')
                         return
                     with open(self.g2configFile, 'w') as fp:
                         json.dump(self.cfgData, fp, indent = 4, sort_keys = True)
-
                     printWithNewLines('Saved!', 'B')
                     self.configUpdated = False
-
-                if self.variantUpdated:
-                    try: copyfile(self.g2variantFile, self.g2variantFile + '.bk')
+                else:
+                    try:
+                        iniParamCreator = G2IniParams()
+                        iniParams = iniParamCreator.getJsonINIParams(iniFileName)
+                        g2ConfigMgr = G2ConfigMgr()
+                        g2ConfigMgr.initV2('pyG2ConfigMgr', iniParams, False)
+                        newConfigId = bytearray()
+                        retcode = g2ConfigMgr.addConfig(json.dumps(self.cfgData), 'Updated by G2ConfigTool', newConfigId)
+                        retcode = g2ConfigMgr.setDefaultConfigID(newConfigId)
+                        g2ConfigMgr.destroy()
                     except:
-                        printWithNewLines("Could not create %s" % self.g2variantFile + '.bk', 'B')
-                        return
-                    with open(self.g2variantFile, 'w') as fp:
-                        json.dump(self.cfgData, fp, indent = 4, sort_keys = True)
+                        printWithNewLines('ERROR: Failed saving config!', 'B')
+                    else:
+                        printWithNewLines('Saved to Senzing repository!', 'B')
+                        self.configUpdated = False
 
-                    printWithNewLines('Saved!', 'B')
-                    self.variantUpdated = False
+            else:
+                printWithNewLines('Current configuration changes have not been saved!', 'B')
+
+
+    # -----------------------------
+    def do_exportToFile(self, arg):
+        '\n\tExport the config to a file:  exportToFile <fileName>\n'
+
+        if not argCheck('do_exportToFile', arg, self.do_exportToFile.__doc__):
+            return
+            
+        with open(arg, 'w') as fp:
+            json.dump(self.cfgData, fp, indent = 4, sort_keys = True)
+
+        printWithNewLines('Successfully exported!', 'B')
+
+    def do_importFromFile(self,arg):
+        '\n\tImport the config from a file:  importToFile <fileName>\n'
+
+        if not argCheck('do_importFromFile', arg, self.do_importFromFile.__doc__):
+            return
+            
+        if self.configUpdated:
+            ans = userInput('\nYou have unsaved changes, are you sure you want to discard them? ')
+            if ans not in ['y','Y', 'yes', 'YES']:
+                printWithNewLines('Configuration wasn\'t imported.  Your changes remain but are still unsaved.')
+                return
+        
+        self.cfgData = json.load(open(arg), encoding="utf-8")
+        self.configUpdated = True
+        printWithNewLines('%s has been imported.' % arg, 'B')
 
 # ===== Compatibility version commands =====
 
@@ -368,6 +463,73 @@ class G2CmdShell(cmd.Cmd):
             self.cfgData['G2_CONFIG']['CONFIG_BASE_VERSION']['COMPATIBILITY_VERSION']['CONFIG_VERSION'] = parmData['TOVERSION']
             self.configUpdated = True
             printWithNewLines('Compatibility version successfully changed!', 'B')
+
+
+# ===== Config section commands =====
+
+    # -----------------------------
+    def do_addConfigSection(self,arg):
+        '\n\taddConfigSection {"name": "<configSection_name>"}'
+
+        if not argCheck('do_addConfigSection', arg, self.do_addConfigSection.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg)) if arg.startswith('{') else {"SECTION": arg}
+            parmData['SECTION'] = parmData['SECTION'].upper()
+        except (ValueError, KeyError) as e:
+            argError(arg, e)
+        else:
+
+            if parmData['SECTION'] in self.cfgData['G2_CONFIG']:
+                printWithNewLines('Section name %s already exists!' % parmData['SECTION'], 'B')
+                return
+
+            self.cfgData['G2_CONFIG'][parmData['SECTION']] = []
+            self.configUpdated = True
+            printWithNewLines('Successfully added!', 'B')
+
+    # -----------------------------
+    def do_addConfigSectionField(self,arg):
+        '\n\taddConfigSectionField {"section": "<section_name>","field": "<field_name>","value": "<field_value>"}'
+
+        if not argCheck('do_addConfigSectionField', arg, self.do_addConfigSectionField.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+
+            if not 'SECTION' in parmData or len(parmData['SECTION']) == 0:
+                raise ValueError('Config section name is required!')
+            parmData['SECTION'] = parmData['SECTION'].upper()
+
+            if not 'FIELD' in parmData or len(parmData['FIELD']) == 0:
+                raise ValueError('Field name is required!')
+            parmData['FIELD'] = parmData['FIELD'].upper()
+
+            if not 'VALUE' in parmData:
+                raise ValueError('Field value is required!')
+            parmData['VALUE'] = parmData['VALUE']
+
+        except (ValueError, KeyError) as e:
+            print('\nError with parsing JSON - %s \n' % e)
+        else:
+
+            if not parmData['SECTION'] in self.cfgData['G2_CONFIG']:
+                printWithNewLines('Section name %s does not exist!' % parmData['SECTION'], 'B')
+                return
+
+            for i in range(len(self.cfgData['G2_CONFIG'][parmData['SECTION']])):
+                if parmData['FIELD'] in self.cfgData['G2_CONFIG'][parmData['SECTION']][i]:
+                    printWithNewLines('Field name %s already exists!' % parmData['FIELD'], 'B')
+                    return
+
+            for i in range(len(self.cfgData['G2_CONFIG'][parmData['SECTION']])):
+                self.cfgData['G2_CONFIG'][parmData['SECTION']][i][parmData['FIELD']] = parmData['VALUE']
+
+            self.configUpdated = True
+            printWithNewLines('Successfully added!', 'B')
+
 
 
 # ===== data Source commands =====
@@ -806,14 +968,14 @@ class G2CmdShell(cmd.Cmd):
                 elif parmCode == 'ANONYMIZE':
                     if parmData['ANONYMIZE'].upper() in ('YES', 'Y', 'NO','N'):
                         self.cfgData['G2_CONFIG']['CFG_FTYPE'][listID]['ANONYMIZE'] = 'Yes' if parmData['ANONYMIZE'].upper() in ('YES', 'Y') else 'No'
-                        printWithNewLines('Hasing setting updated!')
+                        printWithNewLines('Anonymize setting updated!')
                         self.configUpdated = True
                     else:
-                        printWithNewLines('Invalid hashing setting: %s' % parmData['ANONYMIZE'])
+                        printWithNewLines('Invalid anonymize setting: %s' % parmData['ANONYMIZE'])
                     
                 elif parmCode == 'CANDIDATES':
                     if parmData['CANDIDATES'].upper() in ('YES', 'Y', 'NO','N'):
-                        self.cfgData['G2_CONFIG']['CFG_FTYPE'][listID]['CANDIDATES'] = 'Yes' if parmData['CANDIDATES'].upper() in ('YES', 'Y') else 'No'
+                        self.cfgData['G2_CONFIG']['CFG_FTYPE'][listID]['USED_FOR_CAND'] = 'Yes' if parmData['CANDIDATES'].upper() in ('YES', 'Y') else 'No'
                         printWithNewLines('Candidates setting updated!')
                         self.configUpdated = True
                     else:
@@ -917,6 +1079,7 @@ class G2CmdShell(cmd.Cmd):
             parmData['BEHAVIOR'] = parmData['BEHAVIOR'].upper() if 'BEHAVIOR' in parmData else 'FM'
             parmData['ANONYMIZE'] = parmData['ANONYMIZE'].upper() if 'ANONYMIZE' in parmData else 'NO'
             parmData['DERIVED'] = parmData['DERIVED'].upper() if 'DERIVED' in parmData else 'NO'
+            parmData['DERIVATION'] = parmData['DERIVATION'] if 'DERIVATION' in parmData else ''
             parmData['CANDIDATES'] = parmData['CANDIDATES'].upper() if 'CANDIDATES' in parmData else 'NO' if parmData['BEHAVIOR'] == 'FM' else 'YES'
     
             #--parse behavior
@@ -993,6 +1156,7 @@ class G2CmdShell(cmd.Cmd):
             newRecord['FTYPE_STAB'] = featureBehaviorDict['STABILITY']
             newRecord['ANONYMIZE'] = 'No' if parmData['ANONYMIZE'].upper() == 'NO' else 'Yes' 
             newRecord['DERIVED'] = 'No' if parmData['DERIVED'].upper() == 'NO' else 'Yes'
+            newRecord['DERIVATION'] = parmData['DERIVATION']
             newRecord['USED_FOR_CAND'] = 'No' if parmData['CANDIDATES'].upper() == 'NO' else 'Yes'
             newRecord['PERSIST_HISTORY'] = 'Yes' 
             newRecord['VERSION'] = 1
@@ -1001,7 +1165,7 @@ class G2CmdShell(cmd.Cmd):
             if self.doDebug:
                 showMeTheThings(newRecord, 'Feature build')
 
-            #--add the standrdization call
+            #--add the standardization call
             sfcallID = 0
             ####if sfuncID > 1:        
             if sfuncID > 0:        
@@ -1014,6 +1178,7 @@ class G2CmdShell(cmd.Cmd):
                 newRecord['SFUNC_ID'] = sfuncID
                 newRecord['EXEC_ORDER'] = 1
                 newRecord['FTYPE_ID'] = ftypeID
+                newRecord['FELEM_ID'] = -1
                 self.cfgData['G2_CONFIG']['CFG_SFCALL'].append(newRecord)
                 if self.doDebug:
                     showMeTheThings(newRecord, 'SFCALL build')
@@ -1048,6 +1213,9 @@ class G2CmdShell(cmd.Cmd):
                 newRecord['EFUNC_ID'] = efuncID
                 newRecord['EXEC_ORDER'] = 1
                 newRecord['FTYPE_ID'] = ftypeID
+                newRecord['FELEM_ID'] = -1
+                newRecord['EFEAT_FTYPE_ID'] = -1
+                newRecord['IS_VIRTUAL'] = 'No'
                 self.cfgData['G2_CONFIG']['CFG_EFCALL'].append(newRecord)
                 if self.doDebug:
                     showMeTheThings(newRecord, 'EFCALL build')
@@ -1101,7 +1269,8 @@ class G2CmdShell(cmd.Cmd):
                     newRecord = {}
                     newRecord['FELEM_ID'] = felemID
                     newRecord['FELEM_CODE'] = elementRecord['ELEMENT']
-                    newRecord['DATA_TYPE'] = 'STRING'
+                    newRecord['FELEM_DESC'] = elementRecord['ELEMENT']
+                    newRecord['DATA_TYPE'] = 'string'
                     newRecord['TOKENIZE'] = 'No'
                     self.cfgData['G2_CONFIG']['CFG_FELEM'].append(newRecord)
                     if self.doDebug:
@@ -1395,14 +1564,17 @@ class G2CmdShell(cmd.Cmd):
     
             if 'ELEMENT' in parmData and len(parmData['ELEMENT']) != 0:
                 parmData['ELEMENT'] = parmData['ELEMENT'].upper()
-                felemRecord = self.getRecord('CFG_FELEM', 'FELEM_CODE', parmData['ELEMENT'])
-                if not felemRecord:
-                    printWithNewLines('Invalid element: %s' % parmData['ELEMENT'], 'B')
-                    return
+                if parmData['ELEMENT'] == '<PREHASHED>':
+                    felemRecord = parmData['ELEMENT']
                 else:
-                    if not self.getRecord('CFG_FBOM', ['FTYPE_ID', 'FELEM_ID'], [ftypeRecord['FTYPE_ID'], felemRecord['FELEM_ID']]):
-                        printWithNewLines('%s is not an element of feature %s'% (parmData['ELEMENT'], parmData['FEATURE']), 'B')
+                    felemRecord = self.getRecord('CFG_FELEM', 'FELEM_CODE', parmData['ELEMENT'])
+                    if not felemRecord:
+                        printWithNewLines('Invalid element: %s' % parmData['ELEMENT'], 'B')
                         return
+                    else:
+                        if not self.getRecord('CFG_FBOM', ['FTYPE_ID', 'FELEM_ID'], [ftypeRecord['FTYPE_ID'], felemRecord['FELEM_ID']]):
+                            printWithNewLines('%s is not an element of feature %s'% (parmData['ELEMENT'], parmData['FEATURE']), 'B')
+                            return
             else:
                 parmData['ELEMENT'] = ''
                 felemRecord = None
@@ -1535,31 +1707,33 @@ class G2CmdShell(cmd.Cmd):
 
                 #--default for missing values
                 if 'DATATYPE' not in parmData or len(parmData['DATATYPE'].strip()) == 0:
-                    parmData['DATATYPE'] = 'STRING'
+                    parmData['DATATYPE'] = 'string'
                 else:
-                    if parmData['DATATYPE'].upper() not in ('DATE', 'DATEIME', 'JSON', 'NUMBER', 'STRING'):
-                        printWithNewLines('Invalid datatype value: %s  (must be "DATE", "DATEIME", "JSON", "NUMBER", or "STRING")' % parmData['DATATYPE'], 'B')
+                    if parmData['DATATYPE'].upper() not in ('DATE', 'DATETIME', 'JSON', 'NUMBER', 'STRING'):
+                        printWithNewLines('Invalid datatype value: %s  (must be "DATE", "DATETIME", "JSON", "NUMBER", or "STRING")' % parmData['DATATYPE'], 'B')
                         return
+                    parmData['DATATYPE'] = parmData['DATATYPE'].lower()
 
                 if 'TOKENIZE' not in parmData or len(parmData['TOKENIZE'].strip()) == 0:
-                    parmData['TOKENIZE'] = 0
+                    parmData['TOKENIZE'] = 'No'
                 else:
-                    if parmData['TOKENIZE'] not in ('0', '1'):
-                        printWithNewLines('Invalid tokenize value: %s  (must be "0" or "1")' % parmData['TOKENIZE'], 'B')
+                    if parmData['TOKENIZE'] not in ('0', '1', 'No', 'Yes'):
+                        printWithNewLines('Invalid tokenize value: %s  (must be "0", "1", "No", or "Yes")' % parmData['TOKENIZE'], 'B')
                         return
 
                 maxID = []
                 for i in range(len(self.cfgData['G2_CONFIG']['CFG_FELEM'])) :
                     maxID.append(self.cfgData['G2_CONFIG']['CFG_FELEM'][i]['FELEM_ID'])
 
-            if 'ID' in parmData: 
-                felemID = int(parmData['ID'])
-            else:
-                felemID = max(maxID) + 1 if max(maxID) >=1000 else 1000
+                if 'ID' in parmData: 
+                    felemID = int(parmData['ID'])
+                else:
+                    felemID = max(maxID) + 1 if max(maxID) >=1000 else 1000
 
                 newRecord = {}
                 newRecord['FELEM_ID'] = felemID
                 newRecord['FELEM_CODE'] = parmData['ELEMENT']
+                newRecord['FELEM_DESC'] = parmData['ELEMENT']
                 newRecord['TOKENIZE'] = parmData['TOKENIZE']
                 newRecord['DATA_TYPE'] = parmData['DATATYPE']
                 self.cfgData['G2_CONFIG']['CFG_FELEM'].append(newRecord)
@@ -1619,25 +1793,36 @@ class G2CmdShell(cmd.Cmd):
                     return
 
             if 'DATATYPE' not in parmData or len(parmData['DATATYPE'].strip()) == 0:
-                parmData['DATATYPE'] = 'STRING'
+                parmData['DATATYPE'] = 'string'
             else:
-                if parmData['DATATYPE'].upper() not in ('DATE', 'DATEIME', 'JSON', 'NUMBER', 'STRING'):
-                    printWithNewLines('Invalid datatype value: %s  (must be "DATE", "DATEIME", "JSON", "NUMBER", or "STRING")' % parmData['DATATYPE'], 'B')
+                if parmData['DATATYPE'].upper() not in ('DATE', 'DATETIME', 'JSON', 'NUMBER', 'STRING'):
+                    printWithNewLines('Invalid datatype value: %s  (must be "DATE", "DATETIME", "JSON", "NUMBER", or "STRING")' % parmData['DATATYPE'], 'B')
                     return
+                parmData['DATATYPE'] = parmData['DATATYPE'].lower()
 
             if 'TOKENIZE' not in parmData or len(parmData['TOKENIZE'].strip()) == 0:
-                parmData['TOKENIZE'] = 0
+                parmData['TOKENIZE'] = 'No'
             else:
-                if parmData['TOKENIZE'] not in ('0', '1'):
-                    printWithNewLines('Invalid tokenize value: %s  (must be "0" or "1")' % parmData['TOKENIZE'], 'B')
+                if parmData['TOKENIZE'] not in ('0', '1', 'No', 'Yes'):
+                    printWithNewLines('Invalid tokenize value: %s  (must be "0", "1", "No", or "Yes")' % parmData['TOKENIZE'], 'B')
                     return
+
+            if 'DERIVED' not in parmData:
+                parmData['DERIVED'] = 'No'
+            else:
+                if parmData['DERIVED'] not in ('0', '1', 'No', 'Yes'):
+                    printWithNewLines('Invalid derived value: %s  (must be "0", "1", "No", or "Yes")' % parmData['DERIVED'], 'B')
+                    return
+
+            if 'DISPLAY_DELIM' not in parmData:
+                parmData['DISPLAY_DELIM'] = ''
 
             #--does the element exist already and has conflicting parms to what was requested? 
             if felemRecord:
-                print(felemRecord)
+                felemID = felemRecord['FELEM_ID']
                 if ( 
                     ( parmData['DATATYPE'] and len(parmData['DATATYPE'].strip()) > 0 and parmData['DATATYPE'] != felemRecord['DATA_TYPE'] ) or
-                    ( parmData['TOKENIZE'] and len(parmData['TOKENIZE'].strip()) > 0 and int(parmData['TOKENIZE']) != int(felemRecord['TOKENIZE']) )
+                    ( parmData['TOKENIZE'] and len(parmData['TOKENIZE'].strip()) > 0 and parmData['TOKENIZE'] != felemRecord['TOKENIZE'] )
                    ) :
                     printWithNewLines('Element %s already exists with conflicting parameters, check with listElement %s' % (parmData['ELEMENT'], parmData['ELEMENT']), 'B')
                     return
@@ -1660,6 +1845,7 @@ class G2CmdShell(cmd.Cmd):
                     newRecord = {}
                     newRecord['FELEM_ID'] = felemID
                     newRecord['FELEM_CODE'] = parmData['ELEMENT']
+                    newRecord['FELEM_DESC'] = parmData['ELEMENT']
                     newRecord['DATA_TYPE'] = parmData['DATATYPE']
                     newRecord['TOKENIZE'] = parmData['TOKENIZE']
                     self.cfgData['G2_CONFIG']['CFG_FELEM'].append(newRecord)
@@ -1668,19 +1854,26 @@ class G2CmdShell(cmd.Cmd):
                     if self.doDebug:
                         showMeTheThings(newRecord)
 
-                #--add the fbom
-                maxExec = []
-                for i in range(len(self.cfgData['G2_CONFIG']['CFG_FBOM'])):
-                    if int(self.cfgData['G2_CONFIG']['CFG_FBOM'][i]['FTYPE_ID']) == ftypeRecord['FTYPE_ID']:
-                        maxExec.append(self.cfgData['G2_CONFIG']['CFG_FBOM'][i]['EXEC_ORDER'])
-    
+            #--add the fbom, if it does not already exist
+            alreadyExists = False
+            maxExec = [0]
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_FBOM'])):
+                if int(self.cfgData['G2_CONFIG']['CFG_FBOM'][i]['FTYPE_ID']) == ftypeRecord['FTYPE_ID']:
+                    maxExec.append(self.cfgData['G2_CONFIG']['CFG_FBOM'][i]['EXEC_ORDER'])
+                    if int(self.cfgData['G2_CONFIG']['CFG_FBOM'][i]['FELEM_ID']) == felemID:
+                        alreadyExists = True
+                        break
+
+            if alreadyExists:
+                printWithNewLines('Element already exists for feature!', 'B')
+            else:
                 newRecord = {}
                 newRecord['FTYPE_ID'] = ftypeRecord['FTYPE_ID']
                 newRecord['FELEM_ID'] = felemID
                 newRecord['EXEC_ORDER'] = max(maxExec) + 1
-                newRecord['DISPLAY_DELIM'] = ""
+                newRecord['DISPLAY_DELIM'] = parmData['DISPLAY_DELIM']
                 newRecord['DISPLAY_LEVEL'] = 2 if ftypeRecord['FTYPE_CODE'] =='ADDRESS' else 1
-                newRecord['DERIVED'] = 0
+                newRecord['DERIVED'] = parmData['DERIVED']
                 self.cfgData['G2_CONFIG']['CFG_FBOM'].append(newRecord)
                 self.configUpdated = True
                 printWithNewLines('Successfully added to feature!', 'E')
@@ -1719,7 +1912,7 @@ class G2CmdShell(cmd.Cmd):
                 return
 
             deleteCnt = 0
-            for i in range(len(self.cfgData['G2_CONFIG']['CFG_FBOM'])):
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_FBOM'])-1,-1,-1):
                 if int(self.cfgData['G2_CONFIG']['CFG_FBOM'][i]['FTYPE_ID']) == ftypeRecord['FTYPE_ID'] and int(self.cfgData['G2_CONFIG']['CFG_FBOM'][i]['FELEM_ID']) == felemRecord['FELEM_ID'] :
                     del self.cfgData['G2_CONFIG']['CFG_FBOM'][i]
                     deleteCnt = 1
@@ -2170,7 +2363,7 @@ class G2CmdShell(cmd.Cmd):
 
             maxID = 0
             for i in range(len(self.cfgData['G2_CONFIG']['CFG_ERRULE'])):
-                if self.cfgData['G2_CONFIG']['CFG_ERRULE'][i]['ERRULE_CODE'] == parmData['FRAGMENT']:
+                if self.cfgData['G2_CONFIG']['CFG_ERRULE'][i]['ERRULE_CODE'] == parmData['RULE']:
                     printWithNewLines('Rule %s already exists!' % parmData['FRAGMENT'], 'B')
                     return
                 if 'ID' in parmData and int(self.cfgData['G2_CONFIG']['CFG_ERRULE'][i]['ERRULE_ID']) == int(parmData['ID']):
@@ -2277,6 +2470,13 @@ class G2CmdShell(cmd.Cmd):
                         self.cfgData['G2_CONFIG']['CFG_RTYPE'][i]['BREAK_RES'] = breakRes
                         self.configUpdated = True
             
+    # -----------------------------
+    def do_touch(self,arg):
+        '\n\touch' 
+
+        # this is a no-op.  It just marks the database as modified, without doing anything to it.
+        self.configUpdated = True
+
             
 # ===== database functions =====
 
@@ -2417,7 +2617,7 @@ class G2CmdShell(cmd.Cmd):
                 #--g2Dbo.sqlExec('rollback')
                 #--return
                 
-            insertSql = 'insert into CFG_SFCALL (SFCALL_ID, SFUNC_ID, EXEC_ORDER, FTYPE_ID) values (?, ?, ?, ?)'
+            insertSql = 'insert into CFG_SFCALL (SFCALL_ID, SFUNC_ID, EXEC_ORDER, FTYPE_ID, FELEM_ID) values (?, ?, ?, ?, ?)'
             insertRecords = []
             for jsonRecord in sorted(self.getRecordList('CFG_SFCALL'), key = lambda k: k['SFCALL_ID']):
                 record = []
@@ -2425,6 +2625,7 @@ class G2CmdShell(cmd.Cmd):
                 record.append(jsonRecord['SFUNC_ID'])
                 record.append(jsonRecord['EXEC_ORDER'])
                 record.append(jsonRecord['FTYPE_ID'])
+                record.append(jsonRecord['FELEM_ID'])
                 insertRecords.append(record)
             try: 
                 g2Dbo.sqlExec('delete from CFG_SFCALL')
@@ -2434,7 +2635,7 @@ class G2CmdShell(cmd.Cmd):
                 #--g2Dbo.sqlExec('rollback')
                 #--return
 
-            insertSql = 'insert into CFG_EFCALL (EFCALL_ID, EFUNC_ID, EXEC_ORDER, FTYPE_ID) values (?, ?, ?, ?)'
+            insertSql = 'insert into CFG_EFCALL (EFCALL_ID, EFUNC_ID, EXEC_ORDER, FTYPE_ID, FELEM_ID, EFEAT_FTYPE_ID, IS_VIRTUAL) values (?, ?, ?, ?, ?, ?, ?)'
             insertRecords = []
             for jsonRecord in sorted(self.getRecordList('CFG_EFCALL'), key = lambda k: k['EFCALL_ID']):
                 record = []
@@ -2442,6 +2643,9 @@ class G2CmdShell(cmd.Cmd):
                 record.append(jsonRecord['EFUNC_ID'])
                 record.append(jsonRecord['EXEC_ORDER'])
                 record.append(jsonRecord['FTYPE_ID'])
+                record.append(jsonRecord['FELEM_ID'])
+                record.append(jsonRecord['EFEAT_FTYPE_ID'])
+                record.append(jsonRecord['IS_VIRTUAL'])
                 insertRecords.append(record)
             try: 
                 g2Dbo.sqlExec('delete from CFG_EFCALL')
@@ -2696,31 +2900,39 @@ def showMeTheThings(data, loc=''):
 if __name__ == '__main__':
 
     #--capture the command line arguments
-    iniFileName = ''
-    file_to_process = ''
-    
+    fileToProcess = None
     argParser = argparse.ArgumentParser()
     argParser.add_argument("fileToProcess", nargs='?')
-    argParser.add_argument('-c', '--iniFile', dest='iniFile', default='', help='the name of a G2Project.ini file to use', nargs='?')
+    argParser.add_argument('-c', '--ini-file-name', dest='ini_file_name', default=None, help='name of the g2.ini file')
+    argParser.add_argument('-f', '--force', dest='forceMode', default=False, action='store_true', help='when reading from a file, execute each command without prompts')
     args = argParser.parse_args()
+    if args.fileToProcess:
+        fileToProcess = args.fileToProcess
+    iniFileName = args.ini_file_name
+    forceMode = args.forceMode
     
-    if args.iniFile and len(args.iniFile) > 0:
-        iniFileName = os.path.abspath(args.iniFile)
-    if args.fileToProcess and len(args.fileToProcess) > 0:
-        file_to_process = args.fileToProcess
-            
+    if not iniFileName:    
+        iniFileName = G2Paths.get_G2Module_ini_path()
+
+    if not os.path.exists(iniFileName):
+        printWithNewLines('ERROR: %s not found' % iniFileName, 'B')
+        sys.exit(1)
+
+    g2health = G2Health()
+    g2health.checkIniParams(iniFileName)
+
     #--get parameters from ini file
-    if not iniFileName:
-        iniFileName = G2Paths.get_G2Project_ini_path()
     iniParser = configparser.ConfigParser()
     iniParser.read(iniFileName)
-    try: g2configFile = iniParser.get('g2', 'G2ConfigFile')
+    try: g2dbUri = iniParser.get('SQL', 'CONNECTION')
     except: 
-        print('ERROR: G2ConfigFile missing from the [g2] section of the G2Project.ini file')
+        print('')
+        print('CONNECTION parameter not found in [SQL] section of the ini file')
+        print('')
         sys.exit(1)
 
     #--see if there is database support
-    try: g2dbUri = iniParser.get('g2', 'G2Connection')
+    try: g2dbUri = iniParser.get('SQL', 'CONNECTION')
     except: 
         g2dbUri = None
     else:
@@ -2728,29 +2940,16 @@ if __name__ == '__main__':
         except:
             g2dbUri = None
 
-    #--see if there is support for variant file
-    g2variantFile = None
-    try: g2iniFile = iniParser.get('g2', 'iniPath')
-    except: pass 
-    else:
-        if os.path.exists(g2iniFile): 
-            with open(g2iniFile) as fileHandle:
-                for line in fileHandle:
-                    if line.strip().upper().startswith('CONFIGPATH') and '=' in line:
-                        g2variantFile = line.split('=')[1].strip() + os.sep + 'cfgVariant.json'
-                    elif line.strip().upper().startswith('SUPPORTPATH') and '=' in line:
-                        g2variantFile = line.split('=')[1].strip() + os.sep + 'cfgVariant.json'
-    
-        
     #--python3 uses input, raw_input was removed
     userInput = input
     if sys.version_info[:2] <= (2,7):
         userInput = raw_input
 
     #--execute a file of commands or cmdloop()
-    if file_to_process:
-        G2CmdShell().fileloop(file_to_process)
+    if fileToProcess:
+        G2CmdShell().fileloop(fileToProcess)
     else:
         G2CmdShell().cmdloop()
 
     sys.exit()
+

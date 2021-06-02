@@ -240,6 +240,63 @@ class G2Config(object):
         response += responseBuf.value
         return ret_code
 
+    def listDataSourcesV2(self,configHandle,response):
+        """ lists a set of data sources
+        """
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2Config_listDataSources_V2.argtypes = [c_void_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2Config_listDataSources_V2(configHandle,
+                                             pointer(responseBuf),
+                                             pointer(responseSize),
+                                             self._resize_func)
+
+        if ret_code == -2:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        response += responseBuf.value
+        return ret_code
+
+    def listEntityClassesV2(self,configHandle,response):
+        """ lists a set of entity classes
+        """
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2Config_listEntityClasses_V2.argtypes = [c_void_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2Config_listEntityClasses_V2(configHandle,
+                                             pointer(responseBuf),
+                                             pointer(responseSize),
+                                             self._resize_func)
+
+        if ret_code == -2:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        response += responseBuf.value
+        return ret_code
+
+    def listEntityTypesV2(self,configHandle,response):
+        """ lists a set of entity types
+        """
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2Config_listEntityTypes_V2.argtypes = [c_void_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2Config_listEntityTypes_V2(configHandle,
+                                             pointer(responseBuf),
+                                             pointer(responseSize),
+                                             self._resize_func)
+
+        if ret_code == -2:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        response += responseBuf.value
+        return ret_code
+
     def addDataSource(self,configHandle,dataSourceCode):
         """ Adds a data source
         """
@@ -259,6 +316,102 @@ class G2Config(object):
         _dataSourceCode = self.prepareStringArgument(dataSourceCode)
         self._lib_handle.G2Config_addDataSourceWithID.argtypes = [c_void_p, c_char_p, c_int]
         ret_code = self._lib_handle.G2Config_addDataSourceWithID(configHandle,_dataSourceCode,id)
+        if ret_code == -2:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        return ret_code
+
+    def addDataSourceV2(self,configHandle,inputJson,response):
+        """ Adds a data source
+        """
+        _inputJson = self.prepareStringArgument(inputJson)
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2Config_addDataSource_V2.argtypes = [c_void_p, c_char_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2Config_addDataSource_V2(configHandle,_inputJson,
+                                             pointer(responseBuf),
+                                             pointer(responseSize),
+                                             self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        response += responseBuf.value
+        return ret_code
+
+    def addEntityClassV2(self,configHandle,inputJson,response):
+        """ Adds a entity class
+        """
+        _inputJson = self.prepareStringArgument(inputJson)
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2Config_addEntityClass_V2.argtypes = [c_void_p, c_char_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2Config_addEntityClass_V2(configHandle,_inputJson,
+                                             pointer(responseBuf),
+                                             pointer(responseSize),
+                                             self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        response += responseBuf.value
+        return ret_code
+
+    def addEntityTypeV2(self,configHandle,inputJson,response):
+        """ Adds a entity type
+        """
+        _inputJson = self.prepareStringArgument(inputJson)
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2Config_addEntityType_V2.argtypes = [c_void_p, c_char_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2Config_addEntityType_V2(configHandle,_inputJson,
+                                             pointer(responseBuf),
+                                             pointer(responseSize),
+                                             self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        response += responseBuf.value
+        return ret_code
+
+    def deleteDataSourceV2(self,configHandle,inputJson):
+        """ Deletes a data source
+        """
+        _inputJson = self.prepareStringArgument(inputJson)
+        self._lib_handle.G2Config_deleteDataSource_V2.argtypes = [c_void_p, c_char_p]
+        ret_code = self._lib_handle.G2Config_deleteDataSource_V2(configHandle,_inputJson)
+        if ret_code == -2:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        return ret_code
+
+    def deleteEntityClassV2(self,configHandle,inputJson):
+        """ Deletes an entity class
+        """
+        _inputJson = self.prepareStringArgument(inputJson)
+        self._lib_handle.G2Config_deleteEntityClass_V2.argtypes = [c_void_p, c_char_p]
+        ret_code = self._lib_handle.G2Config_deleteEntityClass_V2(configHandle,_inputJson)
+        if ret_code == -2:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        return ret_code
+
+    def deleteEntityTypeV2(self,configHandle,inputJson):
+        """ Deletes an entity type
+        """
+        _inputJson = self.prepareStringArgument(inputJson)
+        self._lib_handle.G2Config_deleteEntityType_V2.argtypes = [c_void_p, c_char_p]
+        ret_code = self._lib_handle.G2Config_deleteEntityType_V2(configHandle,_inputJson)
         if ret_code == -2:
             self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)

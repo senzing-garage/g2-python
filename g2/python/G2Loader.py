@@ -32,9 +32,12 @@ from G2Project import G2Project
 from G2Engine import G2Engine
 from G2Diagnostic import G2Diagnostic
 from G2Product import G2Product
+from G2Config import G2Config
+from G2ConfigMgr import G2ConfigMgr
 from G2Exception import G2ModuleException, G2ModuleResolveMissingResEnt, G2ModuleLicenseException
 import G2Paths
 from G2IniParams import G2IniParams
+from G2Health import G2Health
 from CompressedFile import openPossiblyCompressedFile, isCompressedFile, fileRowParser
 import DumpStack
  
@@ -267,10 +270,27 @@ def loadProject():
 
     #print('\n%s %s\n' % (actionStr, projectFileName if projectFileName else projectFileSpec))
 
-    #--prepare G2 database
-    if not prepareG2db():
+    #--get the system parameters
+    iniParamCreator = G2IniParams()
+    iniParams = iniParamCreator.getJsonINIParams(g2iniPath)
+	
+    #--prepare the G2 configuration
+    g2ConfigJson = bytearray()
+    if not getInitialG2Config(iniParams,g2ConfigJson):
         exitCode = 1
-        return
+        return exitCode
+    g2ConfigTables = G2ConfigTables(g2ConfigJson)
+
+    #--open the project
+    g2Project = G2Project(g2ConfigTables, projectFileName, projectFileSpec, tempFolderPath)
+    if not g2Project.success:
+        exitCode = 1
+        return exitCode
+
+    #--enhance the G2 configuration, by adding data sources and entity types
+    if not enhanceG2Config(g2Project,iniParams,g2ConfigJson,configuredDatasourcesOnly):
+        exitCode = 1
+        return exitCode
 
     #--purge log files created by g2 from prior runs
     for filename in glob('pyG2*') :
@@ -534,35 +554,145 @@ def loadRedoQueueAndProcess():
 
     return exitCode
 
+
+#----------------------------------------
+def verifyEntityTypeExists(configJson,entityType):
+    etypeExists = False
+    cfgDataRoot = json.loads(configJson)
+    configNode = cfgDataRoot['G2_CONFIG']
+    tableNode = configNode['CFG_ETYPE']
+    for rowNode in tableNode:
+        if rowNode['ETYPE_CODE'] == entityType:
+            etypeExists = True
+    return etypeExists
+#----------------------------------------
+def addDataSource(g2ConfigModule,configDoc,dataSource,configuredDatasourcesOnly):
+    ''' adds a data source if does not exist '''
+    returnCode = 0  #--1=inserted, 2=updated
+
+    configHandle = g2ConfigModule.load(configDoc)
+    dsrcExists = False
+    dsrcListDocString = bytearray()
+    ret_code = g2ConfigModule.listDataSources(configHandle,dsrcListDocString)
+    dsrcListDoc = json.loads(dsrcListDocString.decode())
+    dsrcListNode = dsrcListDoc['DSRC_CODE']
+    for dsrcNode in dsrcListNode:
+        if dsrcNode.upper() == dataSource:
+            dsrcExists = True
+    if dsrcExists == False :
+        if configuredDatasourcesOnly == False:
+            addDataSourceJson = '{\"DSRC_CODE\":\"%s\"}' % dataSource
+            addDataSourceResultBuf = bytearray()
+            g2ConfigModule.addDataSourceV2(configHandle,addDataSourceJson,addDataSourceResultBuf)
+            addEntityTypeJson = '{\"ETYPE_CODE\":\"%s\",\"ECLASS_CODE\":\"ACTOR\"}' % dataSource
+            addEntityTypeResultBuf = bytearray()
+            g2ConfigModule.addEntityTypeV2(configHandle,addEntityTypeJson,addEntityTypeResultBuf)
+            newConfig = bytearray()
+            ret_code = g2ConfigModule.save(configHandle,newConfig)
+            configDoc[::]=b''
+            configDoc += newConfig
+            returnCode = 1
+        else:
+            raise G2Exception.UnconfiguredDataSourceException(dataSource)
+    g2ConfigModule.close(configHandle)
+    return returnCode
 #---------------------------------------
-def prepareG2db():
 
+
+#---------------------------------------
+def getInitialG2Config(iniParams,g2ConfigJson):
+
+    #--define variables for where the config is stored.
+    g2ConfigFileUsed = False
+    g2configFile = ''
+
+    #--determine where to get the current configuration from
     iniParamCreator = G2IniParams()
-    iniParams = iniParamCreator.getJsonINIParams(g2iniPath)
+    shouldUseG2ConfigFile = iniParamCreator.hasINIParam(g2iniPath,'Sql','G2ConfigFile')
+    if shouldUseG2ConfigFile == True:
+        #--get the current configuration from a config file.
+        g2ConfigFileUsed = True
+        g2configFile = iniParamCreator.getINIParam(g2iniPath,'Sql','G2ConfigFile')
+        g2ConfigJson[::]=b''
+        try: g2ConfigJson += json.dumps(json.load(open(g2configFile), encoding="utf-8")).encode()
+        except ValueError as e:
+            print('ERROR: %s is broken!' % g2configFile)
+            print(e)
+            return False
+    else:
+        #--get the current configuration from the database
+        iniParams = iniParamCreator.getJsonINIParams(g2iniPath)
+        g2ConfigMgr = G2ConfigMgr()
+        g2ConfigMgr.initV2('g2ConfigMgr', iniParams, False)
+        defaultConfigID = bytearray() 
+        g2ConfigMgr.getDefaultConfigID(defaultConfigID)
+        if len(defaultConfigID) == 0:
+            print('ERROR: No default config stored in database. (see https://senzing.zendesk.com/hc/en-us/articles/360036587313)')
+            return False
+        defaultConfigDoc = bytearray() 
+        g2ConfigMgr.getConfig(defaultConfigID, defaultConfigDoc)
+        if len(defaultConfigDoc) == 0:
+            print('ERROR: No default config stored in database. (see https://senzing.zendesk.com/hc/en-us/articles/360036587313)')
+            return False
+        g2ConfigJson[::]=b''
+        g2ConfigJson += defaultConfigDoc
+        g2ConfigMgr.destroy()
 
-    g2ConfigTables = G2ConfigTables(configTableFile,iniParams, configuredDatasourcesOnly)	
-    if not g2ConfigTables.success:
-        return
-	
-    #--make sure g2 has the correct config
-    if (g2ConfigTables.verifyEntityTypeExists("GENERIC") == False):
+    return True
+
+def enhanceG2Config(g2Project,iniParams,g2ConfigJson,configuredDatasourcesOnly):
+
+    # verify that we have the needed entity type
+    if (verifyEntityTypeExists(g2ConfigJson,"GENERIC") == False):
         print('ERROR: The G2 generic configuration must be updated before loading')
         return False
 
+    #--define variables for where the config is stored.
+    g2ConfigFileUsed = False
+    g2configFile = ''
+
+    #--determine where to get the current configuration from
+    iniParamCreator = G2IniParams()
+    shouldUseG2ConfigFile = iniParamCreator.hasINIParam(g2iniPath,'Sql','G2ConfigFile')
+    if shouldUseG2ConfigFile == True:
+        #--get the current configuration from a config file.
+        g2ConfigFileUsed = True
+        g2configFile = iniParamCreator.getINIParam(g2iniPath,'Sql','G2ConfigFile')
+
+    g2Config = G2Config()
+    g2Config.initV2("g2Config", iniParams, False)
+
     #--add any missing source codes and entity types to the g2 config
-    g2RestartRequired = False
+    g2NewConfigRequired = False
     for sourceDict in g2Project.sourceList:
         if 'DATA_SOURCE' in sourceDict: 
             try: 
-                if g2ConfigTables.addDataSource(sourceDict['DATA_SOURCE']) == 1: #--inserted
-                    g2RestartRequired = True
-            except G2Exception.G2DBException as err:
-                print(err)
-                print('ERROR: could not prepare G2 database')
-                return False
+                if addDataSource(g2Config,g2ConfigJson,sourceDict['DATA_SOURCE'],configuredDatasourcesOnly) == 1: #--inserted
+                    g2NewConfigRequired = True
             except G2Exception.UnconfiguredDataSourceException as err:
                 print(err)
                 return False
+
+    # Add a new config, if we made changes
+    if g2NewConfigRequired == True:
+        if g2ConfigFileUsed == True:
+            with open(g2configFile, 'w') as fp:
+                json.dump(json.loads(g2ConfigJson), fp, indent = 4, sort_keys = True)
+        else:
+            g2ConfigMgr = G2ConfigMgr()
+            g2ConfigMgr.initV2("g2ConfigMgr", iniParams, False)
+            new_config_id = bytearray()
+            return_code = g2ConfigMgr.addConfig(g2ConfigJson.decode(),'Updated From G2Loader', new_config_id)
+            if return_code != 0:
+                print ("Error:  Failed to add new config to the datastore")
+                return False
+            return_code = g2ConfigMgr.setDefaultConfigID(new_config_id)
+            if return_code != 0:
+                print ("Error:  Failed to set new config as default")
+                return False
+            g2ConfigMgr.destroy()
+
+    g2Config.destroy()
 
     return True
 
@@ -810,8 +940,6 @@ if __name__ == '__main__':
     print("Starting G2 with ini file: " + iniFileName)
     iniParser = configparser.ConfigParser(empty_lines_in_values=False)
     iniParser.read(iniFileName)
-    try: configTableFile = iniParser.get('g2', 'G2ConfigFile')
-    except: configTableFile = None
     try: g2iniPath = os.path.expanduser(iniParser.get('g2', 'iniPath'))
     except: g2iniPath = None
     try: evalQueueProcessing = int(iniParser.get('g2', 'evalQueueProcessing'))
@@ -858,10 +986,8 @@ if __name__ == '__main__':
         testMode = True
         createJsonOnly = True
 
-    #--validations
-    if not configTableFile:
-        print('ERROR: A G2 setup configuration file is not specified')
-        sys.exit(1)
+    g2health = G2Health()
+    g2health.checkIniParams(g2iniPath)
 
     if redoMode:
         defaultThreadCount = min(defaultThreadCount, maxThreadsPerProcess)
@@ -883,19 +1009,9 @@ if __name__ == '__main__':
             print('ERROR: A project file name or file specification must be specified!')
             sys.exit(1)
         else:
-            if projectFileSpec: #--file spec takes precendence over name
+            if projectFileSpec: #--file spec takes precedence over name
                 projectFileName = None
             
-        #-- Load the G2 configuration file
-        iniParamCreator = G2IniParams()
-        iniParams = iniParamCreator.getJsonINIParams(g2iniPath)
-        g2ConfigTables = G2ConfigTables(configTableFile,iniParams,configuredDatasourcesOnly)
-
-        #--open the project
-        g2Project = G2Project(g2ConfigTables, projectFileName, projectFileSpec, tempFolderPath)
-        if not g2Project.success:
-            sys.exit(1)
-
         #--all good, lets start loading!
         exitCode = loadProject()
 

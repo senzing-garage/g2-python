@@ -6,19 +6,15 @@ import argparse
 import errno
 import shutil
 
-# Folders to copy from
-senzing_paths = [
-    '/opt/senzing',
-    '/etc/opt/senzing',
-    '/var/opt/senzing'
-]
-
 # files to update
 files_to_update = [
     'setupEnv',
     'etc/G2Module.ini',
     'etc/G2Project.ini'
 ]
+
+
+senzing_path = '/opt/senzing/g2'
 
 def find_replace_in_file(filename, old_string, new_string):
     # Safely read the input filename using 'with'
@@ -37,42 +33,57 @@ if __name__ == '__main__':
 
     target_path = os.path.normpath(os.path.join(os.getcwd(), os.path.expanduser(args.folder)))
     
+    
     # check if folder exists. It shouldn't
     if os.path.exists(target_path) or os.path.isfile(target_path):
         print('"' + target_path + '" already exists or is a path to a file. Please specify a folder that does not already exist.')
         sys.exit(1)
 
-    for path in senzing_paths:
-        if target_path.startswith(path):
-            print('Project cannot be created at "' + target_path + '". Projects cannot be created in these paths: ' + ",".join(senzing_paths))
-            sys.exit(1)
+    if target_path.startswith('/opt/senzing'):
+        print('Project cannot be created at "' + target_path + '". Projects cannot be created in /opt/senzing ')
+        sys.exit(1)
 
     print("Creating Senzing instance at " + target_path )
     
     # copy opt
-    shutil.copytree('/opt/senzing/g2', target_path)
-    
-    # copy etc to etc and resources/templates
-    shutil.copytree('/etc/opt/senzing', os.path.join(target_path, 'etc'))
-    shutil.copytree('/etc/opt/senzing', os.path.join(target_path, 'resources/templates'))
+    paths_to_exclude = [os.path.join(senzing_path, 'resources', 'config'), os.path.join(senzing_path, 'resources', 'schema')]
+    files_to_exclude = ['G2CreateProject.py', 'G2UpdateProject.py']
+    def get_ignored(path, filenames):        
+        ret = []
+        for filename in filenames:
+            if os.path.join(path, filename) in paths_to_exclude:
+                ret.append(filename)
+            elif filename in files_to_exclude:
+                ret.append(filename)
+        return ret
 
-    # copy var
-    shutil.copytree('/var/opt/senzing', os.path.join(target_path, 'var'))
+    shutil.copytree(senzing_path, target_path, ignore=get_ignored)
+    
+    # copy resources/templates to etc, then cut off the .template extension
+    files_to_ignore = shutil.ignore_patterns('G2C.db.template')
+    shutil.copytree(os.path.join(senzing_path,'resources', 'templates'), os.path.join(target_path, 'etc'))
+
+    project_etc_path = os.path.join(target_path, 'etc')
+
+    for file in os.listdir(project_etc_path):
+        if file.endswith('.template'):
+            os.rename(os.path.join(project_etc_path, file), os.path.join(project_etc_path, file).replace('.template',''))
+
+    # copy G2C.db to runtime location
+    os.makedirs(os.path.join(target_path, 'var', 'sqlite'))
+    shutil.copyfile(os.path.join(senzing_path, 'resources', 'templates', 'G2C.db.template'), os.path.join(target_path, 'var', 'sqlite','G2C.db'))
     
     # soft link in data
     os.symlink('/opt/senzing/data/1.0.0', os.path.join(target_path, 'data'))
 
-    # rename the template files to the real names
-    path_to_update = os.path.join(target_path, 'etc')
-
-    for file in os.listdir(path_to_update):
-        if file.endswith('.template'):
-            os.rename(os.path.join(path_to_update, file), os.path.join(path_to_update, file).replace('.template',''))
+    # soft link in the two resouces folders
+    os.symlink(os.path.join(senzing_path, 'resources', 'config'), os.path.join(target_path, 'resources', 'config'))
+    os.symlink(os.path.join(senzing_path, 'resources', 'schema'), os.path.join(target_path, 'resources', 'schema'))
 
     # paths to substitute
     senzing_path_subs = [
-        ('/opt/senzing/g2', target_path),
-        ('/opt/senzing/data', os.path.join(target_path, 'data')),
+        (senzing_path, target_path),
+        (os.path.join(senzing_path, 'data'), os.path.join(target_path, 'data')),
         ('/etc/opt/senzing', os.path.join(target_path, 'etc')),
         ('/var/opt/senzing', os.path.join(target_path, 'var')),
         ('/opt/senzing', target_path)        

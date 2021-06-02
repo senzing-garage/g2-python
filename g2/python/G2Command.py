@@ -11,6 +11,7 @@ from G2Diagnostic import G2Diagnostic
 from G2Config import G2Config
 from G2ConfigMgr import G2ConfigMgr
 from G2IniParams import G2IniParams
+from G2Health import G2Health
 import G2Paths
 import G2Exception
 import json
@@ -291,6 +292,9 @@ class G2CmdShell(cmd.Cmd, object):
         purgeRepository_parser = subparsers.add_parser('purgeRepository',  usage=argparse.SUPPRESS)
         purgeRepository_parser.add_argument('-n', '--noReset', required=False, nargs='?', const=1, type=int)
 
+        processRedoRecordWithInfo_parser = subparsers.add_parser('processRedoRecordWithInfo', usage=argparse.SUPPRESS)
+        processRedoRecordWithInfo_parser.add_argument('-f', '--flags', required=False, type=int)
+
     # ----- G2 startup/shutdown -----
 
     def preloop(self):
@@ -299,6 +303,9 @@ class G2CmdShell(cmd.Cmd, object):
 
         iniParamCreator = G2IniParams()
         iniParams = iniParamCreator.getJsonINIParams(self.iniFileName)
+
+        g2health = G2Health()
+        g2health.checkIniParams(self.iniFileName)
 
         print("Initializing engine...")
 
@@ -1421,6 +1428,31 @@ class G2CmdShell(cmd.Cmd, object):
         except G2Exception.G2Exception as err:
             print(err)
 
+    def do_processRedoRecordWithInfo(self, arg):
+        '\nProcess a redo record with returned info:  processRedoRecordWithInfo <recordID> [-f <flags>]\n'
+        try:
+            args = self.parser.parse_args(['processRedoRecordWithInfo'] + parse(arg))
+        except SystemExit:
+            print(self.do_processRedoRecordWithInfo.__doc__)
+            return
+        try:
+            flags = int(inspect.signature(self.g2_module.processRedoRecordWithInfo).parameters['flags'].default)
+            if args.flags:
+                flags = int(args.flags)
+
+            response = bytearray()
+            info = bytearray()
+            returnCode = self.g2_module.processRedoRecordWithInfo(response, info, flags=flags)
+            if response:
+                print('response: {}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
+            if info:
+                print('info: {}'.format(info.decode()))
+            else:
+                print('\nNo info!\n')
+        except G2Exception.G2Exception as err:
+            print(err)
 
     def do_getEntityDetails(self, arg):
         '\nGet the profile of a resolved entity:  getEntityDetails -e <entityID> [-d]\n'

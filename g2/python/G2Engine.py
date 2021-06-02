@@ -86,6 +86,7 @@ class G2Engine(object):
 	
     # flag for getting a minimal entity
     G2_ENTITY_MINIMAL_FORMAT = ( 1 << 18 )
+    G2_ENTITY_BRIEF_FORMAT = ( 1 << 20 )
 
     # flag for excluding feature scores from search results
     G2_SEARCH_NO_FEATURE_SCORES = ( 1 << 19 )

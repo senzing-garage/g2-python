@@ -64,9 +64,9 @@ def overlayFiles(sourcePath,destPath):
 
             # put in the new file
             if os.path.isfile(source_file_path):
-                shutil.copyfile(source_file_path, target_file_path)
+                shutil.copy(source_file_path, target_file_path)
             elif os.path.islink(source_file_path):
-                shutil.copyfile(source_file_path, target_file_path)
+                shutil.copy(source_file_path, target_file_path)
             elif os.path.isdir(source_file_path): 
                 if dirShouldBeSymlink(source_file_path) == True:
                     pass

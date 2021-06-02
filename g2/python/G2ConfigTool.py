@@ -841,6 +841,146 @@ class G2CmdShell(cmd.Cmd):
                 printWithNewLines(self.getFeatureJson(ftypeRecord), 'B')
 
     # -----------------------------
+    def do_addFeatureComparison(self,arg):
+        '\n\taddFeatureComparison {"feature": "<feature_name>", "comparison": "<comparison_function>", "elementList": ["<element_detail(s)"]}' \
+        '\n\n\taddFeatureComparison {"feature":"testFeat", "comparison":"exact_comp", "elementlist": [{"element": "test"}]}' \
+        '\n'
+
+        if not argCheck('addFeatureComparison', arg, self.do_addFeatureComparison.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+            parmData['FEATURE'] = parmData['FEATURE'].upper()
+            if not 'ELEMENTLIST' in parmData or len(parmData['ELEMENTLIST']) == 0:
+                raise ValueError('Element list is required!')
+            if type(parmData['ELEMENTLIST']) is not list:
+                raise ValueError('Element list should be specified as: "elementlist": ["<values>"]\n\n\tNote the [ and ]')
+        except (ValueError, KeyError) as e:
+            argError(arg, e)
+        else:
+    
+            #--lookup feature and error if it doesn't exist
+            ftypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', parmData['FEATURE'])
+            if not ftypeRecord:
+                printWithNewLines('Feature %s not found!' % parmData['FEATURE'], 'B')
+                return
+            ftypeID = ftypeRecord['FTYPE_ID']
+
+            cfuncID = 0  #--comparison function
+            if 'COMPARISON' not in parmData or len(parmData['COMPARISON']) == 0:
+                printWithNewLines('Comparison function not specified!', 'B')
+                return
+            parmData['COMPARISON'] = parmData['COMPARISON'].upper()
+            cfuncRecord = self.getRecord('CFG_CFUNC', 'CFUNC_CODE', parmData['COMPARISON'])
+            if cfuncRecord:
+                cfuncID = cfuncRecord['CFUNC_ID']
+            else:
+                printWithNewLines('Invalid comparison function code: %s' % parmData['COMPARISON'], 'B')
+                return
+
+            #--ensure we have elements
+            elementCount = 0
+            for element in parmData['ELEMENTLIST']:
+                elementCount += 1
+                elementRecord = dictKeysUpper(element)
+                elementRecord['ELEMENT'] = elementRecord['ELEMENT'].upper()
+                felemID = 0
+                for i in range(len(self.cfgData['G2_CONFIG']['CFG_FELEM'])):
+                    if self.cfgData['G2_CONFIG']['CFG_FELEM'][i]['FELEM_CODE'] == elementRecord['ELEMENT']:
+                        felemID = self.cfgData['G2_CONFIG']['CFG_FELEM'][i]['FELEM_ID']
+                        break
+                if felemID == 0:
+                    printWithNewLines('Invalid element: %s' % elementRecord['ELEMENT'], 'B')
+                    return
+            if elementCount == 0:
+                printWithNewLines('No elements specified for comparison', 'B')
+                return
+
+            #--add the comparison call
+            cfcallID = 0
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_CFCALL'])):
+                if self.cfgData['G2_CONFIG']['CFG_CFCALL'][i]['CFCALL_ID'] > cfcallID:
+                    cfcallID = self.cfgData['G2_CONFIG']['CFG_CFCALL'][i]['CFCALL_ID']
+            cfcallID = cfcallID + 1 if cfcallID >= 1000 else 1000
+            newRecord = {}
+            newRecord['CFCALL_ID'] = cfcallID 
+            newRecord['CFUNC_ID'] = cfuncID
+            newRecord['EXEC_ORDER'] = 1
+            newRecord['FTYPE_ID'] = ftypeID
+            self.cfgData['G2_CONFIG']['CFG_CFCALL'].append(newRecord)
+            if self.doDebug:
+                showMeTheThings(newRecord, 'CFCALL build')
+
+            #--add elements
+            cfbomOrder = 0
+            for element in parmData['ELEMENTLIST']:
+                cfbomOrder += 1
+                elementRecord = dictKeysUpper(element)
+
+                #--lookup 
+                elementRecord['ELEMENT'] = elementRecord['ELEMENT'].upper()
+                felemID = 0
+                for i in range(len(self.cfgData['G2_CONFIG']['CFG_FELEM'])):
+                    if self.cfgData['G2_CONFIG']['CFG_FELEM'][i]['FELEM_CODE'] == elementRecord['ELEMENT']:
+                        felemID = self.cfgData['G2_CONFIG']['CFG_FELEM'][i]['FELEM_ID']
+                        break
+
+                #--add to comparison bom if any 
+                newRecord = {}
+                newRecord['CFCALL_ID'] = cfcallID
+                newRecord['EXEC_ORDER'] = cfbomOrder
+                newRecord['FTYPE_ID'] = ftypeID
+                newRecord['FELEM_ID'] = felemID
+                self.cfgData['G2_CONFIG']['CFG_CFBOM'].append(newRecord)
+                if self.doDebug:
+                    showMeTheThings(newRecord, 'CFBOM build')
+    
+            #--we made it!
+            self.configUpdated = True
+            printWithNewLines('Successfully added!', 'B')
+
+
+    # -----------------------------
+    def do_deleteFeatureComparison(self,arg):
+        '\n\tdeleteFeatureComparison {"feature": "<feature_name>"}\n'
+
+        if not argCheck('deleteFeatureComparison', arg, self.do_deleteFeatureComparison.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+            parmData['FEATURE'] = parmData['FEATURE'].upper()
+        except (ValueError, KeyError) as e:
+            argError(arg, e)
+        else:
+    
+            #--lookup feature and error if it doesn't exist
+            ftypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', parmData['FEATURE'])
+            if not ftypeRecord:
+                printWithNewLines('Feature %s not found!' % parmData['FEATURE'], 'B')
+                return
+
+            deleteCnt = 0
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_FTYPE'])-1, -1, -1):
+                if self.cfgData['G2_CONFIG']['CFG_FTYPE'][i]['FTYPE_CODE'] == parmData['FEATURE']:
+
+                    # delete any comparison calls and boms  (must loop through backwards when deleting)
+                    for i1 in range(len(self.cfgData['G2_CONFIG']['CFG_CFCALL'])-1, -1, -1):
+                        if self.cfgData['G2_CONFIG']['CFG_CFCALL'][i1]['FTYPE_ID'] == self.cfgData['G2_CONFIG']['CFG_FTYPE'][i]['FTYPE_ID']:
+                            for i2 in range(len(self.cfgData['G2_CONFIG']['CFG_CFBOM'])-1, -1, -1):
+                                if self.cfgData['G2_CONFIG']['CFG_CFBOM'][i2]['CFCALL_ID'] == self.cfgData['G2_CONFIG']['CFG_CFCALL'][i1]['CFCALL_ID']:
+                                    del self.cfgData['G2_CONFIG']['CFG_CFBOM'][i2]        
+                            del self.cfgData['G2_CONFIG']['CFG_CFCALL'][i1]        
+                            deleteCnt += 1
+                            self.configUpdated = True
+
+            if deleteCnt == 0:
+                printWithNewLines('Feature comparator not found!', 'B')
+            else:
+                printWithNewLines('%s rows deleted!' % deleteCnt, 'B')
+
+    # -----------------------------
     def do_deleteFeature(self,arg):
         '\n\tdeleteFeature {"feature": "<feature_name>"}\n'
 
@@ -1393,35 +1533,37 @@ class G2CmdShell(cmd.Cmd):
             printWithNewLines('Name hasher function not found!', 'B')
             return
 
+        ftypeID = -1
         if 'FEATURE' in parmData and len(parmData['FEATURE']) != 0:
             parmData['FEATURE'] = parmData['FEATURE'].upper()
-            ftypeID = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', parmData['FEATURE'])['FTYPE_ID']
-            if not ftypeID:
-                printWithNewLines('Invalid feature: %s' % parmData['FEATURE'], 'B')
+            ftypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', parmData['FEATURE'])
+            if not ftypeRecord:
+                printWithNewLines('Feature %s not found!' % parmData['FEATURE'], 'B')
                 return
-        else:
-            printWithNewLines('A feature value is required', 'B')
-            return
+            ftypeID = ftypeRecord['FTYPE_ID']
 
+        felemID = -1
         if 'ELEMENT' in parmData and len(parmData['ELEMENT']) != 0:
             parmData['ELEMENT'] = parmData['ELEMENT'].upper()
-            felemID = self.getRecord('CFG_FELEM', 'FELEM_CODE', parmData['ELEMENT'])['FELEM_ID']
-            if not felemID:
-                printWithNewLines('Invalid element: %s' % parmData['ELEMENT'], 'B')
+            felemRecord = self.getRecord('CFG_FELEM', 'FELEM_CODE', parmData['ELEMENT'])
+            if not felemRecord:
+                printWithNewLines('Feature element %s not found!' % parmData['ELEMENT'], 'B')
                 return
-            else:
-                if not self.getRecord('CFG_FBOM', ['FTYPE_ID', 'FELEM_ID'], [ftypeID, felemID]):
-                    printWithNewLines('%s is not an element of feature %s'% (parmData['ELEMENT'], parmData['FEATURE']), 'B')
-                    return
+            felemID = felemRecord['FELEM_ID']
         else:
-            printWithNewLines('An element of feature %s is required' % parmData['FEATURE'], 'B')
+            printWithNewLines('A feature element value is required', 'B')
             return
+
+        if ftypeID != -1:
+            if not self.getRecord('CFG_FBOM', ['FTYPE_ID', 'FELEM_ID'], [ftypeID, felemID]):
+                printWithNewLines('%s is not an element of feature %s'% (parmData['ELEMENT'], parmData['FEATURE']), 'B')
+                return
             
         nameHasher_execOrder = 0
         for i in range(len(self.cfgData['G2_CONFIG']['CFG_EFBOM'])):
             if self.cfgData['G2_CONFIG']['CFG_EFBOM'][i]['EFCALL_ID'] == nameHasher_efcallID and self.cfgData['G2_CONFIG']['CFG_EFBOM'][i]['EXEC_ORDER'] > nameHasher_execOrder:
                 nameHasher_execOrder = self.cfgData['G2_CONFIG']['CFG_EFBOM'][i]['EXEC_ORDER']
-            if self.cfgData['G2_CONFIG']['CFG_EFBOM'][i]['FTYPE_ID'] == ftypeID and self.cfgData['G2_CONFIG']['CFG_EFBOM'][i]['FELEM_ID'] == felemID:
+            if self.cfgData['G2_CONFIG']['CFG_EFBOM'][i]['EFCALL_ID'] == nameHasher_execOrder and self.cfgData['G2_CONFIG']['CFG_EFBOM'][i]['FTYPE_ID'] == ftypeID and self.cfgData['G2_CONFIG']['CFG_EFBOM'][i]['FELEM_ID'] == felemID:
                 printWithNewLines('Already added to name hash!', 'B')
                 return
 
@@ -1438,6 +1580,176 @@ class G2CmdShell(cmd.Cmd):
 
         self.configUpdated = True
         printWithNewLines('Successfully added!', 'B')
+
+    # -----------------------------
+    def do_deleteFromNamehash(self,arg):
+        '\n\tdeleteFromNamehash {"feature": "<feature>", "element": "<element>"}'
+        if not argCheck('deleteFromNamehash', arg, self.do_deleteFromNamehash.__doc__):
+            return
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+        except (ValueError, KeyError) as e:
+            print('\nError with argument(s) or parsing JSON - %s \n' % e)
+            return
+
+        try:
+            nameHasher_efuncID = self.getRecord('CFG_EFUNC', 'EFUNC_CODE', 'NAME_HASHER')['EFUNC_ID']
+            nameHasher_efcallID = self.getRecord('CFG_EFCALL', 'EFUNC_ID', nameHasher_efuncID)['EFCALL_ID']
+        except: 
+            nameHasher_efcallID = 0
+        if not nameHasher_efcallID:
+            printWithNewLines('Name hasher function not found!', 'B')
+            return
+
+        ftypeID = -1
+        if 'FEATURE' in parmData and len(parmData['FEATURE']) != 0:
+            parmData['FEATURE'] = parmData['FEATURE'].upper()
+            ftypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', parmData['FEATURE'])
+            if not ftypeRecord:
+                printWithNewLines('Feature %s not found!' % parmData['FEATURE'], 'B')
+                return
+            ftypeID = ftypeRecord['FTYPE_ID']
+
+        felemID = -1
+        if 'ELEMENT' in parmData and len(parmData['ELEMENT']) != 0:
+            parmData['ELEMENT'] = parmData['ELEMENT'].upper()
+            felemRecord = self.getRecord('CFG_FELEM', 'FELEM_CODE', parmData['ELEMENT'])
+            if not felemRecord:
+                printWithNewLines('Feature element %s not found!' % parmData['ELEMENT'], 'B')
+                return
+            felemID = felemRecord['FELEM_ID']
+            
+        deleteCnt = 0
+        for i in range(len(self.cfgData['G2_CONFIG']['CFG_EFBOM'])-1, -1, -1):
+            if self.cfgData['G2_CONFIG']['CFG_EFBOM'][i]['EFCALL_ID'] == nameHasher_efcallID and self.cfgData['G2_CONFIG']['CFG_EFBOM'][i]['FTYPE_ID'] == ftypeID and self.cfgData['G2_CONFIG']['CFG_EFBOM'][i]['FELEM_ID'] == felemID:
+                del self.cfgData['G2_CONFIG']['CFG_EFBOM'][i]        
+                deleteCnt += 1
+                self.configUpdated = True
+        if deleteCnt == 0:
+            printWithNewLines('Record not found!', 'B')
+        printWithNewLines('%s rows deleted!' % deleteCnt, 'B')
+
+    # -----------------------------
+    def do_addToNameSSNLast4hash(self,arg):
+        '\n\taddToNameSSNLast4hash {"feature": "<feature>", "element": "<element>"}'
+        if not argCheck('addToNameSSNLast4hash', arg, self.do_addToNameSSNLast4hash.__doc__):
+            return
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+        except (ValueError, KeyError) as e:
+            print('\nError with argument(s) or parsing JSON - %s \n' % e)
+            return
+
+        try:
+            ssnLast4Hasher_efuncID = self.getRecord('CFG_EFUNC', 'EFUNC_CODE', 'EXPRESS_BOM')['EFUNC_ID']
+            ssnLast4Hasher_efcallID = 0
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_EFCALL'])-1, -1, -1):
+                if self.cfgData['G2_CONFIG']['CFG_EFCALL'][i]['EFUNC_ID'] == ssnLast4Hasher_efuncID and self.cfgData['G2_CONFIG']['CFG_EFCALL'][i]['FTYPE_ID'] == self.getRecord('CFG_FTYPE', 'FTYPE_CODE', 'SSN_LAST4')['FTYPE_ID']:
+                    ssnLast4Hasher_efcallID = self.cfgData['G2_CONFIG']['CFG_EFCALL'][i]['EFCALL_ID']
+        except: 
+            ssnLast4Hasher_efcallID = 0
+        if not ssnLast4Hasher_efcallID:
+            printWithNewLines('SSNLast4 hasher function not found!', 'B')
+            return
+
+        ftypeID = -1
+        if 'FEATURE' in parmData and len(parmData['FEATURE']) != 0:
+            parmData['FEATURE'] = parmData['FEATURE'].upper()
+            ftypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', parmData['FEATURE'])
+            if not ftypeRecord:
+                printWithNewLines('Feature %s not found!' % parmData['FEATURE'], 'B')
+                return
+            ftypeID = ftypeRecord['FTYPE_ID']
+
+        felemID = -1
+        if 'ELEMENT' in parmData and len(parmData['ELEMENT']) != 0:
+            parmData['ELEMENT'] = parmData['ELEMENT'].upper()
+            felemRecord = self.getRecord('CFG_FELEM', 'FELEM_CODE', parmData['ELEMENT'])
+            if not felemRecord:
+                printWithNewLines('Feature element %s not found!' % parmData['ELEMENT'], 'B')
+                return
+            felemID = felemRecord['FELEM_ID']
+        else:
+            printWithNewLines('A feature element value is required', 'B')
+            return
+
+        if ftypeID != -1:
+            if not self.getRecord('CFG_FBOM', ['FTYPE_ID', 'FELEM_ID'], [ftypeID, felemID]):
+                printWithNewLines('%s is not an element of feature %s'% (parmData['ELEMENT'], parmData['FEATURE']), 'B')
+                return
+
+        ssnLast4Hasher_execOrder = 0
+        for i in range(len(self.cfgData['G2_CONFIG']['CFG_EFBOM'])):
+            if self.cfgData['G2_CONFIG']['CFG_EFBOM'][i]['EFCALL_ID'] == ssnLast4Hasher_efcallID and self.cfgData['G2_CONFIG']['CFG_EFBOM'][i]['EXEC_ORDER'] > ssnLast4Hasher_execOrder:
+                ssnLast4Hasher_execOrder = self.cfgData['G2_CONFIG']['CFG_EFBOM'][i]['EXEC_ORDER']
+            if self.cfgData['G2_CONFIG']['CFG_EFBOM'][i]['EFCALL_ID'] == ssnLast4Hasher_efcallID and self.cfgData['G2_CONFIG']['CFG_EFBOM'][i]['FTYPE_ID'] == ftypeID and self.cfgData['G2_CONFIG']['CFG_EFBOM'][i]['FELEM_ID'] == felemID:
+                printWithNewLines('Already added to name hash!', 'B')
+                return
+
+        #--add record
+        newRecord = {}
+        newRecord['EFCALL_ID'] = ssnLast4Hasher_efcallID
+        newRecord['EXEC_ORDER'] = ssnLast4Hasher_execOrder + 1
+        newRecord['FTYPE_ID'] = ftypeID
+        newRecord['FELEM_ID'] = felemID
+        newRecord['FELEM_REQ'] = 'Yes'
+        self.cfgData['G2_CONFIG']['CFG_EFBOM'].append(newRecord)
+        if self.doDebug:
+            showMeTheThings(newRecord, 'EFBOM build')
+
+        self.configUpdated = True
+        printWithNewLines('Successfully added!', 'B')
+
+    # -----------------------------
+    def do_deleteFromSSNLast4hash(self,arg):
+        '\n\tdeleteFromSSNLast4hash {"feature": "<feature>", "element": "<element>"}'
+        if not argCheck('deleteFromSSNLast4hash', arg, self.do_deleteFromSSNLast4hash.__doc__):
+            return
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+        except (ValueError, KeyError) as e:
+            print('\nError with argument(s) or parsing JSON - %s \n' % e)
+            return
+
+        try:
+            ssnLast4Hasher_efuncID = self.getRecord('CFG_EFUNC', 'EFUNC_CODE', 'EXPRESS_BOM')['EFUNC_ID']
+            ssnLast4Hasher_efcallID = 0
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_EFCALL'])-1, -1, -1):
+                if self.cfgData['G2_CONFIG']['CFG_EFCALL'][i]['EFUNC_ID'] == ssnLast4Hasher_efuncID and self.cfgData['G2_CONFIG']['CFG_EFCALL'][i]['FTYPE_ID'] == self.getRecord('CFG_FTYPE', 'FTYPE_CODE', 'SSN_LAST4')['FTYPE_ID']:
+                    ssnLast4Hasher_efcallID = self.cfgData['G2_CONFIG']['CFG_EFCALL'][i]['EFCALL_ID']
+        except: 
+            ssnLast4Hasher_efcallID = 0
+        if not ssnLast4Hasher_efcallID:
+            printWithNewLines('SSNLast4 hasher function not found!', 'B')
+            return
+
+        ftypeID = -1
+        if 'FEATURE' in parmData and len(parmData['FEATURE']) != 0:
+            parmData['FEATURE'] = parmData['FEATURE'].upper()
+            ftypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', parmData['FEATURE'])
+            if not ftypeRecord:
+                printWithNewLines('Feature %s not found!' % parmData['FEATURE'], 'B')
+                return
+            ftypeID = ftypeRecord['FTYPE_ID']
+
+        felemID = -1
+        if 'ELEMENT' in parmData and len(parmData['ELEMENT']) != 0:
+            parmData['ELEMENT'] = parmData['ELEMENT'].upper()
+            felemRecord = self.getRecord('CFG_FELEM', 'FELEM_CODE', parmData['ELEMENT'])
+            if not felemRecord:
+                printWithNewLines('Feature element %s not found!' % parmData['ELEMENT'], 'B')
+                return
+            felemID = felemRecord['FELEM_ID']
+            
+        deleteCnt = 0
+        for i in range(len(self.cfgData['G2_CONFIG']['CFG_EFBOM'])-1, -1, -1):
+            if self.cfgData['G2_CONFIG']['CFG_EFBOM'][i]['EFCALL_ID'] == ssnLast4Hasher_efcallID and self.cfgData['G2_CONFIG']['CFG_EFBOM'][i]['FTYPE_ID'] == ftypeID and self.cfgData['G2_CONFIG']['CFG_EFBOM'][i]['FELEM_ID'] == felemID:
+                del self.cfgData['G2_CONFIG']['CFG_EFBOM'][i]        
+                deleteCnt += 1
+                self.configUpdated = True
+        if deleteCnt == 0:
+            printWithNewLines('Hash entry not found!', 'B')
+        printWithNewLines('%s rows deleted!' % deleteCnt, 'B')
 
 
 # ===== attribute commands =====
@@ -1684,6 +1996,436 @@ class G2CmdShell(cmd.Cmd):
 
 # -----------------------------
 
+    def do_addStandardizeFunc(self,arg):
+        '\n\taddStandardizeFunc {"function":"<function_name>", "connectStr":"<plugin_base_name>"}' \
+        '\n\n\taddStandardizeFunc {"function":"STANDARDIZE_COUNTRY", "connectStr":"g2StdCountry"}' \
+        '\n'
+
+        if not argCheck('addStandardizeFunc', arg, self.do_addStandardizeFunc.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+            parmData['FUNCTION'] = parmData['FUNCTION'].upper()
+        except (ValueError, KeyError) as e:
+            argError(arg, e)
+        else:
+
+            if self.getRecord('CFG_SFUNC', 'SFUNC_CODE', parmData['FUNCTION']):
+                printWithNewLines('Function %s already exists!' % parmData['FUNCTION'], 'B')
+                return
+            else:
+
+                #--default for missing values
+
+                if 'FUNCLIB' not in parmData or len(parmData['FUNCLIB'].strip()) == 0:
+                    parmData['FUNCLIB'] = 'g2func_lib'
+                if 'VERSION' not in parmData or len(parmData['VERSION'].strip()) == 0:
+                    parmData['VERSION'] = '1'
+                if 'CONNECTSTR' not in parmData or len(parmData['CONNECTSTR'].strip()) == 0:
+                    printWithNewLines('ConnectStr value not specified.', 'B')
+                    return
+
+                maxID = []
+                for i in range(len(self.cfgData['G2_CONFIG']['CFG_SFUNC'])) :
+                    maxID.append(self.cfgData['G2_CONFIG']['CFG_SFUNC'][i]['SFUNC_ID'])
+
+                sfuncID = 0
+                if 'ID' in parmData: 
+                    sfuncID = int(parmData['ID'])
+                else:
+                    sfuncID = max(maxID) + 1 if max(maxID) >=1000 else 1000
+
+                newRecord = {}
+                newRecord['SFUNC_ID'] = sfuncID
+                newRecord['SFUNC_CODE'] = parmData['FUNCTION']
+                newRecord['SFUNC_DESC'] = parmData['FUNCTION']
+                newRecord['FUNC_LIB'] = parmData['FUNCLIB']
+                newRecord['FUNC_VER'] = parmData['VERSION']
+                newRecord['CONNECT_STR'] = parmData['CONNECTSTR']
+                self.cfgData['G2_CONFIG']['CFG_SFUNC'].append(newRecord)
+                self.configUpdated = True
+                printWithNewLines('Successfully added!', 'B')
+                if self.doDebug:
+                    showMeTheThings(newRecord)
+
+
+# -----------------------------
+
+    def do_addStandardizeCall(self,arg):
+        '\n\taddStandardizeCall {"element":"<element_name>", "function":"<function_name>", "execOrder":<exec_order>}' \
+        '\n\n\taddStandardizeCall {"element":"COUNTRY", "function":"STANDARDIZE_COUNTRY", "execOrder":100}' \
+        '\n'
+
+        if not argCheck('addStandardizeCall', arg, self.do_addStandardizeCall.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+        except (ValueError, KeyError) as e:
+            argError(arg, e)
+        else:
+
+            featureIsSpecified = False;
+            ftypeID = -1
+            if 'FEATURE' in parmData and len(parmData['FEATURE']) != 0 :
+                parmData['FEATURE'] = parmData['FEATURE'].upper()
+                ftypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', parmData['FEATURE'])
+                if not ftypeRecord:
+                    printWithNewLines('Invalid feature: %s.' % parmData['FEATURE'], 'B')
+                    return
+                featureIsSpecified = True;
+                ftypeID = ftypeRecord['FTYPE_ID']
+
+            elementIsSpecified = False;
+            felemID = -1
+            if 'ELEMENT' in parmData and len(parmData['ELEMENT']) != 0 :
+                parmData['ELEMENT'] = parmData['ELEMENT'].upper()
+                felemRecord = self.getRecord('CFG_FELEM', 'FELEM_CODE', parmData['ELEMENT'])
+                if not felemRecord:
+                    printWithNewLines('Invalid element: %s.' % parmData['ELEMENT'], 'B')
+                    return
+                elementIsSpecified = True;
+                felemID = felemRecord['FELEM_ID']
+
+            if featureIsSpecified == False and elementIsSpecified == False :
+                printWithNewLines('No feature or element specified.', 'B')
+                return
+
+            if featureIsSpecified == True and elementIsSpecified == True :
+                printWithNewLines('Both feature and element specified.  Must only use one, not both.', 'B')
+                return
+
+            sfuncID = -1
+            if 'FUNCTION' not in parmData or len(parmData['FUNCTION'].strip()) == 0:
+                printWithNewLines('Function not specified.', 'B')
+                return
+            parmData['FUNCTION'] = parmData['FUNCTION'].upper()
+            sfuncRecord = self.getRecord('CFG_SFUNC', 'SFUNC_CODE', parmData['FUNCTION'])
+            if not sfuncRecord:
+                printWithNewLines('Invalid function: %s.' % parmData['FUNCTION'], 'B')
+                return
+            sfuncID = sfuncRecord['SFUNC_ID']
+
+            if 'EXECORDER' not in parmData:
+                printWithNewLines('Exec order not specified.', 'B')
+                return
+
+            maxID = []
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_SFUNC'])) :
+                maxID.append(self.cfgData['G2_CONFIG']['CFG_SFUNC'][i]['SFUNC_ID'])
+
+            sfcallID = 0
+            if 'ID' in parmData: 
+                sfcallID = int(parmData['ID'])
+            else:
+                sfcallID = max(maxID) + 1 if max(maxID) >=1000 else 1000
+
+            newRecord = {}
+            newRecord['SFCALL_ID'] = sfcallID
+            newRecord['FTYPE_ID'] = ftypeID
+            newRecord['FELEM_ID'] = felemID
+            newRecord['SFUNC_ID'] = sfuncID
+            newRecord['EXEC_ORDER'] = parmData['EXECORDER']
+            self.cfgData['G2_CONFIG']['CFG_SFCALL'].append(newRecord)
+            self.configUpdated = True
+            printWithNewLines('Successfully added!', 'B')
+            if self.doDebug:
+                showMeTheThings(newRecord)
+
+
+# -----------------------------
+
+    def do_addExpressionFunc(self,arg):
+
+        '\n\taddExpressionFunc {"function":"<function_name>", "connectStr":"<plugin_base_name>"}' \
+        '\n\n\taddExpressionFunc {"function":"FEAT_BUILDER", "connectStr":"g2FeatBuilder"}' \
+        '\n'
+
+        if not argCheck('addExpressionFunc', arg, self.do_addExpressionFunc.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+            parmData['FUNCTION'] = parmData['FUNCTION'].upper()
+        except (ValueError, KeyError) as e:
+            argError(arg, e)
+        else:
+
+            if self.getRecord('CFG_EFUNC', 'EFUNC_CODE', parmData['FUNCTION']):
+                printWithNewLines('Function %s already exists!' % parmData['FUNCTION'], 'B')
+                return
+            else:
+
+                #--default for missing values
+
+                if 'FUNCLIB' not in parmData or len(parmData['FUNCLIB'].strip()) == 0:
+                    parmData['FUNCLIB'] = 'g2func_lib'
+                if 'VERSION' not in parmData or len(parmData['VERSION'].strip()) == 0:
+                    parmData['VERSION'] = '1'
+                if 'CONNECTSTR' not in parmData or len(parmData['CONNECTSTR'].strip()) == 0:
+                    printWithNewLines('ConnectStr value not specified.', 'B')
+                    return
+
+                maxID = []
+                for i in range(len(self.cfgData['G2_CONFIG']['CFG_EFUNC'])) :
+                    maxID.append(self.cfgData['G2_CONFIG']['CFG_EFUNC'][i]['EFUNC_ID'])
+
+                efuncID = 0
+                if 'ID' in parmData: 
+                    efuncID = int(parmData['ID'])
+                else:
+                    efuncID = max(maxID) + 1 if max(maxID) >=1000 else 1000
+
+                newRecord = {}
+                newRecord['EFUNC_ID'] = efuncID
+                newRecord['EFUNC_CODE'] = parmData['FUNCTION']
+                newRecord['EFUNC_DESC'] = parmData['FUNCTION']
+                newRecord['FUNC_LIB'] = parmData['FUNCLIB']
+                newRecord['FUNC_VER'] = parmData['VERSION']
+                newRecord['CONNECT_STR'] = parmData['CONNECTSTR']
+                self.cfgData['G2_CONFIG']['CFG_EFUNC'].append(newRecord)
+                self.configUpdated = True
+                printWithNewLines('Successfully added!', 'B')
+                if self.doDebug:
+                    showMeTheThings(newRecord)
+
+
+# -----------------------------
+
+    def do_addExpressionCall(self,arg):
+
+        '\n\taddExpressionCall {"element":"<element_name>", "function":"<function_name>", "execOrder":<exec_order>, expressionFeature":<feature_name>, "virtual":"No","elementList": ["<element_detail(s)"]}' \
+        '\n\n\taddExpressionCall {"element":"COUNTRY_CODE", "function":"FEAT_BUILDER", "execOrder":100, expressionFeature":"COUNTRY_OF_ASSOCIATION", "virtual":"No","elementList": [{"element":"COUNTRY", "featureLink":"parent", "required":"No"}]}' \
+        '\n\n\taddExpressionCall {"element":"COUNTRY_CODE", "function":"FEAT_BUILDER", "execOrder":100, expressionFeature":"COUNTRY_OF_ASSOCIATION", "virtual":"No","elementList": [{"element":"COUNTRY", "feature":"ADDRESS", "required":"No"}]}' \
+        '\n'
+
+        if not argCheck('addExpressionCall', arg, self.do_addExpressionCall.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+            if not 'ELEMENTLIST' in parmData or len(parmData['ELEMENTLIST']) == 0:
+                raise ValueError('Element list is required!')
+            if type(parmData['ELEMENTLIST']) is not list:
+                raise ValueError('Element list should be specified as: "elementlist": ["<values>"]\n\n\tNote the [ and ]')
+        except (ValueError, KeyError) as e:
+            argError(arg, e)
+        else:
+
+            featureIsSpecified = False;
+            ftypeID = -1
+            if 'FEATURE' in parmData and len(parmData['FEATURE']) != 0 :
+                parmData['FEATURE'] = parmData['FEATURE'].upper()
+                ftypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', parmData['FEATURE'])
+                if not ftypeRecord:
+                    printWithNewLines('Invalid feature: %s.' % parmData['FEATURE'], 'B')
+                    return
+                featureIsSpecified = True;
+                ftypeID = ftypeRecord['FTYPE_ID']
+
+            elementIsSpecified = False;
+            felemID = -1
+            if 'ELEMENT' in parmData and len(parmData['ELEMENT']) != 0 :
+                parmData['ELEMENT'] = parmData['ELEMENT'].upper()
+                felemRecord = self.getRecord('CFG_FELEM', 'FELEM_CODE', parmData['ELEMENT'])
+                if not felemRecord:
+                    printWithNewLines('Invalid element: %s.' % parmData['ELEMENT'], 'B')
+                    return
+                elementIsSpecified = True;
+                felemID = felemRecord['FELEM_ID']
+
+            if featureIsSpecified == False and elementIsSpecified == False :
+                printWithNewLines('No feature or element specified.', 'B')
+                return
+
+            if featureIsSpecified == True and elementIsSpecified == True :
+                printWithNewLines('Both feature and element specified.  Must only use one, not both.', 'B')
+                return
+
+            efuncID = -1
+            if 'FUNCTION' not in parmData or len(parmData['FUNCTION'].strip()) == 0:
+                printWithNewLines('Function not specified.', 'B')
+                return
+            parmData['FUNCTION'] = parmData['FUNCTION'].upper()
+            efuncRecord = self.getRecord('CFG_EFUNC', 'EFUNC_CODE', parmData['FUNCTION'])
+            if not efuncRecord:
+                printWithNewLines('Invalid function: %s.' % parmData['FUNCTION'], 'B')
+                return
+            efuncID = efuncRecord['EFUNC_ID']
+
+            if 'EXECORDER' not in parmData:
+                printWithNewLines('An execOrder for the call must be specified.', 'B')
+                return
+
+            callExists = False
+            efcallID = int(parmData['ID']) if 'ID' in parmData else 0
+            maxID = []
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_EFCALL'])):
+                maxID.append(self.cfgData['G2_CONFIG']['CFG_EFCALL'][i]['EFCALL_ID'])
+                if self.cfgData['G2_CONFIG']['CFG_EFCALL'][i]['EFCALL_ID'] == efcallID:
+                    printWithNewLines('The supplied ID already exists.', 'B')
+                    callExists = True
+                    break
+                elif self.cfgData['G2_CONFIG']['CFG_EFCALL'][i]['FTYPE_ID'] == ftypeID and self.cfgData['G2_CONFIG']['CFG_EFCALL'][i]['EXEC_ORDER'] == parmData['EXECORDER']:
+                    printWithNewLines('A call for that feature and execOrder already exists.', 'B')
+                    callExists = True
+                    break
+            if callExists: 
+                return
+
+            if 'ID' in parmData: 
+                efcallID = int(parmData['ID'])
+            else:
+                efcallID = max(maxID) + 1 if max(maxID) >=1000 else 1000
+
+            isVirtual = parmData['VIRTUAL'] if 'VIRTUAL' in parmData else 'No'
+
+            efeatFTypeID = -1
+            if 'EXPRESSIONFEATURE' in parmData and len(parmData['EXPRESSIONFEATURE']) != 0 :
+                parmData['EXPRESSIONFEATURE'] = parmData['EXPRESSIONFEATURE'].upper()
+                expressionFTypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', parmData['EXPRESSIONFEATURE'])
+                if not expressionFTypeRecord:
+                    printWithNewLines('Invalid expression feature: %s.' % parmData['EXPRESSIONFEATURE'], 'B')
+                    return
+                efeatFTypeID = expressionFTypeRecord['FTYPE_ID']
+
+            #--ensure we have valid elements
+            elementCount = 0
+            for element in parmData['ELEMENTLIST']:
+                elementCount += 1
+                elementRecord = dictKeysUpper(element)
+
+                bomFTypeIsSpecified = False;
+                bomFTypeID = -1
+                if 'FEATURE' in elementRecord and len(elementRecord['FEATURE']) != 0 :
+                    elementRecord['FEATURE'] = elementRecord['FEATURE'].upper()
+                    bomFTypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', elementRecord['FEATURE'])
+                    if not bomFTypeRecord:
+                        printWithNewLines('Invalid BOM feature: %s.' % elementRecord['FEATURE'], 'B')
+                        return
+                    bomFTypeIsSpecified = True;
+                    bomFTypeID = bomFTypeRecord['FTYPE_ID']
+
+                bomFElemIsSpecified = False;
+                bomFElemID = -1
+                if 'ELEMENT' in elementRecord and len(elementRecord['ELEMENT']) != 0 :
+                    elementRecord['ELEMENT'] = elementRecord['ELEMENT'].upper()
+                    bomFElemRecord = self.getRecord('CFG_FELEM', 'FELEM_CODE', elementRecord['ELEMENT'])
+                    if not bomFElemRecord:
+                        printWithNewLines('Invalid BOM element: %s.' % elementRecord['ELEMENT'], 'B')
+                        return
+                    bomFElemIsSpecified = True;
+                    bomFElemID = bomFElemRecord['FELEM_ID']
+
+                if bomFElemIsSpecified == False :
+                    printWithNewLines('No BOM element specified on BOM entry.', 'B')
+                    return
+
+                bomFTypeFeatureLinkIsSpecified = False;
+                if 'FEATURELINK' in elementRecord and len(elementRecord['FEATURELINK']) != 0 :
+                    elementRecord['FEATURELINK'] = elementRecord['FEATURELINK'].upper()
+                    if elementRecord['FEATURELINK'] != 'PARENT':
+                        printWithNewLines('Invalid feature link value: %s.  (Must use \'parent\')' % elementRecord['FEATURELINK'], 'B')
+                        return
+                    bomFTypeFeatureLinkIsSpecified = True;
+                    bomFTypeID = 0
+
+                if bomFTypeIsSpecified == True and bomFTypeFeatureLinkIsSpecified == True :
+                    printWithNewLines('Cannot specify both ftype and feature-link on single function BOM entry.', 'B')
+                    return
+
+            if elementCount == 0:
+                printWithNewLines('No elements specified.', 'B')
+                return
+
+            #--add the expression call
+            newRecord = {}
+            newRecord['EFCALL_ID'] = efcallID
+            newRecord['FTYPE_ID'] = ftypeID
+            newRecord['FELEM_ID'] = felemID
+            newRecord['EFUNC_ID'] = efuncID
+            newRecord['EXEC_ORDER'] = parmData['EXECORDER']
+            newRecord['EFEAT_FTYPE_ID'] = efeatFTypeID
+            newRecord['IS_VIRTUAL'] = isVirtual
+            self.cfgData['G2_CONFIG']['CFG_EFCALL'].append(newRecord)
+            if self.doDebug:
+                showMeTheThings(newRecord)
+
+            #--add elements
+            efbomOrder = 0
+            for element in parmData['ELEMENTLIST']:
+                efbomOrder += 1
+                elementRecord = dictKeysUpper(element)
+
+                bomFTypeID = -1
+                if 'FEATURE' in elementRecord and len(elementRecord['FEATURE']) != 0 :
+                    bomFTypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', elementRecord['FEATURE'])
+                    bomFTypeID = bomFTypeRecord['FTYPE_ID']
+
+                bomFElemID = -1
+                if 'ELEMENT' in elementRecord and len(elementRecord['ELEMENT']) != 0 :
+                    bomFElemRecord = self.getRecord('CFG_FELEM', 'FELEM_CODE', elementRecord['ELEMENT'])
+                    bomFElemID = bomFElemRecord['FELEM_ID']
+
+                if 'FEATURELINK' in elementRecord and len(elementRecord['FEATURELINK']) != 0 :
+                    elementRecord['FEATURELINK'] = elementRecord['FEATURELINK'].upper()
+                    bomFTypeID = 0
+
+                felemRequired = elementRecord['REQUIRED'] if 'REQUIRED' in elementRecord else 'No'
+
+                #--add to expression bom if any 
+                newRecord = {}
+                newRecord['EFCALL_ID'] = efcallID
+                newRecord['EXEC_ORDER'] = efbomOrder
+                newRecord['FTYPE_ID'] = bomFTypeID
+                newRecord['FELEM_ID'] = bomFElemID
+                newRecord['FELEM_REQ'] = felemRequired
+                self.cfgData['G2_CONFIG']['CFG_EFBOM'].append(newRecord)
+                if self.doDebug:
+                    showMeTheThings(newRecord, 'EFBOM build')
+    
+            #--we made it!
+            self.configUpdated = True
+            printWithNewLines('Successfully added!', 'B')
+
+
+    # -----------------------------
+    def do_deleteExpressionCall(self,arg):
+        '\n\deleteExpressionCall {"id": "<id>"}' 
+
+        if not argCheck('deleteExpressionCall', arg, self.do_deleteExpressionCall.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg)) if arg.startswith('{') else {"ID": arg}
+            if 'ID' not in parmData or not parmData['ID'].isnumeric():
+                raise ValueError(arg)
+            else:
+                searchField = 'EFCALL_ID'
+                searchValue = int(parmData['ID'])
+        except (ValueError, KeyError) as e:
+            argError(arg, e)
+        else:
+
+            deleteCnt = 0
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_EFCALL'])-1, -1, -1):
+                if self.cfgData['G2_CONFIG']['CFG_EFCALL'][i][searchField] == searchValue:
+                    del self.cfgData['G2_CONFIG']['CFG_EFCALL'][i]        
+                    deleteCnt += 1
+                    self.configUpdated = True
+            if deleteCnt == 0:
+                printWithNewLines('Record not found!', 'B')
+                return
+            printWithNewLines('%s rows deleted!' % deleteCnt, 'B')
+    
+            #--delete the efboms too
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_EFBOM'])-1, -1, -1):
+                if self.cfgData['G2_CONFIG']['CFG_EFBOM'][i][searchField] == searchValue:
+                    del self.cfgData['G2_CONFIG']['CFG_EFBOM'][i]        
+
+# -----------------------------
+
     def do_addElement(self,arg):
 
         '\n\taddElementToFeature {"element": "<element_name>"}' \
@@ -1817,6 +2559,9 @@ class G2CmdShell(cmd.Cmd):
             if 'DISPLAY_DELIM' not in parmData:
                 parmData['DISPLAY_DELIM'] = ''
 
+            if 'DISPLAY_LEVEL' not in parmData:
+                parmData['DISPLAY_LEVEL'] = 2 if ftypeRecord['FTYPE_CODE'] =='ADDRESS' else 1
+
             #--does the element exist already and has conflicting parms to what was requested? 
             if felemRecord:
                 felemID = felemRecord['FELEM_ID']
@@ -1872,13 +2617,61 @@ class G2CmdShell(cmd.Cmd):
                 newRecord['FELEM_ID'] = felemID
                 newRecord['EXEC_ORDER'] = max(maxExec) + 1
                 newRecord['DISPLAY_DELIM'] = parmData['DISPLAY_DELIM']
-                newRecord['DISPLAY_LEVEL'] = 2 if ftypeRecord['FTYPE_CODE'] =='ADDRESS' else 1
+                newRecord['DISPLAY_LEVEL'] = parmData['DISPLAY_LEVEL']
                 newRecord['DERIVED'] = parmData['DERIVED']
                 self.cfgData['G2_CONFIG']['CFG_FBOM'].append(newRecord)
                 self.configUpdated = True
-                printWithNewLines('Successfully added to feature!', 'E')
+                printWithNewLines('Successfully added to feature!', 'B')
                 if self.doDebug:
                     showMeTheThings(newRecord)
+
+    # -----------------------------                
+    def do_setFeatureElementDisplayLevel(self,arg):
+
+        '\n\tsetFeatureElementDisplayLevel {"feature": "<feature_name>", "element": "<element_name>", "display_level": <display_level>}\n'
+
+        if not argCheck('setFeatureElementDisplayLevel', arg, self.do_setFeatureElementDisplayLevel.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+        except (ValueError, KeyError) as e:
+            print('\nError with argument(s) or parsing JSON - %s \n' % e)
+        else:
+
+            if 'FEATURE' in parmData and len(parmData['FEATURE']) != 0 and 'ELEMENT' in parmData and len(parmData['ELEMENT']) != 0 :
+
+                parmData['FEATURE'] = parmData['FEATURE'].upper()
+                ftypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', parmData['FEATURE'])
+                if not ftypeRecord:
+                    printWithNewLines('Invalid feature: %s. Use listFeatures to see valid features.' % parmData['FEATURE'], 'B')
+                    return
+    
+                parmData['ELEMENT'] = parmData['ELEMENT'].upper()
+                felemRecord = self.getRecord('CFG_FELEM', 'FELEM_CODE', parmData['ELEMENT'])
+                if not felemRecord:
+                    printWithNewLines('Invalid feature element: %s.' % parmData['ELEMENT'], 'B')
+                    return
+
+            else:
+                printWithNewLines('Both a feature and element must be specified!', 'B')
+                return
+            
+            
+            if 'DISPLAY_LEVEL' in parmData :
+                displayLevel = int(parmData['DISPLAY_LEVEL'])
+            else:
+                printWithNewLines('Display level must be specified!', 'B')
+                return
+
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_FBOM'])):
+                if int(self.cfgData['G2_CONFIG']['CFG_FBOM'][i]['FTYPE_ID']) == ftypeRecord['FTYPE_ID']:
+                    if int(self.cfgData['G2_CONFIG']['CFG_FBOM'][i]['FELEM_ID']) == felemRecord['FELEM_ID']:
+                        self.cfgData['G2_CONFIG']['CFG_FBOM'][i]['DISPLAY_LEVEL'] = displayLevel
+                        self.configUpdated = True
+                        printWithNewLines('Feature element display level updated!', 'B')
+                        if self.doDebug:
+                            showMeTheThings(self.cfgData['G2_CONFIG']['CFG_FBOM'][i])
 
     # -----------------------------
     def do_deleteElementFromFeature(self,arg):
@@ -1964,29 +2757,53 @@ class G2CmdShell(cmd.Cmd):
                     printWithNewLines('%s rows deleted!' % deleteCnt, 'B')
                     
 
-    def do_verifyExpressionCalls(self,arg):
+    def do_listExpressionCalls(self,arg):
         '\nVerifies expression call configurations' 
-        efbomList = []
-        for efbomRecord in self.cfgData['G2_CONFIG']['CFG_EFBOM']:
-            efcallRecord = self.getRecord('CFG_EFCALL', 'EFCALL_ID', efbomRecord['EFCALL_ID'])
+        efcallList = []
+        for efcallRecord in sorted(self.cfgData['G2_CONFIG']['CFG_EFCALL'], key = lambda k: (k['FTYPE_ID'], k['EXEC_ORDER'])):
             efuncRecord = self.getRecord('CFG_EFUNC', 'EFUNC_ID', efcallRecord['EFUNC_ID'])
             ftypeRecord1 = self.getRecord('CFG_FTYPE', 'FTYPE_ID', efcallRecord['FTYPE_ID'])
-            ftypeRecord2 = self.getRecord('CFG_FTYPE', 'FTYPE_ID', efbomRecord['FTYPE_ID'])
-            felemRecord = self.getRecord('CFG_FELEM', 'FELEM_ID', efbomRecord['FELEM_ID'])
+            ftypeRecord2 = self.getRecord('CFG_FTYPE', 'FTYPE_ID', efcallRecord['EFEAT_FTYPE_ID'])
+            felemRecord2 = self.getRecord('CFG_FELEM', 'FELEM_ID', efcallRecord['FELEM_ID'])
 
-            efbomDict = {}
-            efbomDict['id'] = efbomRecord['EFCALL_ID']
-            efbomDict['feature'] = ftypeRecord1['FTYPE_CODE']
-            efbomDict['function'] = efuncRecord['EFUNC_CODE']
-            efbomDict['order'] = efbomRecord['EXEC_ORDER']
-            efbomDict['fromFeature'] = ftypeRecord2['FTYPE_CODE']
-            efbomDict['fromElement'] = felemRecord['FELEM_CODE']
-            efbomList.append(efbomDict)
+            efcallDict = {}
+            efcallDict['id'] = efcallRecord['EFCALL_ID']
+            if ftypeRecord1:
+                efcallDict['feature'] = ftypeRecord1['FTYPE_CODE']
+            if felemRecord2:
+                efcallDict['element'] = felemRecord2['FELEM_CODE']
+            efcallDict['execOrder'] = efcallRecord['EXEC_ORDER']
+            efcallDict['function'] = efuncRecord['EFUNC_CODE']
+            efcallDict['is_virtual'] = efcallRecord['IS_VIRTUAL']
+            if ftypeRecord2:
+                efcallDict['new_feature'] = ftypeRecord2['FTYPE_CODE']
+  
+            efbomList = []
+            for efbomRecord in [record for record in self.cfgData['G2_CONFIG']['CFG_EFBOM'] if record['EFCALL_ID'] == efcallRecord['EFCALL_ID']]:
+                ftypeRecord3 = self.getRecord('CFG_FTYPE', 'FTYPE_ID', efbomRecord['FTYPE_ID'])
+                felemRecord3 = self.getRecord('CFG_FELEM', 'FELEM_ID', efbomRecord['FELEM_ID'])
 
-        for efbomDict in sorted(efbomList, key = lambda k: (k['id'], k['order'])):
-            print(json.dumps(efbomDict))
+                if efbomRecord['FTYPE_ID'] == 0:
+                    fromFeature = 'parent'
+                elif efbomRecord['FTYPE_ID'] == -1:
+                    fromFeature = '*'
+                elif ftypeRecord3: 
+                    fromFeature = ftypeRecord3['FTYPE_CODE']
+                else:
+                    fromFeature = '!error!'
+
+                efbomDict = {}
+                efbomDict['feature'] = fromFeature
+                efbomDict['element'] = felemRecord3['FELEM_CODE'] if felemRecord3 else str(efbomRecord['FELEM_ID'])
+                efbomDict['required'] = efbomRecord['FELEM_REQ']
+                efbomList.append(efbomDict)
+            efcallDict['elementList'] = efbomList
+
+            efcallList.append(efcallDict)
 
 
+        for efcallDict in efcallList:
+            print(json.dumps(efcallDict))
 
 # ===== misc commands =====
     def do_setDistinct(self,arg):

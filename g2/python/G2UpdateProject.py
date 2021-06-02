@@ -39,6 +39,43 @@ def find_replace_in_file(filename, old_string, new_string):
         s = s.replace(old_string, new_string)
         f.write(s)
 
+def dirShouldBeSymlink(source_file_path):
+    if source_file_path == senzing_path + "/data":
+        return True
+    if source_file_path == senzing_path + "/resources/config":
+        return True
+    if source_file_path == senzing_path + "/resources/schema":
+        return True
+    return False
+
+def overlayFiles(sourcePath,destPath):
+    files_and_folders = os.listdir(sourcePath)
+    for the_file in files_and_folders:
+        source_file_path = os.path.join(sourcePath, the_file)
+        target_file_path = os.path.join(destPath, the_file)
+        try:
+            # clear out the old file
+            if os.path.isfile(target_file_path):
+                os.remove(target_file_path)
+            elif os.path.islink(target_file_path):
+                os.unlink(target_file_path)
+            elif os.path.isdir(target_file_path):
+                pass
+
+            # put in the new file
+            if os.path.isfile(source_file_path):
+                shutil.copyfile(source_file_path, target_file_path)
+            elif os.path.islink(source_file_path):
+                shutil.copyfile(source_file_path, target_file_path)
+            elif os.path.isdir(source_file_path): 
+                if dirShouldBeSymlink(source_file_path) == True:
+                    pass
+                else:
+                    os.makedirs(target_file_path, exist_ok=True)
+                    overlayFiles(source_file_path,target_file_path)
+        except Exception as e:
+            print(e)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Update an existing Senzing project with the installed version of Senzing.')
     parser.add_argument('folder', metavar='Project',help='the path of the folder to update. It must already exist and be a Senzing project folder.')
@@ -46,12 +83,18 @@ if __name__ == '__main__':
 
     target_path = os.path.normpath(os.path.join(os.getcwd(), os.path.expanduser(args.folder)))
 
+    # Check that we don't try to overwrite our master folder
+    if target_path == senzing_path:
+        print(target_path + " is the same as the main installation path.  Invalid operation.")
+        sys.exit(1)
+
     # List items in target path
     files_and_folders = os.listdir(target_path)
 
     # Check that it is a project folder
     if 'g2BuildVersion.json' not in files_and_folders:
         print(target_path + " is not a project path. (Cannot find g2BuildVersion.json)")
+        sys.exit(1)
 
     # Get current version info
     with open(os.path.join(target_path, 'g2BuildVersion.json')) as json_file:
@@ -61,7 +104,7 @@ if __name__ == '__main__':
     with open(os.path.join(senzing_path, 'g2BuildVersion.json')) as json_file:
         end_version_info = json.load(json_file)
 
-    answer = input("Update Senzing instance at '%s' from version %s to %s? (y/N) " % (target_path, start_version_info['VERSION'], end_version_info['VERSION']))
+    answer = input("Update Senzing instance at '%s' from version %s to %s? (y/n) " % (target_path, start_version_info['VERSION'], end_version_info['VERSION']))
     answer = answer.strip()
     if answer != 'y' and answer != 'Y':
         sys.exit(0)
@@ -73,35 +116,28 @@ if __name__ == '__main__':
         files_and_folders.remove('etc')
     while 'var' in files_and_folders:
         files_and_folders.remove('var')
-
-    # remove the existing (old version) files
-    for the_file in files_and_folders:
-        file_path = os.path.join(target_path, the_file)
-        try:
-            if os.path.isfile(file_path) or os.path.islink(file_path):
-                os.unlink(file_path)
-            elif os.path.isdir(file_path): 
-                shutil.rmtree(file_path)
-        except Exception as e:
-            print(e)
-
     
     # Update most of the files from opt
-    files_and_folders = os.listdir(senzing_path)
-    for the_file in files_and_folders:
-        target_file_path = os.path.join(target_path, the_file)
-        source_file_path = os.path.join(senzing_path, the_file)
-        if os.path.isfile(source_file_path) or os.path.islink(source_file_path):
-            shutil.copyfile(source_file_path, target_file_path)
-        elif os.path.isdir(source_file_path): 
-            shutil.copytree(source_file_path, target_file_path, ignore=get_ignored)
+    overlayFiles(senzing_path,target_path)
 
     # soft link in data
-    os.symlink('/opt/senzing/data/1.0.0', os.path.join(target_path, 'data'))
+    try:
+        if os.path.exists(os.path.join(target_path, 'data')):
+            os.remove(os.path.join(target_path, 'data'))
+        os.symlink('/opt/senzing/data/1.0.0', os.path.join(target_path, 'data'))
+    except Exception as e:
+        print(e)
 
-    # soft link in the two resouces folders
-    os.symlink(os.path.join(senzing_path, 'resources', 'config'), os.path.join(target_path, 'resources', 'config'))
-    os.symlink(os.path.join(senzing_path, 'resources', 'schema'), os.path.join(target_path, 'resources', 'schema'))
+    # soft link in the two resource folders
+    try:
+        if os.path.exists(os.path.join(target_path, 'resources', 'config')):
+            os.remove(os.path.join(target_path, 'resources', 'config'))
+        os.symlink(os.path.join(senzing_path, 'resources', 'config'), os.path.join(target_path, 'resources', 'config'))
+        if os.path.exists(os.path.join(target_path, 'resources', 'schema')):
+            os.remove(os.path.join(target_path, 'resources', 'schema'))
+        os.symlink(os.path.join(senzing_path, 'resources', 'schema'), os.path.join(target_path, 'resources', 'schema'))
+    except Exception as e:
+        print(e)
 
     # paths to substitute
     senzing_path_subs = [
@@ -112,10 +148,13 @@ if __name__ == '__main__':
     # New files copied in, now update some of the new files.
     for f in files_to_update:
         for p in senzing_path_subs:
-            # Anchor the replace on the character that comes before the path. This ensures that we are only 
-            # replacing the begining of the path and not a substring of the path.
-            find_replace_in_file(os.path.join(target_path, f), '=' + p[0], '=' + os.path.join(target_path, p[1]))
-            find_replace_in_file(os.path.join(target_path, f), '@' + p[0], '@' + os.path.join(target_path, p[1]))
+            try:
+                # Anchor the replace on the character that comes before the path. This ensures that we are only 
+                # replacing the begining of the path and not a substring of the path.
+                find_replace_in_file(os.path.join(target_path, f), '=' + p[0], '=' + os.path.join(target_path, p[1]))
+                find_replace_in_file(os.path.join(target_path, f), '@' + p[0], '@' + os.path.join(target_path, p[1]))
+            except Exception as e:
+                print(e)
 
     # fixups - any edits to etc files, like adding new INI tokens
     # add in RESOURCEPATH

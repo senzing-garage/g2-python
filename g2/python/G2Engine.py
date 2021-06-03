@@ -544,7 +544,7 @@ class G2Engine(object):
         rowData = self._lib_handle.G2_fetchNext(c_void_p(exportHandle),tls_var.buf,sizeof(tls_var.buf))
         while rowData:
             response += tls_var.buf.value
-            if (response.decode())[-1] == '\n':
+            if (response)[-1] == 0x0a:
                 break
             else:
                 rowData = self._lib_handle.G2_fetchNext(c_void_p(exportHandle),tls_var.buf,sizeof(tls_var.buf))

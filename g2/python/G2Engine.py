@@ -60,22 +60,15 @@ class G2Engine(object):
 
     # flags for exporting entity data
     G2_EXPORT_INCLUDE_ALL_ENTITIES = ( 1 << 0 )
-    G2_EXPORT_CSV_INCLUDE_FULL_DETAILS = ( 1 << 1 )
     G2_EXPORT_INCLUDE_RESOLVED = ( 1 << 2 )
     G2_EXPORT_INCLUDE_POSSIBLY_SAME = ( 1 << 3 )
     G2_EXPORT_INCLUDE_POSSIBLY_RELATED = ( 1 << 4 )
     G2_EXPORT_INCLUDE_NAME_ONLY = ( 1 << 5 )
     G2_EXPORT_INCLUDE_DISCLOSED = ( 1 << 6 )
 	
-    # flags for outputting entity feature data
-    G2_ENTITY_INCLUDE_ALL_FEATURES = ( 1 << 7 )
-    G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES = ( 1 << 8 )
-    G2_ENTITY_INCLUDE_SINGLE_FEATURES = ( 1 << 9 )
-    G2_ENTITY_INCLUDE_NO_FEATURES = ( 1 << 10 )
-	
-    # flags for finding entity path data
-    G2_FIND_PATH_PREFER_EXCLUDE = ( 1 << 11 )
-	
+    # flags for controlling CSV export data columns (deprecated)
+    G2_EXPORT_CSV_INCLUDE_FULL_DETAILS = ( 1 << 1 )
+
     # flags for outputting entity relation data
     G2_ENTITY_INCLUDE_ALL_RELATIONS = ( 1 << 12 )
     G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS = ( 1 << 13 )
@@ -84,12 +77,26 @@ class G2Engine(object):
     G2_ENTITY_INCLUDE_DISCLOSED_RELATIONS = ( 1 << 16 )
     G2_ENTITY_INCLUDE_NO_RELATIONS = ( 1 << 17 )
 	
+    # flags for outputting entity feature data
+    G2_ENTITY_INCLUDE_ALL_FEATURES = ( 1 << 7 )
+    G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES = ( 1 << 8 )
+    G2_ENTITY_INCLUDE_SINGLE_FEATURES = ( 1 << 9 )
+    G2_ENTITY_INCLUDE_NO_FEATURES = ( 1 << 10 )
+	
     # flag for getting a minimal entity
     G2_ENTITY_MINIMAL_FORMAT = ( 1 << 18 )
     G2_ENTITY_BRIEF_FORMAT = ( 1 << 20 )
 
+    # flag for extra feature data
+    G2_ENTITY_SHOW_FEATURES_EXPRESSED = ( 1 << 21 )
+    G2_ENTITY_SHOW_FEATURES_STATS = ( 1 << 22 )
+
+    # flags for finding entity path data
+    G2_FIND_PATH_PREFER_EXCLUDE = ( 1 << 11 )
+	
     # flag for excluding feature scores from search results
     G2_SEARCH_NO_FEATURE_SCORES = ( 1 << 19 )
+
 
     # recommended settings
     G2_EXPORT_DEFAULT_FLAGS = G2_EXPORT_INCLUDE_ALL_ENTITIES
@@ -99,6 +106,9 @@ class G2Engine(object):
     G2_SEARCH_BY_ATTRIBUTES_DEFAULT_FLAGS = G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES
     G2_SEARCH_BY_ATTRIBUTES_MINIMAL_STRONG = G2_ENTITY_MINIMAL_FORMAT | G2_SEARCH_NO_FEATURE_SCORES | G2_ENTITY_INCLUDE_NO_RELATIONS | G2_EXPORT_INCLUDE_RESOLVED | G2_EXPORT_INCLUDE_POSSIBLY_SAME 
     G2_SEARCH_BY_ATTRIBUTES_MINIMAL_ALL = G2_ENTITY_MINIMAL_FORMAT | G2_SEARCH_NO_FEATURE_SCORES | G2_ENTITY_INCLUDE_NO_RELATIONS 
+
+    G2_WHY_ENTITY_DEFAULT_FLAGS = G2_ENTITY_INCLUDE_ALL_FEATURES | G2_ENTITY_SHOW_FEATURES_EXPRESSED | G2_ENTITY_SHOW_FEATURES_STATS | G2_ENTITY_INCLUDE_NO_RELATIONS 
+
 
     # backwards compatability flags
     G2_EXPORT_DEFAULT_REPORT_FLAGS = G2_EXPORT_INCLUDE_ALL_ENTITIES
@@ -1202,6 +1212,86 @@ class G2Engine(object):
         self._lib_handle.G2_findNetworkByRecordID_V2.restype = c_int
         self._lib_handle.G2_findNetworkByRecordID_V2.argtypes = [c_char_p, c_int, c_int, c_int, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
         ret_code = self._lib_handle.G2_findNetworkByRecordID_V2(_recordList,maxDegree,buildOutDegree,maxEntities,flags,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
+        response += tls_var.buf.value
+        return ret_code
+
+    def whyEntityByRecordID(self,dataSourceCode,recordID,response):
+
+        response[::]=b''
+        _dataSourceCode = self.prepareStringArgument(dataSourceCode)
+        _recordID = self.prepareStringArgument(recordID)
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2_whyEntityByRecordID.restype = c_int
+        self._lib_handle.G2_whyEntityByRecordID.argtypes = [c_char_p, c_char_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_whyEntityByRecordID(_dataSourceCode,_recordID,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
+        response += tls_var.buf.value
+        return ret_code
+
+    def whyEntityByRecordIDV2(self,dataSourceCode,recordID,flags,response):
+
+        response[::]=b''
+        _dataSourceCode = self.prepareStringArgument(dataSourceCode)
+        _recordID = self.prepareStringArgument(recordID)
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2_whyEntityByRecordID_V2.restype = c_int
+        self._lib_handle.G2_whyEntityByRecordID_V2.argtypes = [c_char_p, c_char_p, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_whyEntityByRecordID_V2(_dataSourceCode,_recordID,flags,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
+        response += tls_var.buf.value
+        return ret_code
+
+    def whyEntityByEntityID(self,entityID,response):
+
+        response[::]=b''
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2_whyEntityByEntityID.restype = c_int
+        self._lib_handle.G2_whyEntityByEntityID.argtypes = [c_longlong, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_whyEntityByEntityID(entityID,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+        if ret_code == -2:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
+        response += tls_var.buf.value
+        return ret_code
+
+    def whyEntityByEntityIDV2(self,entityID,flags,response):
+
+        response[::]=b''
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2_whyEntityByEntityID_V2.restype = c_int
+        self._lib_handle.G2_whyEntityByEntityID_V2.argtypes = [c_longlong, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_whyEntityByEntityID_V2(entityID,flags,
                                                                  pointer(responseBuf),
                                                                  pointer(responseSize),
                                                                  self._resize_func)

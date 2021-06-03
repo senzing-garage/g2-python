@@ -2112,8 +2112,8 @@ class G2CmdShell(cmd.Cmd):
                 return
 
             maxID = []
-            for i in range(len(self.cfgData['G2_CONFIG']['CFG_SFUNC'])) :
-                maxID.append(self.cfgData['G2_CONFIG']['CFG_SFUNC'][i]['SFUNC_ID'])
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_SFCALL'])) :
+                maxID.append(self.cfgData['G2_CONFIG']['CFG_SFCALL'][i]['SFCALL_ID'])
 
             sfcallID = 0
             if 'ID' in parmData: 

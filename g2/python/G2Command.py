@@ -286,6 +286,22 @@ class G2CmdShell(cmd.Cmd, object):
         findNetworkByRecordIDV2_parser.add_argument('maxEntities', type=int)
         findNetworkByRecordIDV2_parser.add_argument('flags', type=int)
 
+        whyEntityByRecordID_parser = subparsers.add_parser('whyEntityByRecordID', usage=argparse.SUPPRESS)
+        whyEntityByRecordID_parser.add_argument('dataSourceCode')
+        whyEntityByRecordID_parser.add_argument('recordID')
+
+        whyEntityByRecordIDV2_parser = subparsers.add_parser('whyEntityByRecordIDV2', usage=argparse.SUPPRESS)
+        whyEntityByRecordIDV2_parser.add_argument('dataSourceCode')
+        whyEntityByRecordIDV2_parser.add_argument('recordID')
+        whyEntityByRecordIDV2_parser.add_argument('flags', type=int)
+
+        whyEntityByEntityID_parser = subparsers.add_parser('whyEntityByEntityID', usage=argparse.SUPPRESS)
+        whyEntityByEntityID_parser.add_argument('entityID', type=int)
+
+        whyEntityByEntityIDV2_parser = subparsers.add_parser('whyEntityByEntityIDV2', usage=argparse.SUPPRESS)
+        whyEntityByEntityIDV2_parser.add_argument('entityID', type=int)
+        whyEntityByEntityIDV2_parser.add_argument('flags', type=int)
+
         outputOptional_parser = subparsers.add_parser('outputOptional',  usage=argparse.SUPPRESS)
         outputOptional_parser.add_argument('-o', '--outputFile', required=False)
 
@@ -1354,6 +1370,74 @@ class G2CmdShell(cmd.Cmd, object):
         except G2Exception.G2Exception as err:
             print(err)
 
+
+    def do_whyEntityByRecordID(self, arg):
+        '\nDetermine why a record is inside its entity:  whyEntityByRecordID <dataSourceCode> <recordID>\n'
+        try:
+            args = self.parser.parse_args(['whyEntityByRecordID'] + parse(arg))
+        except SystemExit:
+            print(self.do_whyEntityByRecordID.__doc__)
+            return
+        try: 
+            response = bytearray() 
+            ret_code = self.g2_module.whyEntityByRecordID(args.dataSourceCode,args.recordID,response)
+            if response:
+                print('{}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_whyEntityByRecordIDV2(self, arg):
+        '\nDetermine why a record is inside its entity:  whyEntityByRecordIDV2 <dataSourceCode> <recordID> <flags>\n'
+        try:
+            args = self.parser.parse_args(['whyEntityByRecordIDV2'] + parse(arg))
+        except SystemExit:
+            print(self.do_whyEntityByRecordIDV2.__doc__)
+            return
+        try: 
+            response = bytearray() 
+            ret_code = self.g2_module.whyEntityByRecordIDV2(args.dataSourceCode,args.recordID,args.flags,response)
+            if response:
+                print('{}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_whyEntityByEntityID(self, arg):
+        '\nDetermine why records are inside an entity:  whyEntityByEntityID <entityID>\n'
+        try:
+            args = self.parser.parse_args(['whyEntityByEntityID'] + parse(arg))
+        except SystemExit:
+            print(self.do_whyEntityByEntityID.__doc__)
+            return
+        try: 
+            response = bytearray() 
+            ret_code = self.g2_module.whyEntityByEntityID(args.entityID,response)
+            if response:
+                print('{}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_whyEntityByEntityIDV2(self, arg):
+        '\nDetermine why records are inside an entity:  whyEntityByEntityIDV2 <entityID> <flags>\n'
+        try:
+            args = self.parser.parse_args(['whyEntityByEntityIDV2'] + parse(arg))
+        except SystemExit:
+            print(self.do_whyEntityByEntityIDV2.__doc__)
+            return
+        try: 
+            response = bytearray() 
+            ret_code = self.g2_module.whyEntityByEntityIDV2(args.entityID,args.flags,response)
+            if response:
+                print('{}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
+        except G2Exception.G2Exception as err:
+            print(err)
 
     def do_findPathExcludingByRecordID(self, arg):
         '\nFind path between two records, with exclusions:  findPathExcludingByRecordID <startDataSourceCode> <startRecordID> <endDataSourceCode> <endRecordID> <maxDegree> <excludedEntities> <flags>\n'

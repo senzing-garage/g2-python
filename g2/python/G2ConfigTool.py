@@ -904,6 +904,69 @@ class G2CmdShell(cmd.Cmd):
             printWithNewLines('Successfully added!', 'B')
 
     # -----------------------------
+    def do_addFeatureDistinctCallElement(self,arg):
+        '\n\taddFeatureDistinctCallElement {"feature": "<feature_name>", "element": "<element_name>"}' \
+        '\n'
+
+        if not argCheck('addFeatureDistinctCallElement', arg, self.do_addFeatureDistinctCallElement.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+            parmData['FEATURE'] = parmData['FEATURE'].upper()
+            parmData['ELEMENT'] = parmData['ELEMENT'].upper()
+        except (ValueError, KeyError) as e:
+            argError(arg, e)
+        else:
+    
+            #--lookup feature and error if it doesn't exist
+            ftypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', parmData['FEATURE'])
+            if not ftypeRecord:
+                printWithNewLines('Feature %s not found!' % parmData['FEATURE'], 'B')
+                return
+            ftypeID = ftypeRecord['FTYPE_ID']
+
+            #--lookup element and error if it doesn't exist
+            felemRecord = self.getRecord('CFG_FELEM', 'FELEM_CODE', parmData['ELEMENT'])
+            if not felemRecord:
+                printWithNewLines('Element %s not found!' % parmData['ELEMENT'], 'B')
+                return
+            felemID = felemRecord['FELEM_ID']
+
+            #--find the distinct function call
+            dfcallRecord = self.getRecord('CFG_DFCALL', 'FTYPE_ID', ftypeID)
+            if not dfcallRecord:
+                printWithNewLines('Distinct function for feature %s not found!' % parmData['FEATURE'], 'B')
+                return
+            dfcallID = dfcallRecord['DFCALL_ID']
+
+            #--check to see if the element is already in the feature
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_DFBOM'])-1, -1, -1):
+                if self.cfgData['G2_CONFIG']['CFG_DFBOM'][i]['DFCALL_ID'] == dfcallID and self.cfgData['G2_CONFIG']['CFG_DFBOM'][i]['FELEM_ID'] == felemID:
+                    printWithNewLines('Distinct function for feature %s aleady contains element %s!' % (parmData['FEATURE'],parmData['ELEMENT']), 'B')
+                    return
+
+            #--add the feature element
+            dfbomExecOrder = 0
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_DFBOM'])):
+                if self.cfgData['G2_CONFIG']['CFG_DFBOM'][i]['DFCALL_ID'] == dfcallID:
+                    if self.cfgData['G2_CONFIG']['CFG_DFBOM'][i]['EXEC_ORDER'] > dfbomExecOrder:
+                        dfbomExecOrder = self.cfgData['G2_CONFIG']['CFG_DFBOM'][i]['EXEC_ORDER']
+            dfbomExecOrder = dfbomExecOrder + 1
+            newRecord = {}
+            newRecord['DFCALL_ID'] = dfcallID
+            newRecord['EXEC_ORDER'] = dfbomExecOrder
+            newRecord['FTYPE_ID'] = ftypeID
+            newRecord['FELEM_ID'] = felemID
+            self.cfgData['G2_CONFIG']['CFG_DFBOM'].append(newRecord)
+            if self.doDebug:
+                showMeTheThings(newRecord, 'DFBOM build')
+    
+            #--we made it!
+            self.configUpdated = True
+            printWithNewLines('Successfully added!', 'B')
+
+    # -----------------------------
     def do_addFeatureComparison(self,arg):
         '\n\taddFeatureComparison {"feature": "<feature_name>", "comparison": "<comparison_function>", "elementList": ["<element_detail(s)"]}' \
         '\n\n\taddFeatureComparison {"feature":"testFeat", "comparison":"exact_comp", "elementlist": [{"element": "test"}]}' \
@@ -1077,12 +1140,53 @@ class G2CmdShell(cmd.Cmd):
                             for i2 in range(len(self.cfgData['G2_CONFIG']['CFG_CFBOM'])-1, -1, -1):
                                 if self.cfgData['G2_CONFIG']['CFG_CFBOM'][i2]['CFCALL_ID'] == self.cfgData['G2_CONFIG']['CFG_CFCALL'][i1]['CFCALL_ID']:
                                     del self.cfgData['G2_CONFIG']['CFG_CFBOM'][i2]        
+                                    deleteCnt += 1
                             del self.cfgData['G2_CONFIG']['CFG_CFCALL'][i1]        
                             deleteCnt += 1
                             self.configUpdated = True
 
             if deleteCnt == 0:
                 printWithNewLines('Feature comparator not found!', 'B')
+            else:
+                printWithNewLines('%s rows deleted!' % deleteCnt, 'B')
+
+    # -----------------------------
+    def do_deleteFeatureDistinctCall(self,arg):
+        '\n\tdeleteFeatureDistinctCall {"feature": "<feature_name>"}\n'
+
+        if not argCheck('deleteFeatureDistinctCall', arg, self.do_deleteFeatureDistinctCall.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+            parmData['FEATURE'] = parmData['FEATURE'].upper()
+        except (ValueError, KeyError) as e:
+            argError(arg, e)
+        else:
+    
+            #--lookup feature and error if it doesn't exist
+            ftypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', parmData['FEATURE'])
+            if not ftypeRecord:
+                printWithNewLines('Feature %s not found!' % parmData['FEATURE'], 'B')
+                return
+
+            deleteCnt = 0
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_FTYPE'])-1, -1, -1):
+                if self.cfgData['G2_CONFIG']['CFG_FTYPE'][i]['FTYPE_CODE'] == parmData['FEATURE']:
+
+                    # delete any distinct-func calls and boms  (must loop through backwards when deleting)
+                    for i1 in range(len(self.cfgData['G2_CONFIG']['CFG_DFCALL'])-1, -1, -1):
+                        if self.cfgData['G2_CONFIG']['CFG_DFCALL'][i1]['FTYPE_ID'] == self.cfgData['G2_CONFIG']['CFG_FTYPE'][i]['FTYPE_ID']:
+                            for i2 in range(len(self.cfgData['G2_CONFIG']['CFG_DFBOM'])-1, -1, -1):
+                                if self.cfgData['G2_CONFIG']['CFG_DFBOM'][i2]['DFCALL_ID'] == self.cfgData['G2_CONFIG']['CFG_DFCALL'][i1]['DFCALL_ID']:
+                                    del self.cfgData['G2_CONFIG']['CFG_DFBOM'][i2]        
+                                    deleteCnt += 1
+                            del self.cfgData['G2_CONFIG']['CFG_DFCALL'][i1]        
+                            deleteCnt += 1
+                            self.configUpdated = True
+
+            if deleteCnt == 0:
+                printWithNewLines('Feature distinct call not found!', 'B')
             else:
                 printWithNewLines('%s rows deleted!' % deleteCnt, 'B')
 

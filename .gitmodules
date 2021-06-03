@@ -65,20 +65,14 @@
   path = g2iniparams
   url = https://github.com/Senzing/g2iniparams.git
 [submodule "g2createproject"]
-	path = g2createproject
-	url = https://github.com/Senzing/g2createproject.git
+  path = g2createproject
+  url = https://github.com/Senzing/g2createproject.git
 [submodule "g2updateproject"]
-	path = g2updateproject
-	url = https://github.com/Senzing/g2updateproject.git
-[submodule "bin/g2health"]
-	path = bin/g2health
-	url = https://github.com/Senzing/g2health.git
-[submodule "bin/g2setupconfig"]
-	path = bin/g2setupconfig
-	url = https://github.com/Senzing/g2setupconfig.git
+  path = g2updateproject
+  url = https://github.com/Senzing/g2updateproject.git
 [submodule "g2health"]
-	path = g2health
-	url = https://github.com/Senzing/g2health.git
+  path = g2health
+  url = https://github.com/Senzing/g2health.git
 [submodule "g2setupconfig"]
-	path = g2setupconfig
-	url = https://github.com/Senzing/g2setupconfig.git
+  path = g2setupconfig
+  url = https://github.com/Senzing/g2setupconfig.git

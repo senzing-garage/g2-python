@@ -341,7 +341,7 @@ class G2Project:
                 featureStat['UTYPE_CODE'] = featureSplit[1]
             else:
                 featureStat['FTYPE_CODE'] = feature 
-                featureStat['UTYPE_CODE'] = None
+                featureStat['UTYPE_CODE'] = ''
             featureStat['FEATURE_ORDER'] = self.featureDict[featureStat['FTYPE_CODE']]['FEATURE_ORDER']
             featureStat['COUNT'] = self.featureStats[feature]
             if self.recordCount == 0:

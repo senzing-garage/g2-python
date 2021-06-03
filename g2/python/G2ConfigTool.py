@@ -841,6 +841,69 @@ class G2CmdShell(cmd.Cmd):
                 printWithNewLines(self.getFeatureJson(ftypeRecord), 'B')
 
     # -----------------------------
+    def do_addFeatureComparisonElement(self,arg):
+        '\n\taddFeatureComparisonElement {"feature": "<feature_name>", "element": "<element_name>"}' \
+        '\n'
+
+        if not argCheck('addFeatureComparisonElement', arg, self.do_addFeatureComparisonElement.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+            parmData['FEATURE'] = parmData['FEATURE'].upper()
+            parmData['ELEMENT'] = parmData['ELEMENT'].upper()
+        except (ValueError, KeyError) as e:
+            argError(arg, e)
+        else:
+    
+            #--lookup feature and error if it doesn't exist
+            ftypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', parmData['FEATURE'])
+            if not ftypeRecord:
+                printWithNewLines('Feature %s not found!' % parmData['FEATURE'], 'B')
+                return
+            ftypeID = ftypeRecord['FTYPE_ID']
+
+            #--lookup element and error if it doesn't exist
+            felemRecord = self.getRecord('CFG_FELEM', 'FELEM_CODE', parmData['ELEMENT'])
+            if not felemRecord:
+                printWithNewLines('Element %s not found!' % parmData['ELEMENT'], 'B')
+                return
+            felemID = felemRecord['FELEM_ID']
+
+            #--find the comparison function call
+            cfcallRecord = self.getRecord('CFG_CFCALL', 'FTYPE_ID', ftypeID)
+            if not cfcallRecord:
+                printWithNewLines('Comparison function for feature %s not found!' % parmData['FEATURE'], 'B')
+                return
+            cfcallID = cfcallRecord['CFCALL_ID']
+
+            #--check to see if the element is already in the feature
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_CFBOM'])-1, -1, -1):
+                if self.cfgData['G2_CONFIG']['CFG_CFBOM'][i]['CFCALL_ID'] == cfcallID and self.cfgData['G2_CONFIG']['CFG_CFBOM'][i]['FELEM_ID'] == felemID:
+                    printWithNewLines('Comparison function for feature %s aleady contains element %s!' % (parmData['FEATURE'],parmData['ELEMENT']), 'B')
+                    return
+
+            #--add the feature element
+            cfbomExecOrder = 0
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_CFBOM'])):
+                if self.cfgData['G2_CONFIG']['CFG_CFBOM'][i]['CFCALL_ID'] == cfcallID:
+                    if self.cfgData['G2_CONFIG']['CFG_CFBOM'][i]['EXEC_ORDER'] > cfbomExecOrder:
+                        cfbomExecOrder = self.cfgData['G2_CONFIG']['CFG_CFBOM'][i]['EXEC_ORDER']
+            cfbomExecOrder = cfbomExecOrder + 1
+            newRecord = {}
+            newRecord['CFCALL_ID'] = cfcallID
+            newRecord['EXEC_ORDER'] = cfbomExecOrder
+            newRecord['FTYPE_ID'] = ftypeID
+            newRecord['FELEM_ID'] = felemID
+            self.cfgData['G2_CONFIG']['CFG_CFBOM'].append(newRecord)
+            if self.doDebug:
+                showMeTheThings(newRecord, 'CFBOM build')
+    
+            #--we made it!
+            self.configUpdated = True
+            printWithNewLines('Successfully added!', 'B')
+
+    # -----------------------------
     def do_addFeatureComparison(self,arg):
         '\n\taddFeatureComparison {"feature": "<feature_name>", "comparison": "<comparison_function>", "elementList": ["<element_detail(s)"]}' \
         '\n\n\taddFeatureComparison {"feature":"testFeat", "comparison":"exact_comp", "elementlist": [{"element": "test"}]}' \
@@ -940,6 +1003,49 @@ class G2CmdShell(cmd.Cmd):
             self.configUpdated = True
             printWithNewLines('Successfully added!', 'B')
 
+
+    # -----------------------------
+    def do_deleteFeatureComparisonElement(self,arg):
+        '\n\tdeleteFeatureComparisonElement {"feature": "<feature_name>", "element": "<element_name>"}\n'
+
+        if not argCheck('deleteFeatureComparisonElement', arg, self.do_deleteFeatureComparisonElement.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+            parmData['FEATURE'] = parmData['FEATURE'].upper()
+            parmData['ELEMENT'] = parmData['ELEMENT'].upper()
+        except (ValueError, KeyError) as e:
+            argError(arg, e)
+        else:
+    
+            #--lookup feature and error if it doesn't exist
+            ftypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', parmData['FEATURE'])
+            if not ftypeRecord:
+                printWithNewLines('Feature %s not found!' % parmData['FEATURE'], 'B')
+                return
+
+            #--lookup element and error if it doesn't exist
+            felemRecord = self.getRecord('CFG_FELEM', 'FELEM_CODE', parmData['ELEMENT'])
+            if not felemRecord:
+                printWithNewLines('Element %s not found!' % parmData['ELEMENT'], 'B')
+                return
+
+            deleteCnt = 0
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_FTYPE'])-1, -1, -1):
+                if self.cfgData['G2_CONFIG']['CFG_FTYPE'][i]['FTYPE_CODE'] == parmData['FEATURE']:
+                    for i1 in range(len(self.cfgData['G2_CONFIG']['CFG_CFCALL'])-1, -1, -1):
+                        if self.cfgData['G2_CONFIG']['CFG_CFCALL'][i1]['FTYPE_ID'] == ftypeRecord['FTYPE_ID']:
+                            for i2 in range(len(self.cfgData['G2_CONFIG']['CFG_CFBOM'])-1, -1, -1):
+                                if self.cfgData['G2_CONFIG']['CFG_CFBOM'][i2]['CFCALL_ID'] == self.cfgData['G2_CONFIG']['CFG_CFCALL'][i1]['CFCALL_ID'] and self.cfgData['G2_CONFIG']['CFG_CFBOM'][i2]['FTYPE_ID'] == ftypeRecord['FTYPE_ID'] and self.cfgData['G2_CONFIG']['CFG_CFBOM'][i2]['FELEM_ID'] == felemRecord['FELEM_ID']:
+                                    del self.cfgData['G2_CONFIG']['CFG_CFBOM'][i2]        
+                                    deleteCnt += 1
+                                    self.configUpdated = True
+
+            if deleteCnt == 0:
+                printWithNewLines('Feature comparator element not found!', 'B')
+            else:
+                printWithNewLines('%s rows deleted!' % deleteCnt, 'B')
 
     # -----------------------------
     def do_deleteFeatureComparison(self,arg):

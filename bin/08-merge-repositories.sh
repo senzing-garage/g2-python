@@ -3,7 +3,7 @@
 # Read metadata.
 
 source 01-user-variables.sh
-source 11-submodules.sh
+source 07-submodules.sh
 
 # Process each entry.
 

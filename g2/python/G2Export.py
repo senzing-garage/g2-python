@@ -69,7 +69,7 @@ def exportEntityResume(appError):
     #--determine the output flags
     exportFlags = 0
     if outputFilter == 1:
-        exportFlags = g2_module.G2_EXPORT_INCLUDE_RESOLVED | g2_module.G2_ENTITY_INCLUDE_NO_RELATIONS
+        exportFlags = g2_module.G2_EXPORT_INCLUDE_RESOLVED
     elif outputFilter == 2:
         exportFlags = g2_module.G2_EXPORT_INCLUDE_RESOLVED | g2_module.G2_EXPORT_INCLUDE_POSSIBLY_SAME | g2_module.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS
     elif outputFilter == 3:
@@ -81,8 +81,8 @@ def exportEntityResume(appError):
     else:
         exportFlags = g2_module.G2_EXPORT_INCLUDE_ALL_ENTITIES
 
-    if not extended:
-      exportFlags |= g2_module.G2_ENTITY_MINIMAL_FORMAT
+    #if not extended:
+    #  exportFlags |= g2_module.G2_ENTITY_MINIMAL_FORMAT
 
     #--but use these headers as this export includes computed column: resolved name
     csvFields = []

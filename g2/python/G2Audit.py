@@ -1,421 +1,672 @@
-from ctypes import *
-import threading
-import json
+#! /usr/bin/env python3
 import os
+import sys
+import argparse
+try: import configparser
+except: import ConfigParser as configparser
+import signal
+import csv
+import json
+from datetime import datetime, timedelta
+import time
+import random
 
-class MyBuffer(threading.local):
-  def __init__(self):
-    self.buf = create_string_buffer(65535)
-    self.bufSize = sizeof(self.buf)
-    #print("Created new Buffer {}".format(self.buf))
+#----------------------------------------
+def pause(question='PRESS ENTER TO CONTINUE ...'):
+    """ pause for debug purposes """
+    try: input(question)
+    except KeyboardInterrupt:
+        global shutDown
+        shutDown = True
+    except: pass
 
-tls_var = MyBuffer()
+#----------------------------------------
+def signal_handler(signal, frame):
+    print('USER INTERUPT! Shutting down ... (please wait)')
+    global shutDown
+    shutDown = True
+    return
 
-from G2Exception import TranslateG2ModuleException, G2ModuleNotInitialized, G2ModuleGenericException
+#----------------------------------------
+def splitCost(a, b):
+    return (a*b)
 
-def resize_return_buffer(buf_, size_):
-  """  callback function that resizes return buffer when it is too small
-  Args:
-  size_: size the return buffer needs to be
-  """
-  try:
-    if not tls_var.buf:
-      #print("New RESIZE_RETURN_BUF {}:{}".format(buf_,size_))
-      tls_var.buf = create_string_buffer(size_)
-      tls_var.bufSize = size_
-    elif (tls_var.bufSize < size_):
-      #print("RESIZE_RETURN_BUF {}:{}/{}".format(buf_,size_,tls_var.bufSize))
-      foo = tls_var.buf
-      tls_var.buf = create_string_buffer(size_)
-      tls_var.bufSize = size_
-      memmove(tls_var.buf, foo, sizeof(foo))
-  except AttributeError:
-      #print("AttributeError RESIZE_RETURN_BUF {}:{}".format(buf_,size_))
-      tls_var.buf = create_string_buffer(size_)
-      #print("Created new Buffer {}".format(tls_var.buf))
-      tls_var.bufSize = size_
-  return addressof(tls_var.buf)
-  
+#----------------------------------------
+def mergeCost(a, b):
+    return (a*b)
 
+#----------------------------------------
+def makeKeytable(fileName, tableName):
 
-class G2Audit(object):
-    """G2 audit access library
+    print('loading %s ...' % fileName)
 
-    Attributes:
-        _lib_handle: A boolean indicating if we like SPAM or not.
-        _resize_func_def: resize function definiton
-        _resize_func: resize function pointer
-        _module_name: CME module name
-        _ini_file_name: name and location of .ini file
-    """
-    def init(self, module_name_, ini_file_name_, debug_=False):
-        """  Initializes the G2 audit module engine
-        This should only be called once per process.
-        Args:
-            moduleName: A short name given to this instance of the audit module
-            iniFilename: A fully qualified path to the G2 engine INI file (often /opt/senzing/g2/python/G2Module.ini)
-            verboseLogging: Enable diagnostic logging which will print a massive amount of information to stdout
-        """
+    try: 
+        with open(fileName,'r') as f:
+            headerLine = f.readline()
+    except IOError as err:
+        print(err)
+        return None
+    csvDialect = csv.Sniffer().sniff(headerLine)
+    columnNames = next(csv.reader([headerLine], dialect = csvDialect))
+    columnNames = [x.upper() for x in columnNames]
 
-        self._module_name = self.prepareStringArgument(module_name_)
-        self._ini_file_name = self.prepareStringArgument(ini_file_name_)
-        self._debug = debug_
+    fileMap = {}
+    fileMap['algorithmName'] = '<name of the algorthm that produced the entity map>'
+    fileMap['clusterField'] = '<csvFieldName> for unique ID'
+    fileMap['recordField'] = '<csvFieldName> for the record ID'
+    fileMap['sourceField'] = '<csvFieldName> for the data source (only required if multiple)'
+    fileMap['sourceValue'] = 'hard coded value that matches Senzing data source source'
+    fileMap['scoreField'] = '<csvFieldName> for the matching score (optional)'
 
-        if self._debug:
-            print("Initializing G2 audit module")
-
-        self._lib_handle.G2Audit_init.argtypes = [c_char_p, c_char_p, c_int]
-        ret_code = self._lib_handle.G2Audit_init(self._module_name,
-                                 self._ini_file_name,
-                                 self._debug)
-
-        if self._debug:
-            print("Initialization Status: " + str(ret_code))
-
-        if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
-        elif ret_code < 0:
-            self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-
-
-    def initV2(self, module_name_, ini_params_, debug_=False):
-
-        self._module_name = self.prepareStringArgument(module_name_)
-        self._ini_params = self.prepareStringArgument(ini_params_)
-        self._debug = debug_
-
-        if self._debug:
-            print("Initializing G2 audit module")
-
-        self._lib_handle.G2Audit_init_V2.argtypes = [c_char_p, c_char_p, c_int]
-        ret_code = self._lib_handle.G2Audit_init_V2(self._module_name,
-                                 self._ini_params,
-                                 self._debug)
-
-        if self._debug:
-            print("Initialization Status: " + str(ret_code))
-
-        if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
-        elif ret_code < 0:
-            self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-
-
-    def initWithConfigIDV2(self, engine_name_, ini_params_, initConfigID_, debug_):
-
-        configIDValue = self.prepareIntArgument(initConfigID_)
-
-        self._engine_name = self.prepareStringArgument(engine_name_)
-        self._ini_params = self.prepareStringArgument(ini_params_)
-        self._debug = debug_
-        if self._debug:
-            print("Initializing G2 audit module")
-
-        self._lib_handle.G2Audit_initWithConfigID_V2.argtypes = [ c_char_p, c_char_p, c_longlong, c_int ]
-        ret_code = self._lib_handle.G2Audit_initWithConfigID_V2(self._engine_name,
-                                 self._ini_params,
-                                 configIDValue,
-                                 self._debug)
-
-        if self._debug:
-            print("Initialization Status: " + str(ret_code))
-
-        if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
-        elif ret_code < 0:
-            self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-
-    def reinitV2(self, initConfigID):
-
-        configIDValue = int(self.prepareStringArgument(initConfigID))
-
-        self._lib_handle.G2Audit_reinit_V2.argtypes = [ c_longlong ]
-        ret_code = self._lib_handle.G2Audit_reinit_V2(configIDValue)
-
-        if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
-        elif ret_code < 0:
-            self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-
-    def __init__(self):
-        # type: (str, str, bool) -> None
-        """ G2AuditModule class initialization
-        """
-
-        try:
-          if os.name == 'nt':
-            self._lib_handle = cdll.LoadLibrary("G2.dll")
-          else:
-            self._lib_handle = cdll.LoadLibrary("libG2.so")
-        except OSError as ex:
-          print("ERROR: Unable to load G2.  Did you remember to setup your environment by sourcing the setupEnv file?")
-          print("ERROR: For more information see https://senzing.zendesk.com/hc/en-us/articles/115002408867-Introduction-G2-Quickstart")
-          print("ERROR: If you are running Ubuntu or Debian please also review the ssl and crypto information at https://senzing.zendesk.com/hc/en-us/articles/115010259947-System-Requirements")
-          raise G2ModuleGenericException("Failed to load the G2 library")
-
-        self._resize_func_def = CFUNCTYPE(c_char_p, c_char_p, c_size_t)
-        self._resize_func = self._resize_func_def(resize_return_buffer)
-
-
-    def prepareStringArgument(self, stringToPrepare):
-        # type: (str) -> str
-        """ Internal processing function """
-
-        #handle null string
-        if stringToPrepare == None:
+    if 'RESOLVED_ENTITY_ID' in columnNames and 'DATA_SOURCE' in columnNames and 'RECORD_ID' in columnNames:
+        fileMap['algorithmName'] = 'Senzing'
+        fileMap['clusterField'] = 'RESOLVED_ENTITY_ID'
+        fileMap['recordField'] = 'RECORD_ID'
+        fileMap['sourceField'] = 'DATA_SOURCE'
+        fileMap['scoreField'] = 'MATCH_KEY'
+    elif 'CLUSTER_ID' in columnNames and 'RECORD_ID' in columnNames:
+        fileMap['algorithmName'] = 'Other'
+        fileMap['clusterField'] = 'CLUSTER_ID'
+        fileMap['recordField'] = 'RECORD_ID'
+        if 'DATA_SOURCE' in columnNames:
+            fileMap['sourceField'] = 'DATA_SOURCE'
+        else: 
+            del fileMap['sourceField']
+            print()
+            fileMap['sourceValue'] = input('What did you name the data_source? ')
+            print() 
+            if not fileMap['sourceValue']:
+                print('Unfortunately a data source name is required. process aborted.')
+                print()
+                return None
+        if 'SCORE' in columnNames:
+            fileMap['scoreField'] = 'SCORE'
+        else:
+            del fileMap['scoreField']
+    else:
+        if not os.path.exists(fileName + '.map'):
+            print('')
+            print('please describe the fields for ' + fileName + ' as follows in a file named ' + fileName + '.map')
+            print(json.dumps(fileMap, indent=4))
+            print('')
             return None
-        #if string is unicode, transcode to utf-8 str
-        if type(stringToPrepare) == str:
-            return stringToPrepare.encode('utf-8')
-        #if input is bytearray, assumt utf-8 and convert to str
-        elif type(stringToPrepare) == bytearray:
-            return stringToPrepare.decode().encode('utf-8')
-        elif type(stringToPrepare) == bytes:
-            return str(stringToPrepare).encode('utf-8')
-        #input is already a str
-        return stringToPrepare
+        else:
+            try: fileMap = json.load(open(fileName + '.map'))
+            except ValueError as err:
+                print('error opening %s' % (fileName + '.map'))
+                print(err)
+                return None
+            if 'clusterField' not in fileMap:
+                print('clusterField missing from file map')
+                return None
+            if 'recordField' not in fileMap:
+                print('recordField missing from file map')
+                return None
+            if 'sourceField' not in fileMap and 'sourceValue' not in fileMap:
+                print('either a sourceField or sourceValue must be specified in the file map')
+                return None
 
-    def prepareIntArgument(self, valueToPrepare):
-        # type: (str) -> int
-        """ Internal processing function """
-        """ This converts many types of values to an integer """
+    fileMap['fileName'] = fileName
+    fileMap['tableName'] = tableName
+    fileMap['columnHeaders'] = columnNames
+    if fileMap['clusterField'] not in fileMap['columnHeaders']:
+        print('column %s not in %s' % (fileMap['clusterField'], fileMap['fileName']))
+        return 1
+    if fileMap['recordField'] not in fileMap['columnHeaders']:
+        print('column %s not in %s' % (fileMap['recordField'], fileMap['fileName']))
+        return 1
+    #if  fileMap['sourceField'] not in fileMap['columnHeaders']:
+    #    print('column %s not in %s' % (fileMap['sourceField'], fileMap['fileName']))
+    #    return 1
 
-        #handle null string
-        if valueToPrepare == None:
-            return None
-        #if string is unicode, transcode to utf-8 str
-        if type(valueToPrepare) == str:
-            return int(valueToPrepare.encode('utf-8'))
-        #if input is bytearray, assumt utf-8 and convert to str
-        elif type(valueToPrepare) == bytearray:
-            return int(valueToPrepare)
-        elif type(valueToPrepare) == bytes:
-            return int(valueToPrepare)
-        #input is already an int
-        return valueToPrepare
+    fileMap['clusters'] = {}
+    fileMap['records'] = {}
+    fileMap['relationships'] = {}
+    nextMissingCluster_id = 0
 
-    def clearLastException(self):
-        """ Clears the last exception
-
-        """
-
-        self._lib_handle.G2Audit_clearLastException.restype = None
-        self._lib_handle.G2Audit_clearLastException.argtypes = []
-        self._lib_handle.G2Audit_clearLastException()
-
-    def getLastException(self):
-        """ Gets the last exception
-        """
-
-        self._lib_handle.G2Audit_getLastException.restype = c_int
-        self._lib_handle.G2Audit_getLastException.argtypes = [c_char_p, c_size_t]
-        self._lib_handle.G2Audit_getLastException(tls_var.buf,sizeof(tls_var.buf))
-        resultString = tls_var.buf.value.decode('utf-8')
-        return resultString
-
-    def getLastExceptionCode(self):
-        """ Gets the last exception code
-        """
-
-        self._lib_handle.G2Audit_getLastExceptionCode.restype = c_int
-        self._lib_handle.G2Audit_getLastExceptionCode.argtypes = []
-        exception_code = self._lib_handle.G2Audit_getLastExceptionCode()
-        return exception_code
-
-    def openSession(self):
-        self._lib_handle.G2Audit_openSession.restype = c_void_p
-        sessionHandle = self._lib_handle.G2Audit_openSession()
-        if sessionHandle == None:
-            self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-        return sessionHandle
-
-    def cancelSession(self, sessionHandle):
-        self._lib_handle.G2Audit_cancelSession(sessionHandle)
-
-    def closeSession(self, sessionHandle):
-        self._lib_handle.G2Audit_closeSession(sessionHandle)
-
-
-    def getSummaryData(self, sessionHandle, response):
-        # type: () -> object
-        """ Get the summary data for the G2 data repository.
-        """
-
-        responseBuf = c_char_p(addressof(tls_var.buf))
-        responseSize = c_size_t(tls_var.bufSize)
-        self._lib_handle.G2Audit_openSession.restype = c_void_p
-        sessionHandle = self._lib_handle.G2Audit_openSession()
-        if sessionHandle == None:
-            self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-        self._lib_handle.G2Audit_getSummaryData.restype = c_int
-        self._lib_handle.G2Audit_getSummaryData.argtypes = [c_void_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
-        ret_code = self._lib_handle.G2Audit_getSummaryData(sessionHandle,
-                                             pointer(responseBuf),
-                                             pointer(responseSize),
-                                             self._resize_func)
-        self._lib_handle.G2Audit_closeSession.argtypes = [c_void_p]
-        self._lib_handle.G2Audit_closeSession(sessionHandle)
-
-        if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
-        elif ret_code < 0:
-            self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-
-        response += responseBuf.value
-
-    def getSummaryDataDirect(self, response):
-        # type: () -> object
-        """ Get the summary data for the G2 data repository, with optimizations.
-        """
-
-        responseBuf = c_char_p(addressof(tls_var.buf))
-        responseSize = c_size_t(tls_var.bufSize)
-        self._lib_handle.G2Audit_getSummaryDataDirect.restype = c_int
-        self._lib_handle.G2Audit_getSummaryDataDirect.argtypes = [POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
-        ret_code = self._lib_handle.G2Audit_getSummaryDataDirect(
-                                             pointer(responseBuf),
-                                             pointer(responseSize),
-                                             self._resize_func)
-
-        if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
-        elif ret_code < 0:
-            self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-
-        response += responseBuf.value
-
-    def getUsedMatchKeys(self,sessionHandle,fromDataSource,toDataSource,matchLevel,response):
-        # type: (str,str,int) -> str
-        """ Get the usage frequency of match keys
-        Args:
-            fromDataSource: The data source to search for matches
-            toDataSource: The data source to compare against
-            matchLevel: The matchLevel of matches to return
-
-        Return:
-            str: JSON document with results
-        """
-
-        _fromDataSource = self.prepareStringArgument(fromDataSource)
-        _toDataSource = self.prepareStringArgument(toDataSource)
-        _matchLevel = matchLevel
-        responseBuf = c_char_p(addressof(tls_var.buf))
-        responseSize = c_size_t(tls_var.bufSize)
-        self._lib_handle.G2Audit_getUsedMatchKeys.restype = c_int
-        self._lib_handle.G2Audit_getUsedMatchKeys.argtypes = [c_void_p, c_char_p, c_char_p, c_longlong, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
-        ret_code = self._lib_handle.G2Audit_getUsedMatchKeys(sessionHandle,_fromDataSource,_toDataSource,_matchLevel,
-                                                                 pointer(responseBuf),
-                                                                 pointer(responseSize),
-                                                                 self._resize_func)
-
-        if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
-        elif ret_code < 0:
-            self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-
-        response += responseBuf.value
-
-
-    def getUsedPrinciples(self,sessionHandle,fromDataSource,toDataSource,matchLevel,response):
-        # type: (str,str,int) -> str
-        """ Get the usage frequency of principles
-        Args:
-            fromDataSource: The data source to search for matches
-            toDataSource: The data source to compare against
-            matchLevel: The matchLevel of matches to return
-
-        Return:
-            str: JSON document with results
-        """
-
-        _fromDataSource = self.prepareStringArgument(fromDataSource)
-        _toDataSource = self.prepareStringArgument(toDataSource)
-        _matchLevel = matchLevel
-        responseBuf = c_char_p(addressof(tls_var.buf))
-        responseSize = c_size_t(tls_var.bufSize)
-        self._lib_handle.G2Audit_getUsedPrinciples.restype = c_int
-        self._lib_handle.G2Audit_getUsedPrinciples.argtypes = [c_void_p, c_char_p, c_char_p, c_longlong, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
-        ret_code = self._lib_handle.G2Audit_getUsedPrinciples(sessionHandle,_fromDataSource,_toDataSource,_matchLevel,
-                                                                 pointer(responseBuf),
-                                                                 pointer(responseSize),
-                                                                 self._resize_func)
-
-        if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
-        elif ret_code < 0:
-            self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-
-        response += responseBuf.value
-
-
-    def getAuditReport(self,sessionHandle,fromDataSource,toDataSource,matchLevel):
-        # type: (str,str,int) -> str
-        """ Generate an Audit Report
-        This is used to get audit entity data from known entities.
-   
-        Args:
-            fromDataSource: The data source to search for matches
-            toDataSource: The data source to compare against
-            match_level: The match-level to specify what kind of entity resolves
-                         and relations we want to see.
-                             1 -- same entities
-                             2 -- possibly same entities
-                             3 -- possibly related entities
-                             4 -- disclosed relationships
-
-        Return:
-            str: string of several JSON documents with results
-        """
-        resultString = b""
-        _fromDataSource = self.prepareStringArgument(fromDataSource)
-        _toDataSource = self.prepareStringArgument(toDataSource)
-        _matchLevel = matchLevel
-        self._lib_handle.G2Audit_getAuditReport.restype = c_void_p
-        reportHandle = self._lib_handle.G2Audit_getAuditReport(sessionHandle,_fromDataSource,_toDataSource,_matchLevel)
-        if reportHandle == None:
-            self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-        return reportHandle
-
-    def fetchNext(self,reportHandle,response):
-        if reportHandle == None:
-            self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-        self._lib_handle.G2Audit_fetchNext.argtypes = [c_void_p, c_char_p, c_size_t]
-        rowData = self._lib_handle.G2Audit_fetchNext(c_void_p(reportHandle),tls_var.buf,sizeof(tls_var.buf))
-
-        while rowData:
-            response += tls_var.buf.value
-            if (response.decode())[-1] == '\n':
-                break
+    with open(fileMap['fileName'],'r') as csv_file:
+        csv_reader = csv.reader(csv_file, dialect = csvDialect)
+        next(csv_reader) #--remove header
+        for row in csv_reader:
+            rowData = dict(zip(columnNames, row))
+            if fileMap['algorithmName'] == 'Senzing' and 'RELATED_ENTITY_ID' in rowData and rowData['RELATED_ENTITY_ID'] != '0':
+                ent1str = str(rowData['RESOLVED_ENTITY_ID'])
+                ent2str = str(rowData['RELATED_ENTITY_ID'])
+                relKey = ent1str + '-' + ent2str if ent1str < ent2str else ent2str + '-' + ent1str
+                if relKey not in fileMap['relationships']:
+                    fileMap['relationships'][relKey] = rowData['MATCH_KEY']
+                continue
+            if 'sourceField' in fileMap:
+                sourceValue = rowData[fileMap['sourceField']]
             else:
-                rowData = self._lib_handle.G2Audit_fetchNext(c_void_p(reportHandle),tls_var.buf,sizeof(tls_var.buf))
-        return response
+                sourceValue = fileMap['sourceValue']        
+            if 'scoreField' in fileMap:
+                scoreValue = rowData[fileMap['scoreField']]
+            else:
+                scoreValue = None        
 
-    def closeReport(self, reportHandle):
-        self._lib_handle.G2Audit_closeReport(c_void_p(reportHandle))
+            rowData[fileMap['recordField']] = str(rowData[fileMap['recordField']]) + '|DS=' + str(sourceValue)
+            if not rowData[fileMap['clusterField']]:
+                nextMissingCluster_id += 1
+                rowData[fileMap['clusterField']] = '(sic) ' + str(nextMissingCluster_id)
+            else:             
+                rowData[fileMap['clusterField']] = str(rowData[fileMap['clusterField']])
+            fileMap['records'][rowData[fileMap['recordField']]] = rowData[fileMap['clusterField']]
+            if rowData[fileMap['clusterField']] not in fileMap['clusters']:
+                fileMap['clusters'][rowData[fileMap['clusterField']]] = {}
+            fileMap['clusters'][rowData[fileMap['clusterField']]][rowData[fileMap['recordField']]] = scoreValue
 
-    def destroy(self):
-        """ Uninitializes the engine
-        This should be done once per process after init(...) is called.
-        After it is called the engine will no longer function.
+    return fileMap
 
-        Args:
-            None
+def erCompare(fileName1, fileName2, outputRoot):
 
-        Return:
-            None
-        """
+    #--load the second file into a database table (this is the prior run or prior ground truth)
+    fileMap2 = makeKeytable(fileName2, 'prior')
+    if not fileMap2:
+        return 1
 
-        self._lib_handle.G2Audit_destroy()
+    #--load the first file into a database table (this is the newer run or candidate for adoption)
+    fileMap1 = makeKeytable(fileName1, 'newer')
+    if not fileMap1:
+        return 1
 
+    #--set output files and columns
+    outputCsvFile = outputRoot + '.csv'
+    outputJsonFile = outputRoot + '.json'
+    try: csvHandle = open(outputCsvFile, 'w')
+    except IOError as err:
+        print(err)
+        print('could not open output file %s' % outputCsvFile)
+        return 1
+
+    csvHeaders = []
+    csvHeaders.append('audit_id')
+    csvHeaders.append('audit_category')
+    csvHeaders.append('audit_result')
+    csvHeaders.append('data_source')
+    csvHeaders.append('record_id')
+    csvHeaders.append('prior_id')
+    csvHeaders.append('prior_score')
+    csvHeaders.append('newer_id')
+    csvHeaders.append('newer_score')
+    try: csvHandle.write(','.join(csvHeaders) + '\n')
+    except IOError as err:
+        print(err)
+        print('could not write to output file %s' % outputCsvFile)
+        return 
+    nextAuditID = 0
+
+    #--initialize stats
+    statpack = {}
+    statpack['SOURCE'] = 'G2Audit'
+ 
+    statpack['ENTITY'] = {}
+    statpack['ENTITY']['STANDARD_COUNT'] = 0
+    statpack['ENTITY']['RESULT_COUNT'] = 0
+    statpack['ENTITY']['COMMON_COUNT'] = 0
+
+    statpack['CLUSTERS'] = {}
+    statpack['CLUSTERS']['STANDARD_COUNT'] = 0
+    statpack['CLUSTERS']['RESULT_COUNT'] = 0
+    statpack['CLUSTERS']['COMMON_COUNT'] = 0
+
+    statpack['ACCURACY'] = {}
+    statpack['ACCURACY']['PRIOR_POSITIVE'] = 0
+    statpack['ACCURACY']['NEW_POSITIVE'] = 0
+    statpack['ACCURACY']['NEW_NEGATIVE'] = 0
+
+    statpack['PAIRS'] = {}
+    statpack['PAIRS']['RESULT_COUNT'] = 0
+    statpack['PAIRS']['STANDARD_COUNT'] = 0
+    statpack['PAIRS']['COMMON_COUNT'] = 0
+
+    statpack['SLICE'] = {}
+    statpack['SLICE']['COST'] = 0
+
+    statpack['AUDIT'] = {}
+    statpack['MISSING_RECORD_COUNT'] = 0
+
+    #--to track the largest matching clusters with new positives
+    newPositiveClusters = {}
+
+    #--go through each cluster in the second file
+    #print('processing %s ...' % fileMap2['fileName'])
+    batchStartTime = time.time()
+    entityCnt = 0
+    for side2clusterID in fileMap2['clusters']:
+
+        #--progress display
+        entityCnt += 1
+        if entityCnt % 10000 == 0:
+            now = datetime.now().strftime('%I:%M%p').lower()
+            elapsedMins = round((time.time() - batchStartTime) / 60, 1)
+            eps = int(float(sqlCommitSize) / (float(time.time() - batchStartTime if time.time() - batchStartTime != 0 else 1)))
+            batchStartTime = time.time()
+            print(' %s entities processed at %s, %s per second' % (entityCnt, now, eps))
+
+        #--store the side2 cluster 
+        statpack['ENTITY']['STANDARD_COUNT'] += 1
+        side2recordIDs = fileMap2['clusters'][side2clusterID]
+        side2recordCnt = len(side2recordIDs)
+        if debugOn:
+            print('-' * 50)
+            print('prior cluster [%s] has %s records (%s)' % (side2clusterID, side2recordCnt, ','.join(sorted(side2recordIDs)[:10])))
+
+        #--lookup those records in side1 and see how many clusters they created (ideally one)
+        auditRows = []
+        missingCnt = 0
+        side1recordCnt = 0
+        side1clusterIDs = {}
+        for recordID in side2recordIDs:
+            auditData = {}
+            auditData['_side2clusterID_'] = side2clusterID
+            auditData['_recordID_'] = recordID
+            auditData['_side2score_'] = fileMap2['clusters'][side2clusterID][recordID]
+            try: side1clusterID = fileMap1['records'][recordID]
+            except:             
+                missingCnt += 1
+                auditData['_auditStatus_'] = 'missing'
+                auditData['_side1clusterID_'] = 'unknown'
+                auditData['_side1score_'] = ''
+                if debugOn: 
+                    print('newer run missing record [%s]' % recordID)
+            else:
+                side1recordCnt += 1
+                auditData['_auditStatus_'] = 'same' #--default, may get updated later
+                auditData['_side1clusterID_'] = fileMap1['records'][recordID]
+                auditData['_side1score_'] = fileMap1['clusters'][auditData['_side1clusterID_']][recordID]
+
+                if fileMap1['records'][recordID] in side1clusterIDs:
+                    side1clusterIDs[fileMap1['records'][recordID]] += 1
+                else:
+                    side1clusterIDs[fileMap1['records'][recordID]] = 1
+            auditRows.append(auditData)
+        side1clusterCnt = len(side1clusterIDs) 
+        statpack['MISSING_RECORD_COUNT'] += missingCnt
+
+        if debugOn:
+            print('newer run has those %s records in %s clusters [%s]' % (side1recordCnt, side1clusterCnt, ','.join(map(str, side1clusterIDs.keys()))))
+
+        #--count as prior positive and see if any new negatives
+        newNegativeCnt = 0
+        if side2recordCnt > 1:
+            statpack['CLUSTERS']['STANDARD_COUNT'] += 1
+            statpack['PAIRS']['STANDARD_COUNT'] += ((side2recordCnt * (side2recordCnt - 1)) / 2)
+            statpack['ACCURACY']['PRIOR_POSITIVE'] += side2recordCnt
+            if len(side1clusterIDs) > 1: #--gonna be some new negatives here
+
+                #--give credit for largest side1cluster 
+                largestSide1clusterID = None
+                for clusterID in side1clusterIDs:
+                    if (not largestSide1clusterID) or side1clusterIDs[clusterID] > side1clusterIDs[largestSide1clusterID]:
+                        largestSide1clusterID = clusterID
+                statpack['PAIRS']['COMMON_COUNT'] += ((side1clusterIDs[largestSide1clusterID] * (side1clusterIDs[largestSide1clusterID] - 1)) / 2)
+
+                #--mark the smaller clusters as new negatives
+                for i in range(len(auditRows)):
+                    if auditRows[i]['_side1clusterID_'] != largestSide1clusterID:
+                        newNegativeCnt += 1
+                        auditRows[i]['_auditStatus_'] = 'new negative'
+            else:
+                statpack['PAIRS']['COMMON_COUNT'] += ((side2recordCnt * (side2recordCnt - 1)) / 2)
+
+        #--now check for new positives
+        newPositiveCnt = 0
+        for side1clusterID in side1clusterIDs:
+            clusterNewPositiveCnt = 0
+            for recordID in fileMap1['clusters'][side1clusterID]:
+                if recordID not in side2recordIDs:
+                    newPositiveCnt += 1
+                    clusterNewPositiveCnt += 1
+                    side1recordCnt += 1
+                    auditData = {}
+                    auditData['_recordID_'] = recordID
+                    auditData['_side1clusterID_'] = side1clusterID
+                    auditData['_side1score_'] = fileMap1['clusters'][auditData['_side1clusterID_']][recordID]
+
+                    #--must lookup the side2 clusterID
+                    try: side2clusterID2 = fileMap2['records'][recordID]
+                    except:             
+                        missingCnt += 1
+                        auditData['_auditStatus_'] = 'missing'
+                        auditData['_side2clusterID_'] = 'unknown'
+                        if debugOn: 
+                            print('side 2 missing record [%s]' % recordID)
+                    else:
+                        auditData['_auditStatus_'] = 'new positive'
+                        auditData['_side2clusterID_'] = side2clusterID2
+                        auditData['_side2score_'] = fileMap2['clusters'][auditData['_side2clusterID_']][recordID]
+                    auditRows.append(auditData)
+
+            if clusterNewPositiveCnt > 0:
+                if debugOn:
+                    print('newer cluster %s has %s more records!' % (side1clusterID, clusterNewPositiveCnt))
+
+        #--if exactly same, note and goto top
+        if side1clusterCnt == 1 and side1recordCnt == side2recordCnt: 
+            if debugOn:
+                print('RESULT IS SAME!')
+            statpack['ENTITY']['COMMON_COUNT'] += 1
+            if side1recordCnt > 1:
+                statpack['CLUSTERS']['COMMON_COUNT'] += 1
+            continue
+
+        #--log it to the proper categories 
+        auditCategory = ''
+        if missingCnt:
+            auditCategory += '+MISSING'
+        if side1clusterCnt > 1:
+            auditCategory += '+SPLIT'
+        if side1recordCnt > side2recordCnt:
+            auditCategory += '+MERGE'
+        if not auditCategory:
+            auditCategory = '+UNKNOWN'
+        auditCategory = auditCategory[1:] if auditCategory else auditCategory
+
+        #--only count if current side2 cluster is largest merged
+        largerClusterID = None
+        lowerClusterID = None
+        if 'MERGE' in auditCategory:
+            side2clusterCounts = {}
+            for auditData in auditRows:
+                if auditData['_side2clusterID_'] not in side2clusterCounts:
+                    side2clusterCounts[auditData['_side2clusterID_']] = 1
+                else:
+                    side2clusterCounts[auditData['_side2clusterID_']] += 1
+
+            for clusterID in side2clusterCounts:
+                if side2clusterCounts[clusterID] > side2clusterCounts[side2clusterID]:
+                    largerClusterID = clusterID
+                    break
+                elif side2clusterCounts[clusterID] == side2clusterCounts[side2clusterID] and clusterID < side2clusterID:
+                    lowerClusterID = clusterID
+
+            if debugOn:
+                if largerClusterID:
+                    print('largerClusterID found! %s' % largerClusterID)
+                elif lowerClusterID:
+                    print('lowerClusterID if equal size found! %s' % lowerClusterID)
+
+        #--if the largest audit status is not same, wait for the largest to show up
+        if largerClusterID or lowerClusterID:
+            if debugOn:
+                print('AUDIT RESULT BYPASSED!')
+                pause()
+            continue
+        else:
+            if debugOn:
+                print('AUDIT RESULT WILL BE COUNTED!')
+
+        #--compute the slice algorithm's cost
+        if newNegativeCnt > 0:
+            statpack['SLICE']['COST'] += splitCost(side1recordCnt, newNegativeCnt)
+
+        if newPositiveCnt > 0:
+            statpack['SLICE']['COST'] += splitCost(side1recordCnt, newPositiveCnt)
+
+        #--initialize audit category
+        if auditCategory not in statpack['AUDIT']:
+            statpack['AUDIT'][auditCategory] = {}
+            statpack['AUDIT'][auditCategory]['COUNT'] = 0
+            statpack['AUDIT'][auditCategory]['SUB_CATEGORY'] = {}
+
+        #--adjust the side1Score (match key for senzing)
+        clarifyScores = True
+        if clarifyScores:
+
+            #--get the same entity details
+            same_side1clusterID = 0
+            same_side1matchKeys = [] #--could be more than one
+            for i in range(len(auditRows)):
+                if auditRows[i]['_auditStatus_'] == 'same':
+                    same_side1clusterID = auditRows[i]['_side1clusterID_']
+                    if auditRows[i]['_side1score_'] and auditRows[i]['_side1score_'] not in same_side1matchKeys:
+                        same_side1matchKeys.append(auditRows[i]['_side1score_'])
+
+            #--adjust the new positives/negatives
+            for i in range(len(auditRows)):
+                #--clear the scores on the records that are the same
+                if auditRows[i]['_auditStatus_'] == 'same':
+                    auditRows[i]['_side2score_'] = ''
+                    auditRows[i]['_side1score_'] = ''
+                #--see if split rows are related
+                elif auditRows[i]['_auditStatus_'] == 'new negative':
+                    ent1str = same_side1clusterID
+                    ent2str = auditRows[i]['_side1clusterID_']
+                    relKey = ent1str + '-' + ent2str if ent1str < ent2str else ent2str + '-' + ent1str
+                    if relKey in fileMap1['relationships']:
+                        auditRows[i]['_side1score_'] = 'related on: ' + fileMap1['relationships'][relKey]
+                    #else:
+                    #    auditRows[i]['_side1score_'] = 'no relation'
+                elif auditRows[i]['_auditStatus_'] == 'new positive':
+                    if not auditRows[i]['_side1score_']: #--maybe statisize this
+                        if len(same_side1matchKeys) == 1:
+                            auditRows[i]['_side1score_'] = same_side1matchKeys[0]
+                        #else:
+                        #    auditRows[i]['_side1score_'] = 'not_logged'
+
+        #--write the record
+        scoreCounts = {}
+        statpack['AUDIT'][auditCategory]['COUNT'] += 1
+        nextAuditID += 1
+        sampleRows = []
+        score1List = {} #--will be matchKey for senzing
+        for auditData in auditRows:
+            csvRow = []
+            csvRow.append(nextAuditID)
+            csvRow.append(auditCategory)
+            csvRow.append(auditData['_auditStatus_'])
+            recordIDsplit = auditData['_recordID_'].split('|DS=')
+            auditData['_dataSource_'] = recordIDsplit[1]
+            auditData['_recordID_'] = recordIDsplit[0]
+            csvRow.append(auditData['_dataSource_'])
+            csvRow.append(auditData['_recordID_'])
+            csvRow.append(auditData['_side2clusterID_'])
+            csvRow.append(auditData['_side2score_'] if '_side2score_' in auditData else '')
+            csvRow.append(auditData['_side1clusterID_'])
+            csvRow.append(auditData['_side1score_'] if '_side1score_' in auditData else '')
+            if auditData['_auditStatus_'] == 'new negative':
+                statpack['ACCURACY']['NEW_NEGATIVE'] += 1
+            elif auditData['_auditStatus_'] == 'new positive':
+                statpack['ACCURACY']['NEW_POSITIVE'] += 1
+            if auditData['_auditStatus_'] in ('new negative', 'new positive') and auditData['_side1score_']:
+                if auditData['_side1score_'] not in scoreCounts:
+                    scoreCounts[auditData['_side1score_']] = 1
+                else:
+                    scoreCounts[auditData['_side1score_']] += 1
+            if debugOn:
+                print(auditData)
+            sampleRows.append(dict(zip(csvHeaders,csvRow)))
+
+            try: csvHandle.write(','.join(map(str, csvRow)) + '\n')
+            except IOError as err:
+                print(err)
+                print('could not write to output file %s' % outputCsvFile)
+                return 
+            #print(','.join(map(str, csvRow)))
+
+        #--assign the best score (most used)
+        if True:
+            if len(scoreCounts) == 0:
+                bestScore = 'none'
+            elif len(scoreCounts) == 1:
+                bestScore = list(scoreCounts.keys())[0]
+            else:
+                bestScore = 'multiple'
+        #--assign the best score (most used)
+        else:
+            bestScore = 'none'
+            bestCount = 0
+            for score in scoreCounts:
+                if scoreCounts[score] > bestCount:
+                    bestScore = score
+                    bestCount = scoreCounts[score]
+
+        #--initialize sub category
+        if bestScore not in statpack['AUDIT'][auditCategory]['SUB_CATEGORY']:
+            statpack['AUDIT'][auditCategory]['SUB_CATEGORY'][bestScore] = {}
+            statpack['AUDIT'][auditCategory]['SUB_CATEGORY'][bestScore]['COUNT'] = 0
+            statpack['AUDIT'][auditCategory]['SUB_CATEGORY'][bestScore]['SAMPLE'] = []
+        statpack['AUDIT'][auditCategory]['SUB_CATEGORY'][bestScore]['COUNT'] += 1
+
+        #--place in the sample list
+        if len(statpack['AUDIT'][auditCategory]['SUB_CATEGORY'][bestScore]['SAMPLE']) < 100:
+            statpack['AUDIT'][auditCategory]['SUB_CATEGORY'][bestScore]['SAMPLE'].append(sampleRows)
+        else:
+            randomSampleI = random.randint(1,99)
+            if randomSampleI % 10 != 0:                   
+                statpack['AUDIT'][auditCategory]['SUB_CATEGORY'][bestScore]['SAMPLE'][randomSampleI] = sampleRows
+
+        if debugOn:
+            pause()
+
+    csvHandle.close()
+
+    #--completion display
+    now = datetime.now().strftime('%I:%M%p').lower()
+    elapsedMins = round((time.time() - procStartTime) / 60, 1)
+    eps = int(float(sqlCommitSize) / (float(time.time() - batchStartTime if time.time() - batchStartTime != 0 else 1)))
+    batchStartTime = time.time()
+    print(' %s entities processed at %s, %s per second, complete!' % (entityCnt, now, eps))
+
+    #--compute the side 1 (result set) cluster and pair count
+    print('computing statistics ...')
+
+    #--get all cluster counts for both sides
+
+    #--get cluster and pair counts for side1
+    for side1clusterID in fileMap1['clusters']:
+        statpack['ENTITY']['RESULT_COUNT'] += 1
+        side1recordCnt = len(fileMap1['clusters'][side1clusterID])
+        if side1recordCnt == 1:
+            continue
+        statpack['CLUSTERS']['RESULT_COUNT'] += 1
+        statpack['PAIRS']['RESULT_COUNT'] += ((side1recordCnt * (side1recordCnt - 1)) / 2)
+
+    #--entity precision and recall
+    statpack['ENTITY']['PRECISION'] = 0
+    statpack['ENTITY']['RECALL'] = 0
+    statpack['ENTITY']['F1-SCORE'] = 0
+    if statpack['ENTITY']['RESULT_COUNT'] and statpack['ENTITY']['STANDARD_COUNT']:
+        statpack['ENTITY']['PRECISION'] = round((statpack['ENTITY']['COMMON_COUNT'] + .0) / (statpack['ENTITY']['RESULT_COUNT'] + .0), 5)
+        statpack['ENTITY']['RECALL'] = round(statpack['ENTITY']['COMMON_COUNT'] / (statpack['ENTITY']['STANDARD_COUNT'] + .0), 5)
+        if (statpack['ENTITY']['PRECISION'] + statpack['ENTITY']['RECALL']) != 0:
+            statpack['ENTITY']['F1-SCORE'] = round(2 * ((statpack['ENTITY']['PRECISION'] * statpack['ENTITY']['RECALL']) / (statpack['ENTITY']['PRECISION'] + statpack['ENTITY']['RECALL'] + .0)), 5)
+
+    #--cluster precision and recall
+    statpack['CLUSTERS']['PRECISION'] = 0
+    statpack['CLUSTERS']['RECALL'] = 0
+    statpack['CLUSTERS']['F1-SCORE'] = 0
+    if statpack['CLUSTERS']['RESULT_COUNT'] and statpack['CLUSTERS']['STANDARD_COUNT']:
+        statpack['CLUSTERS']['PRECISION'] = round((statpack['CLUSTERS']['COMMON_COUNT'] + .0) / (statpack['CLUSTERS']['RESULT_COUNT'] + .0), 5)
+        statpack['CLUSTERS']['RECALL'] = round(statpack['CLUSTERS']['COMMON_COUNT'] / (statpack['CLUSTERS']['STANDARD_COUNT'] + .0), 5)
+        if (statpack['CLUSTERS']['PRECISION'] + statpack['CLUSTERS']['RECALL']) != 0:
+            statpack['CLUSTERS']['F1-SCORE'] = round(2 * ((statpack['CLUSTERS']['PRECISION'] * statpack['CLUSTERS']['RECALL']) / (statpack['CLUSTERS']['PRECISION'] + statpack['CLUSTERS']['RECALL'] + .0)), 5)
+
+    #--pairs precision and recall
+    statpack['PAIRS']['PRECISION'] = 0
+    statpack['PAIRS']['RECALL'] = 0
+    statpack['PAIRS']['F1-SCORE'] = 0
+    if statpack['PAIRS']['RESULT_COUNT'] and statpack['PAIRS']['STANDARD_COUNT']:
+        statpack['PAIRS']['PRECISION'] = round(statpack['PAIRS']['COMMON_COUNT'] / (statpack['PAIRS']['RESULT_COUNT'] + .0), 5)
+        statpack['PAIRS']['RECALL'] = round(statpack['PAIRS']['COMMON_COUNT'] / (statpack['PAIRS']['STANDARD_COUNT'] + .0), 5)
+        if (statpack['PAIRS']['PRECISION'] + statpack['PAIRS']['RECALL']) != 0:
+            statpack['PAIRS']['F1-SCORE'] = round(2 * ((statpack['PAIRS']['PRECISION'] * statpack['PAIRS']['RECALL']) / (statpack['PAIRS']['PRECISION'] + statpack['PAIRS']['RECALL'] + .0)), 5)
+
+    #--accruacy precision and recall
+    statpack['ACCURACY']['PRECISION'] = 0
+    statpack['ACCURACY']['RECALL'] = 0
+    statpack['ACCURACY']['F1-SCORE'] = 0
+    if statpack['ACCURACY']['PRIOR_POSITIVE']:
+        statpack['ACCURACY']['PRECISION'] = round(statpack['ACCURACY']['PRIOR_POSITIVE'] / (statpack['ACCURACY']['PRIOR_POSITIVE'] + statpack['ACCURACY']['NEW_POSITIVE'] + .0), 5)
+        statpack['ACCURACY']['RECALL'] =    round(statpack['ACCURACY']['PRIOR_POSITIVE'] / (statpack['ACCURACY']['PRIOR_POSITIVE'] + statpack['ACCURACY']['NEW_NEGATIVE'] + .0), 5)
+        if (statpack['ACCURACY']['PRECISION'] + statpack['ACCURACY']['RECALL']) != 0:
+            statpack['ACCURACY']['F1-SCORE'] = round(2 * ((statpack['ACCURACY']['PRECISION'] * statpack['ACCURACY']['RECALL']) / (statpack['ACCURACY']['PRECISION'] + statpack['ACCURACY']['RECALL'] + .0)), 5)
+
+    #--dump the stats to screen and file
+    with open(outputJsonFile, 'w') as outfile:
+        json.dump(statpack, outfile)    
+
+    #print(json.dumps(statpack, indent=4))
+    print ('')
+    print ('%s prior entities ' % statpack['ENTITY']['STANDARD_COUNT'])
+    print ('%s new entities ' % statpack['ENTITY']['RESULT_COUNT'])
+    print ('%s common entities ' % statpack['ENTITY']['COMMON_COUNT'])
+    print ('%s precision ' % statpack['ENTITY']['PRECISION'])
+    print ('%s recall ' % statpack['ENTITY']['RECALL'])
+    print ('%s f1-score ' % statpack['ENTITY']['F1-SCORE'])
+    print ('')
+    print ('%s prior clusters ' % statpack['CLUSTERS']['STANDARD_COUNT'])
+    print ('%s new clusters ' % statpack['CLUSTERS']['RESULT_COUNT'])
+    print ('%s common clusters ' % statpack['CLUSTERS']['COMMON_COUNT'])
+    print ('%s precision ' % statpack['CLUSTERS']['PRECISION'])
+    print ('%s recall ' % statpack['CLUSTERS']['RECALL'])
+    print ('%s f1-score ' % statpack['CLUSTERS']['F1-SCORE'])
+    print ('')
+    print ('%s prior pairs ' % statpack['PAIRS']['STANDARD_COUNT'])
+    print ('%s new pairs ' % statpack['PAIRS']['RESULT_COUNT'])
+    print ('%s common pairs ' % statpack['PAIRS']['COMMON_COUNT'])
+    print ('%s precision ' % statpack['PAIRS']['PRECISION'])
+    print ('%s recall ' % statpack['PAIRS']['RECALL'])
+    print ('%s f1-score ' % statpack['PAIRS']['F1-SCORE'])
+    print ('')
+    print ('%s prior positives ' % statpack['ACCURACY']['PRIOR_POSITIVE'])
+    print ('%s new positives ' % statpack['ACCURACY']['NEW_POSITIVE'])
+    print ('%s new negatives ' % statpack['ACCURACY']['NEW_NEGATIVE'])
+    print ('%s precision ' % statpack['ACCURACY']['PRECISION'])
+    print ('%s recall ' % statpack['ACCURACY']['RECALL'])
+    print ('%s f1-score ' % statpack['ACCURACY']['F1-SCORE'])
+    print ('')
+    #print ('%s slice edit distance ' % statpack['SLICE']['COST'])
+    #print('')
+    if statpack['MISSING_RECORD_COUNT']:
+        print ('%s ** missing clusters **' % statpack['MISSING_RECORD_COUNT'])
+        print('')
+    if shutDown:
+        print('** process was aborted **')
+    else:
+        print('process completed successfully!')
+    print('')
+    return
+
+
+# ===== The main function =====
+if __name__ == '__main__':
+    global shutDown
+    shutDown = False
+    signal.signal(signal.SIGINT, signal_handler)
+    procStartTime = time.time()
+
+    sqlCommitSize = 10000 #-this is really just for stat display
+
+    #--capture the command line arguments
+    argParser = argparse.ArgumentParser()
+    argParser.add_argument('-n', '--newer_csv_file', dest='newerFile', default=None, help='the latest entity map file')
+    argParser.add_argument('-p', '--prior_csv_file', dest='priorFile', default=None, help='the prior entity map file')
+    argParser.add_argument('-o', '--output_file_root', dest='outputRoot', default=None, help='the ouputfile root name (both a .csv and a .json file will be created')
+    argParser.add_argument('-D', '--debug', dest='debug', action='store_true', default=False, help='print debug statements')
+    args = argParser.parse_args()
+    newerFile = args.newerFile
+    priorFile = args.priorFile
+    outputRoot = args.outputRoot
+    debugOn = args.debug
+    #inMemory = args.inMemory
+    #inMemoryArray = args.inMemoryArray
+
+    #--validations
+    if not newerFile:
+        print('ERROR: A newer entity map file must be specified with -n')
+        sys.exit(1)
+    if not priorFile:
+        print('ERROR: A prior entity map file must be specified with -p')
+        sys.exit(1)
+    if not outputRoot:
+        print('ERROR: An output root must be specified with -o')
+        sys.exit(1)
+    if os.path.splitext(outputRoot)[1]:
+        print("Please don't use a file extension as both a .json and a .csv file will be created")
+        sys.exit(1)
+
+    erCompare(newerFile, priorFile, outputRoot)
+    
+    sys.exit(0)

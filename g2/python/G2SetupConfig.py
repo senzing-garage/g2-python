@@ -41,7 +41,7 @@ def setupConfig(iniFileName,autoMode):
         shouldContinue = False
         reply = ''
         if autoMode == False:
-            reply = userInput('\nA configuration document already exists in the database.  Do you want to replace it (yes/no)?  ')
+            reply = userInput('\nA configuration document already exists in the database.  Do you want to replace it?  ')
         else:
             reply = os.environ.get("G2SETUPCONFIG_OVERWRITE_CONFIGURATION_DOC")
         if reply in ['y','Y', 'yes', 'YES']:
@@ -62,7 +62,7 @@ def setupConfig(iniFileName,autoMode):
         shouldContinue = False
         reply = ''
         if autoMode == False:
-            reply = userInput('\nMigrating configuration from file to database.  Do you want to continue (yes/no)?  ')
+            reply = userInput('\nMigrating configuration from file to database.  Do you want to continue?  ')
         else:
             reply = os.environ.get("G2SETUPCONFIG_MIGRATE_CONFIG_TO_DATABASE")
         if reply in ['y','Y', 'yes', 'YES']:
@@ -76,7 +76,7 @@ def setupConfig(iniFileName,autoMode):
         shouldContinue = False
         reply = ''
         if autoMode == False:
-            reply = userInput('\nInstalling template configuration to database.  Do you want to continue (yes/no)?  ')
+            reply = userInput('\nInstalling template configuration to database.  Do you want to continue?  ')
         else:
             reply = os.environ.get("G2SETUPCONFIG_INSTALL_TEMPLATE_CONFIG_TO_DATABASE")
         if reply in ['y','Y', 'yes', 'YES']:
@@ -99,8 +99,9 @@ def setupConfig(iniFileName,autoMode):
     # Save configuration JSON into G2 database.
     config_comment = "Configuration added from G2SetupConfig."
     new_config_id = bytearray()
+    return_code = 0;
     try:
-        g2ConfigMgr.addConfig(configJsonToUse, config_comment, new_config_id)
+        return_code = g2ConfigMgr.addConfig(configJsonToUse, config_comment, new_config_id)
     except G2Exception.G2ModuleException as exc:
         print(exc)
         exceptionInfo = g2ConfigMgr.getLastException()
@@ -110,11 +111,13 @@ def setupConfig(iniFileName,autoMode):
             return -1
         print ("Error:  Failed to add config to the datastore.")
         return -1
+    if return_code != 0:
+        print ("Error:  Failed to add config to the datastore.")
+        return -1
 
     # Set the default configuration ID.
-    try:
-        g2ConfigMgr.setDefaultConfigID(new_config_id)
-    except G2Exception.G2Exception as err:
+    return_code = g2ConfigMgr.setDefaultConfigID(new_config_id)
+    if return_code != 0:
         print ("Error:  Failed to set config as default.")
         return -1
 

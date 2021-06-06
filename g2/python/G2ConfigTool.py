@@ -2403,6 +2403,227 @@ class G2CmdShell(cmd.Cmd):
 
 # -----------------------------
 
+    def do_updateFeatureVersion(self,arg):
+
+        '\n\tupdateFeatureVersion {"feature":"<feature_name>", "version":<version_number>}' \
+        '\n'
+
+        if not argCheck('updateFeatureVersion', arg, self.do_updateFeatureVersion.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+            if not 'FEATURE' in parmData or len(parmData['FEATURE']) == 0:
+                raise ValueError('Feature name is required!')
+            if not 'VERSION' in parmData:
+                raise ValueError('Version is required!')
+            parmData['FEATURE'] = parmData['FEATURE'].upper()
+        except (ValueError, KeyError) as e:
+            argError(arg, e)
+        else:
+
+            ftypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', parmData['FEATURE'])
+            if not ftypeRecord:
+                printWithNewLines('Feature %s does not exist!' % parmData['FEATURE'], 'B')
+                return
+            else:
+                ftypeRecord['VERSION'] = parmData['VERSION']
+                self.configUpdated = True
+                printWithNewLines('Successfully updated!', 'B')
+                if self.doDebug:
+                    showMeTheThings(ftypeRecord)
+
+
+# -----------------------------
+
+    def do_updateAttributeAdvanced(self,arg):
+
+        '\n\tupdateAttributeAdvanced {"attribute":"<attribute_name>", "advanced":"Yes"}' \
+        '\n'
+
+        if not argCheck('updateAttributeAdvanced', arg, self.do_updateAttributeAdvanced.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+            if not 'ATTRIBUTE' in parmData or len(parmData['ATTRIBUTE']) == 0:
+                raise ValueError('Attribute name is required!')
+            if not 'ADVANCED' in parmData:
+                raise ValueError('Advanced value is required!')
+        except (ValueError, KeyError) as e:
+            argError(arg, e)
+        else:
+
+            attrRecord = self.getRecord('CFG_ATTR', 'ATTR_CODE', parmData['ATTRIBUTE'])
+            if not attrRecord:
+                printWithNewLines('Attribute %s does not exist!' % parmData['ATTRIBUTE'], 'B')
+                return
+            else:
+                attrRecord['ADVANCED'] = parmData['ADVANCED']
+                self.configUpdated = True
+                printWithNewLines('Successfully updated!', 'B')
+                if self.doDebug:
+                    showMeTheThings(attrRecord)
+
+
+# -----------------------------
+
+    def do_updateExpressionFuncVersion(self,arg):
+
+        '\n\tupdateExpressionFuncVersion {"function":"<function_name>", "version":"<version_number>"}' \
+        '\n'
+
+        if not argCheck('updateExpressionFuncVersion', arg, self.do_updateExpressionFuncVersion.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+            if not 'FUNCTION' in parmData or len(parmData['FUNCTION']) == 0:
+                raise ValueError('Function is required!')
+            if not 'VERSION' in parmData or len(parmData['VERSION']) == 0:
+                raise ValueError('Version is required!')
+            parmData['FUNCTION'] = parmData['FUNCTION'].upper()
+        except (ValueError, KeyError) as e:
+            argError(arg, e)
+        else:
+
+            funcRecord = self.getRecord('CFG_EFUNC', 'EFUNC_CODE', parmData['FUNCTION'])
+            if not funcRecord:
+                printWithNewLines('Function %s does not exist!' % parmData['FUNCTION'], 'B')
+                return
+            else:
+                funcRecord['FUNC_VER'] = parmData['VERSION']
+                self.configUpdated = True
+                printWithNewLines('Successfully updated!', 'B')
+                if self.doDebug:
+                    showMeTheThings(funcRecord)
+
+
+# -----------------------------
+
+    def do_addComparisonFuncReturnCode(self,arg):
+
+        '\n\taddComparisonFuncReturnCode {"function":"<function_name>", "scoreName":"<score_name>"}' \
+        '\n\n\taddComparisonFuncReturnCode {"function":"EMAIL_COMP", "scoreName":"FULL_SCORE"}' \
+        '\n'
+
+        if not argCheck('addComparisonFuncReturnCode', arg, self.do_addComparisonFuncReturnCode.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+            parmData['FUNCTION'] = parmData['FUNCTION'].upper()
+            parmData['SCORENAME'] = parmData['SCORENAME'].upper()
+        except (ValueError, KeyError) as e:
+            argError(arg, e)
+        else:
+
+            cfuncRecord = self.getRecord('CFG_CFUNC', 'CFUNC_CODE', parmData['FUNCTION'])
+            if not cfuncRecord:
+                printWithNewLines('Function %s does not exist!' % parmData['FUNCTION'], 'B')
+                return
+
+            cfuncID = cfuncRecord['CFUNC_ID']
+
+            #-- check for duplicated return codes
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_CFRTN'])-1, -1, -1):
+                if self.cfgData['G2_CONFIG']['CFG_CFRTN'][i]['CFUNC_ID'] == cfuncID and self.cfgData['G2_CONFIG']['CFG_CFRTN'][i]['CFUNC_RTNVAL'] == parmData['SCORENAME']:
+                    printWithNewLines('Comparison function aleady contains return code %s!' % (parmData['SCORENAME']), 'B')
+                    return
+
+            maxID = []
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_CFRTN'])) :
+                maxID.append(self.cfgData['G2_CONFIG']['CFG_CFRTN'][i]['CFRTN_ID'])
+
+            cfrtnID = 0
+            if 'ID' in parmData: 
+                cfrtnID = int(parmData['ID'])
+            else:
+                cfrtnID = max(maxID) + 1 if max(maxID) >=1000 else 1000
+
+            execOrder = 0
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_CFRTN'])):
+                if self.cfgData['G2_CONFIG']['CFG_CFRTN'][i]['CFUNC_ID'] == cfuncID:
+                    if self.cfgData['G2_CONFIG']['CFG_CFRTN'][i]['EXEC_ORDER'] > execOrder:
+                        execOrder = self.cfgData['G2_CONFIG']['CFG_CFRTN'][i]['EXEC_ORDER']
+            execOrder = execOrder + 1
+
+            newRecord = {}
+            newRecord['CFRTN_ID'] = cfrtnID
+            newRecord['CFUNC_ID'] = cfuncID
+            newRecord['CFUNC_RTNVAL'] = parmData['SCORENAME']
+            newRecord['EXEC_ORDER'] = execOrder
+            newRecord['SAME_SCORE'] = 100
+            newRecord['CLOSE_SCORE'] = 90
+            newRecord['LIKELY_SCORE'] = 80
+            newRecord['PLAUSIBLE_SCORE'] = 70
+            newRecord['UN_LIKELY_SCORE'] = 60
+            self.cfgData['G2_CONFIG']['CFG_CFRTN'].append(newRecord)
+            self.configUpdated = True
+            printWithNewLines('Successfully added!', 'B')
+            if self.doDebug:
+                showMeTheThings(newRecord)
+
+# -----------------------------
+
+    def do_addComparisonFunc(self,arg):
+
+        '\n\taddComparisonFunc {"function":"<function_name>", "connectStr":"<plugin_base_name>"}' \
+        '\n\n\taddComparisonFunc {"function":"EMAIL_COMP", "connectStr":"g2EmailComp"}' \
+        '\n'
+
+        if not argCheck('addComparisonFunc', arg, self.do_addComparisonFunc.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+            parmData['FUNCTION'] = parmData['FUNCTION'].upper()
+        except (ValueError, KeyError) as e:
+            argError(arg, e)
+        else:
+
+            if self.getRecord('CFG_CFUNC', 'CFUNC_CODE', parmData['FUNCTION']):
+                printWithNewLines('Function %s already exists!' % parmData['FUNCTION'], 'B')
+                return
+            else:
+
+                #--default for missing values
+
+                if 'FUNCLIB' not in parmData or len(parmData['FUNCLIB'].strip()) == 0:
+                    parmData['FUNCLIB'] = 'INT_LIB'
+                if 'VERSION' not in parmData or len(parmData['VERSION'].strip()) == 0:
+                    parmData['VERSION'] = '1'
+                if 'CONNECTSTR' not in parmData or len(parmData['CONNECTSTR'].strip()) == 0:
+                    printWithNewLines('ConnectStr value not specified.', 'B')
+                    return
+
+                maxID = []
+                for i in range(len(self.cfgData['G2_CONFIG']['CFG_CFUNC'])) :
+                    maxID.append(self.cfgData['G2_CONFIG']['CFG_CFUNC'][i]['CFUNC_ID'])
+
+                cfuncID = 0
+                if 'ID' in parmData: 
+                    cfuncID = int(parmData['ID'])
+                else:
+                    cfuncID = max(maxID) + 1 if max(maxID) >=1000 else 1000
+
+                newRecord = {}
+                newRecord['CFUNC_ID'] = cfuncID
+                newRecord['CFUNC_CODE'] = parmData['FUNCTION']
+                newRecord['CFUNC_DESC'] = parmData['FUNCTION']
+                newRecord['FUNC_LIB'] = parmData['FUNCLIB']
+                newRecord['FUNC_VER'] = parmData['VERSION']
+                newRecord['CONNECT_STR'] = parmData['CONNECTSTR']
+                newRecord['ANON_SUPPORT'] = 'Yes'
+                self.cfgData['G2_CONFIG']['CFG_CFUNC'].append(newRecord)
+                self.configUpdated = True
+                printWithNewLines('Successfully added!', 'B')
+                if self.doDebug:
+                    showMeTheThings(newRecord)
+
+
+# -----------------------------
+
     def do_addExpressionCall(self,arg):
 
         '\n\taddExpressionCall {"element":"<element_name>", "function":"<function_name>", "execOrder":<exec_order>, expressionFeature":<feature_name>, "virtual":"No","elementList": ["<element_detail(s)"]}' \

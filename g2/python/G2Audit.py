@@ -245,7 +245,11 @@ class G2Audit(object):
         return exception_code
 
     def openSession(self):
+        self._lib_handle.G2Audit_openSession.restype = c_void_p
         sessionHandle = self._lib_handle.G2Audit_openSession()
+        if sessionHandle == None:
+            self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
         return sessionHandle
 
     def cancelSession(self, sessionHandle):
@@ -264,6 +268,9 @@ class G2Audit(object):
         responseSize = c_size_t(tls_var.bufSize)
         self._lib_handle.G2Audit_openSession.restype = c_void_p
         sessionHandle = self._lib_handle.G2Audit_openSession()
+        if sessionHandle == None:
+            self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
         self._lib_handle.G2Audit_getSummaryData.restype = c_int
         self._lib_handle.G2Audit_getSummaryData.argtypes = [c_void_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
         ret_code = self._lib_handle.G2Audit_getSummaryData(sessionHandle,
@@ -391,11 +398,14 @@ class G2Audit(object):
         _matchLevel = matchLevel
         self._lib_handle.G2Audit_getAuditReport.restype = c_void_p
         reportHandle = self._lib_handle.G2Audit_getAuditReport(sessionHandle,_fromDataSource,_toDataSource,_matchLevel)
+        if reportHandle == None:
+            self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
         return reportHandle
 
     def fetchNext(self,reportHandle,response):
         if reportHandle == None:
-            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
         self._lib_handle.G2Audit_fetchNext.argtypes = [c_void_p, c_char_p, c_size_t]
         rowData = self._lib_handle.G2Audit_fetchNext(c_void_p(reportHandle),tls_var.buf,sizeof(tls_var.buf))

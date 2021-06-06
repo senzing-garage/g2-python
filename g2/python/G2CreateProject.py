@@ -6,14 +6,6 @@ import argparse
 import errno
 import shutil
 
-# files to update
-files_to_update = [
-    'setupEnv',
-    'etc/G2Module.ini',
-    'etc/G2Project.ini'
-]
-
-
 senzing_path = '/opt/senzing/g2'
 
 def find_replace_in_file(filename, old_string, new_string):
@@ -80,13 +72,21 @@ if __name__ == '__main__':
     os.symlink(os.path.join(senzing_path, 'resources', 'config'), os.path.join(target_path, 'resources', 'config'))
     os.symlink(os.path.join(senzing_path, 'resources', 'schema'), os.path.join(target_path, 'resources', 'schema'))
 
+    # files to update
+    files_to_update = [
+        'setupEnv',
+        'etc/G2Module.ini',
+        'etc/G2Project.ini'
+    ]
+
     # paths to substitute
     senzing_path_subs = [
         (senzing_path, target_path),
         (os.path.join(senzing_path, 'data'), os.path.join(target_path, 'data')),
         ('/etc/opt/senzing', os.path.join(target_path, 'etc')),
         ('/var/opt/senzing', os.path.join(target_path, 'var')),
-        ('/opt/senzing', target_path)        
+        ('/opt/senzing', target_path),
+        ('${SENZING_DIR}', target_path)
     ]
 
     for f in files_to_update:

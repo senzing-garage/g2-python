@@ -222,6 +222,22 @@ class G2ConfigMgr(object):
 
         return ret_code
 
+    def replaceDefaultConfigID(self,oldConfigID,newConfigID):
+        """ sets the default config identifier in the datastore
+        """
+        oldConfigID_ = self.prepareIntArgument(oldConfigID)
+        newConfigID_ = self.prepareIntArgument(newConfigID)
+        self._lib_handle.G2ConfigMgr_replaceDefaultConfigID.restype = c_int
+        self._lib_handle.G2ConfigMgr_replaceDefaultConfigID.argtypes = [c_longlong,c_longlong]
+        ret_code = self._lib_handle.G2ConfigMgr_replaceDefaultConfigID(oldConfigID_,newConfigID_)
+        if ret_code == -2:
+            self._lib_handle.G2ConfigMgr_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+        elif ret_code == -1:
+            raise G2ModuleNotInitialized('G2ConfigMgr has not been succesfully initialized')
+
+        return ret_code
+
     def getDefaultConfigID(self, configID):
         """ gets the default config identifier from the datastore
         """

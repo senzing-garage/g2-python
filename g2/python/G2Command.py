@@ -61,6 +61,10 @@ class G2CmdShell(cmd.Cmd, object):
         setDefaultConfigID_parser = subparsers.add_parser('setDefaultConfigID', usage=argparse.SUPPRESS)
         setDefaultConfigID_parser.add_argument('configID', type=int)
 
+        replaceDefaultConfigID_parser = subparsers.add_parser('replaceDefaultConfigID', usage=argparse.SUPPRESS)
+        replaceDefaultConfigID_parser.add_argument('oldConfigID', type=int)
+        replaceDefaultConfigID_parser.add_argument('newConfigID', type=int)
+
         interfaceName_parser = subparsers.add_parser('interfaceName', usage=argparse.SUPPRESS)  
         interfaceName_parser.add_argument('interfaceName')
 
@@ -301,6 +305,19 @@ class G2CmdShell(cmd.Cmd, object):
         whyEntityByEntityIDV2_parser = subparsers.add_parser('whyEntityByEntityIDV2', usage=argparse.SUPPRESS)
         whyEntityByEntityIDV2_parser.add_argument('entityID', type=int)
         whyEntityByEntityIDV2_parser.add_argument('flags', type=int)
+
+        whyRecords_parser = subparsers.add_parser('whyRecords', usage=argparse.SUPPRESS)
+        whyRecords_parser.add_argument('dataSourceCode1')
+        whyRecords_parser.add_argument('recordID1')
+        whyRecords_parser.add_argument('dataSourceCode2')
+        whyRecords_parser.add_argument('recordID2')
+
+        whyRecordsV2_parser = subparsers.add_parser('whyRecordsV2', usage=argparse.SUPPRESS)
+        whyRecordsV2_parser.add_argument('dataSourceCode1')
+        whyRecordsV2_parser.add_argument('recordID1')
+        whyRecordsV2_parser.add_argument('dataSourceCode2')
+        whyRecordsV2_parser.add_argument('recordID2')
+        whyRecordsV2_parser.add_argument('flags', type=int)
 
         outputOptional_parser = subparsers.add_parser('outputOptional',  usage=argparse.SUPPRESS)
         outputOptional_parser.add_argument('-o', '--outputFile', required=False)
@@ -843,6 +860,19 @@ class G2CmdShell(cmd.Cmd, object):
         try:
             self.g2_configmgr_module.setDefaultConfigID(str(args.configID).encode())
             printWithNewLine('Default config set')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_replaceDefaultConfigID(self, arg):
+        '\nReplace the default config ID:  replaceDefaultConfigID <oldConfigID> <newConfigID>\n'
+        try:
+            args = self.parser.parse_args(['replaceDefaultConfigID'] + parse(arg))
+        except SystemExit:
+            print(self.do_replaceDefaultConfigID.__doc__)
+            return
+        try:
+            self.g2_configmgr_module.replaceDefaultConfigID(args.oldConfigID,args.newConfigID)
+            printWithNewLine('New default config set')
         except G2Exception.G2Exception as err:
             print(err)
 
@@ -1432,6 +1462,40 @@ class G2CmdShell(cmd.Cmd, object):
         try: 
             response = bytearray() 
             ret_code = self.g2_module.whyEntityByEntityIDV2(args.entityID,args.flags,response)
+            if response:
+                print('{}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_whyRecords(self, arg):
+        '\nDetermine how two records relate to each other:  whyRecords <dataSourceCode1> <recordID1> <dataSourceCode2> <recordID2>\n'
+        try:
+            args = self.parser.parse_args(['whyRecords'] + parse(arg))
+        except SystemExit:
+            print(self.do_whyRecords.__doc__)
+            return
+        try: 
+            response = bytearray() 
+            ret_code = self.g2_module.whyRecords(args.dataSourceCode1,args.recordID1,args.dataSourceCode2,args.recordID2,response)
+            if response:
+                print('{}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_whyRecordsV2(self, arg):
+        '\nDetermine how two records relate to each other:  whyRecordsV2 <dataSourceCode1> <recordID1> <dataSourceCode2> <recordID2> <flags>\n'
+        try:
+            args = self.parser.parse_args(['whyRecordsV2'] + parse(arg))
+        except SystemExit:
+            print(self.do_whyRecordsV2.__doc__)
+            return
+        try: 
+            response = bytearray() 
+            ret_code = self.g2_module.whyRecordsV2(args.dataSourceCode1,args.recordID1,args.dataSourceCode2,args.recordID2,args.flags,response)
             if response:
                 print('{}'.format(response.decode()))
             else:

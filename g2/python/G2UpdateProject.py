@@ -10,10 +10,6 @@ from distutils.dir_util import copy_tree
 try: import configparser
 except: import ConfigParser as configparser
 
-# files to update
-files_to_update = [
-    'setupEnv'
-]
 
 senzing_path = '/opt/senzing/g2'
 
@@ -139,10 +135,14 @@ if __name__ == '__main__':
     except Exception as e:
         print(e)
 
+    # files to update
+    files_to_update = [
+        'setupEnv'
+    ]
+
     # paths to substitute
     senzing_path_subs = [
-        (senzing_path, target_path),
-        ('/opt/senzing', target_path)        
+        ('${SENZING_DIR}', target_path)
     ]
 
     # New files copied in, now update some of the new files.
@@ -156,8 +156,8 @@ if __name__ == '__main__':
             except Exception as e:
                 print(e)
 
-    # fixups - any edits to etc files, like adding new INI tokens
-    # add in RESOURCEPATH
+    # fixups - any edits to existing files, like adding new INI tokens
+    # 1) Add in RESOURCEPATH
     ini_content = None
     g2_module_ini_path = os.path.join(target_path,'etc','G2Module.ini')
     with open(g2_module_ini_path, 'r') as configfile:
@@ -177,5 +177,7 @@ if __name__ == '__main__':
                 configfile.writelines(ini_content)
     except ValueError:
         print("Could not find the [PIPELINE] section in G2Module.ini. Add RESOURCEPATH to the [PIPELINE] of G2Module.ini and set it to '" + os.path.join(target_path, 'resources') + "'")
+
+    # End of fixups
 
     print("Project successfully updated from %s to %s. Please refer to https://senzing.com/releases/#api-releases for any additional upgrade instructions." % (start_version_info['VERSION'], end_version_info['VERSION']))

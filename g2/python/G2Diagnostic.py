@@ -533,3 +533,27 @@ class G2Diagnostic(object):
         exception_code = self._lib_handle.G2Diagnostic_getLastExceptionCode()
         return exception_code
 
+    def findEntitiesByFeatureIDs(self,features,response):
+        # type: () -> object
+        """ Retrieve entities based on supplied features.
+        Args:
+            features: Json document containing an entity id (one to exclude) and list of features.
+        """
+
+        _features = self.prepareStringArgument(features)
+
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2Diagnostic_findEntitiesByFeatureIDs.argtypes = [c_char_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2Diagnostic_findEntitiesByFeatureIDs(_features, pointer(responseBuf),
+                                             pointer(responseSize),
+                                             self._resize_func)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+        response += tls_var.buf.value
+

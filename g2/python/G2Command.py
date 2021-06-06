@@ -327,6 +327,9 @@ class G2CmdShell(cmd.Cmd, object):
         outputOptional_parser = subparsers.add_parser('outputOptional',  usage=argparse.SUPPRESS)
         outputOptional_parser.add_argument('-o', '--outputFile', required=False)
 
+        findEntitiesByFeatureIDs_parser = subparsers.add_parser('findEntitiesByFeatureIDs',  usage=argparse.SUPPRESS)
+        findEntitiesByFeatureIDs_parser.add_argument('jsonData')
+
         purgeRepository_parser = subparsers.add_parser('purgeRepository',  usage=argparse.SUPPRESS)
         purgeRepository_parser.add_argument('-n', '--noReset', required=False, nargs='?', const=1, type=int)
 
@@ -1751,6 +1754,23 @@ class G2CmdShell(cmd.Cmd, object):
             response = bytearray() 
             self.g2_diagnostic_module.getResolutionStatistics(response)
             print('{}'.format(response.decode()))
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_findEntitiesByFeatureIDs(self, arg):
+        '\nGet the entities for a list of features:  findEntitiesByFeatureIDs <json_data>\n'
+        try:
+            args = self.parser.parse_args(['findEntitiesByFeatureIDs'] + parse(arg))
+        except SystemExit:
+            print(self.do_findEntitiesByFeatureIDs.__doc__)
+            return
+        try:
+            response = bytearray()
+            self.g2_diagnostic_module.findEntitiesByFeatureIDs(args.features,response)
+            if response:
+                print('{}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
         except G2Exception.G2Exception as err:
             print(err)
 

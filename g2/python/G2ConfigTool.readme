@@ -15,6 +15,7 @@ Notes on data_source and entity_types:
 - However, the easiest thing to do is to just make data_source and entity_type the same thing.  In fact, if you don't
   specify entity_type we generally default it to the data_source code.
 - Entity types are grouped into entity classes.  Keep all the people and company entity types in the Actor class.
+  You can create new classes for other kinds of entities like: ships, cars, asteroids! 
 
 Notes on features and attributes:
 - You rarely need to add either! You map the fields in your data source to the attributes we ship with that help us 

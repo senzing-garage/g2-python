@@ -6,7 +6,7 @@
 
 ```console
 git status
-git commit -a -m "#3 2.0.0"
+git commit -a -m "#3 1.15.6"
 git push
 git status
 ```
@@ -14,7 +14,7 @@ git status
 3. Create pull request with the following title:
 
 ```console
-Shipped with SenzingAPI 2.0.0
+Shipped with SenzingAPI 1.15.6
 ```
 
 4. Pull request, but do not delete branch

@@ -79,7 +79,7 @@ class G2ConfigMgr(object):
 
     def __init__(self):
         # type: () -> None
-        """ Class initialization
+        """ G2ConfigModule class initialization
         """
 
         try:

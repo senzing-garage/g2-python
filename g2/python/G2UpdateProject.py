@@ -75,6 +75,7 @@ def overlayFiles(sourcePath,destPath):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Update an existing Senzing project with the installed version of Senzing.')
     parser.add_argument('folder', metavar='Project',help='the path of the folder to update. It must already exist and be a Senzing project folder.')
+    parser.add_argument('-y', '--yes', action='store_true', help='Accept and skip the prompt to update the project')
     args = parser.parse_args()
 
     target_path = os.path.normpath(os.path.join(os.getcwd(), os.path.expanduser(args.folder)))
@@ -100,10 +101,13 @@ if __name__ == '__main__':
     with open(os.path.join(senzing_path, 'g2BuildVersion.json')) as json_file:
         end_version_info = json.load(json_file)
 
-    answer = input("Update Senzing instance at '%s' from version %s to %s? (y/n) " % (target_path, start_version_info['VERSION'], end_version_info['VERSION']))
-    answer = answer.strip()
-    if answer != 'y' and answer != 'Y':
-        sys.exit(0)
+    if args.yes == True:
+        print("Updating Senzing instance at '%s' from version %s to %s." % (target_path, start_version_info['VERSION'], end_version_info['VERSION']))
+    else:
+        answer = input("Update Senzing instance at '%s' from version %s to %s? (y/n) " % (target_path, start_version_info['VERSION'], end_version_info['VERSION']))
+        answer = answer.strip()
+        if answer != 'y' and answer != 'Y':
+            sys.exit(0)
 
     print("Updating...")
 

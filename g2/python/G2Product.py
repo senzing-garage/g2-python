@@ -49,35 +49,6 @@ class G2Product(object):
         _module_name: CME module name
         _ini_file_name: name and location of .ini file
     """
-    def init(self, module_name_, ini_file_name_, debug_=False):
-        """  Initializes the G2 product module engine
-        This should only be called once per process.
-        Args:
-            moduleName: A short name given to this instance of the product module
-            iniFilename: A fully qualified path to the G2 engine INI file (often /opt/senzing/g2/python/G2Module.ini)
-            verboseLogging: Enable diagnostic logging which will print a massive amount of information to stdout
-        """
-        self._module_name = self.prepareStringArgument(module_name_)
-        self._ini_file_name = self.prepareStringArgument(ini_file_name_)
-        self._debug = debug_
-
-        if self._debug:
-            print("Initializing G2Product")
-
-        self._lib_handle.G2Product_init.argtypes = [c_char_p, c_char_p, c_int]
-        ret_code = self._lib_handle.G2Product_init(self._module_name,
-                                 self._ini_file_name,
-                                 self._debug)
-
-        if self._debug:
-            print("Initialization Status: " + str(ret_code))
-
-        if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Product has not been succesfully initialized')
-        elif ret_code < 0:
-            self._lib_handle.G2Product_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-
 
     def initV2(self, module_name_, ini_params_, debug_=False):
 
@@ -105,7 +76,7 @@ class G2Product(object):
 
     def __init__(self):
         # type: () -> None
-        """ G2ProductModule class initialization
+        """ Class initialization
         """
 
         try:

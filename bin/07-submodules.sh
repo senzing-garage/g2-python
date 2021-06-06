@@ -17,6 +17,7 @@ SUBMODULES=(
     "g2diagnostic;1.6.0;G2Diagnostic.py"
     "g2engine;1.11.0;G2Engine.py"
     "g2exception;1.2.0;G2Exception.py"
+    "g2explorer;1.0.0;G2Explorer.py"
     "g2export;1.10.0;G2Export.py"
     "g2health;1.1.0;G2Health.py"
     "g2hasher;1.5.0;G2Hasher.py"
@@ -27,5 +28,6 @@ SUBMODULES=(
     "g2project;1.8.0;G2Project.py"
     "g2s3;1.0.0;G2S3.py"
     "g2setupconfig;1.2.0;G2SetupConfig.py"
+    "g2snapshot;1.0.0;G2Snapshot.py"
     "g2updateproject;1.5.0;G2UpdateProject.py"
 )

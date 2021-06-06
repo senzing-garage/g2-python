@@ -12,9 +12,33 @@ except: import ConfigParser as configparser
 
 
 senzing_path = '/opt/senzing/g2'
-
-paths_to_exclude = [os.path.join(senzing_path, 'resources' , 'config'), os.path.join(senzing_path, 'resources' , 'schema')]
+paths_to_exclude = []
 files_to_exclude = ['G2CreateProject.py', 'G2UpdateProject.py']
+paths_to_remove = [
+    os.path.join('extras', 'poc'),
+    os.path.join('extras'),
+    os.path.join('sdk', 'python', 'old'),
+    os.path.join('python', 'demo', 'ofac'),
+]
+files_to_remove = [
+    os.path.join('extras', 'poc', 'poc_audit.py'),
+    os.path.join('extras', 'poc', 'poc_snapshot.py'),
+    os.path.join('extras', 'poc', 'poc_viewer.py'),
+    os.path.join('lib', 'libDefaultRelationship.so'),
+    os.path.join('sdk', 'c', 'libg2audit.h'),
+    os.path.join('sdk', 'c', 'libg2audit.h'),
+    os.path.join('sdk', 'python', 'G2Audit.py'),
+    os.path.join('sdk', 'python', 'old', 'G2AuditModule.py'),
+    os.path.join('sdk', 'python', 'old', 'G2ConfigModule.py'),
+    os.path.join('sdk', 'python', 'old', 'G2Exception.py'),
+    os.path.join('sdk', 'python', 'old', 'G2Module.py'),
+    os.path.join('sdk', 'python', 'old', 'G2ProductModule.py'),
+    os.path.join('sdk', 'java', 'com', 'senzing', 'g2', 'engine', 'G2Audit.java'),
+    os.path.join('sdk', 'java', 'com', 'senzing', 'g2', 'engine', 'G2AuditJNI.java'),
+    os.path.join('python', 'demo', 'ofac', 'cust.json'),
+    os.path.join('python', 'demo', 'ofac', 'ofac.json'),
+    os.path.join('python', 'demo', 'ofac', 'project.json'),
+]
 
 def get_ignored(path, filenames):        
     ret = []
@@ -38,15 +62,13 @@ def find_replace_in_file(filename, old_string, new_string):
 def dirShouldBeSymlink(source_file_path):
     if source_file_path == senzing_path + "/data":
         return True
-    if source_file_path == senzing_path + "/resources/config":
-        return True
-    if source_file_path == senzing_path + "/resources/schema":
-        return True
     return False
 
 def overlayFiles(sourcePath,destPath):
     files_and_folders = os.listdir(sourcePath)
     for the_file in files_and_folders:
+        if os.path.basename(the_file) in files_to_exclude:
+            continue
         source_file_path = os.path.join(sourcePath, the_file)
         target_file_path = os.path.join(destPath, the_file)
         try:
@@ -116,6 +138,21 @@ if __name__ == '__main__':
         files_and_folders.remove('etc')
     while 'var' in files_and_folders:
         files_and_folders.remove('var')
+
+    # Clean up old files/foldes from old releases that are not in the current release
+    for f in files_to_remove:
+        try:
+            os.remove(os.path.join(target_path, f))
+        except FileNotFoundError:
+            # ok if file doesn't exist
+            pass
+
+    for p in paths_to_remove:
+        try:
+            os.rmdir(os.path.join(target_path, p))
+        except (FileNotFoundError, OSError):
+            # ok if file doesn't exist or the folder is not empty
+            pass
     
     # Update most of the files from opt
     overlayFiles(senzing_path,target_path)
@@ -128,17 +165,6 @@ if __name__ == '__main__':
     except Exception as e:
         print(e)
 
-    # soft link in the two resource folders
-    try:
-        if os.path.exists(os.path.join(target_path, 'resources', 'config')):
-            os.remove(os.path.join(target_path, 'resources', 'config'))
-        os.symlink(os.path.join(senzing_path, 'resources', 'config'), os.path.join(target_path, 'resources', 'config'))
-        if os.path.exists(os.path.join(target_path, 'resources', 'schema')):
-            os.remove(os.path.join(target_path, 'resources', 'schema'))
-        os.symlink(os.path.join(senzing_path, 'resources', 'schema'), os.path.join(target_path, 'resources', 'schema'))
-    except Exception as e:
-        print(e)
-
     # files to update
     files_to_update = [
         'setupEnv'
@@ -147,17 +173,17 @@ if __name__ == '__main__':
     # paths to substitute
     senzing_path_subs = [
         ('${SENZING_DIR}', target_path),
-        ('${SENZING_CONFIG_DIR}', os.path.join(target_path, 'etc'))
+        ('${SENZING_CONFIG_PATH}', os.path.join(target_path, 'etc')),
+        ('${SENZING_DATA_DIR}', os.path.join(target_path, 'data')),
+        ('${SENZING_RESOURCES_DIR}', os.path.join(target_path, 'resources')),
+        ('${SENZING_VAR_DIR}', os.path.join(target_path, 'var'))
     ]
 
     # New files copied in, now update some of the new files.
     for f in files_to_update:
         for p in senzing_path_subs:
             try:
-                # Anchor the replace on the character that comes before the path. This ensures that we are only 
-                # replacing the begining of the path and not a substring of the path.
-                find_replace_in_file(os.path.join(target_path, f), '=' + p[0], '=' + os.path.join(target_path, p[1]))
-                find_replace_in_file(os.path.join(target_path, f), '@' + p[0], '@' + os.path.join(target_path, p[1]))
+                find_replace_in_file(os.path.join(target_path, f), p[0], p[1])
             except Exception as e:
                 print(e)
 

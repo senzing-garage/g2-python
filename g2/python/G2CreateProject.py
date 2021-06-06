@@ -38,7 +38,7 @@ if __name__ == '__main__':
     print("Creating Senzing instance at " + target_path )
     
     # copy opt
-    paths_to_exclude = [os.path.join(senzing_path, 'resources', 'config'), os.path.join(senzing_path, 'resources', 'schema')]
+    paths_to_exclude = []
     files_to_exclude = ['G2CreateProject.py', 'G2UpdateProject.py']
     def get_ignored(path, filenames):        
         ret = []
@@ -51,26 +51,21 @@ if __name__ == '__main__':
 
     shutil.copytree(senzing_path, target_path, ignore=get_ignored)
     
-    # copy resources/templates to etc, then cut off the .template extension
-    files_to_ignore = shutil.ignore_patterns('G2C.db.template')
-    shutil.copytree(os.path.join(senzing_path,'resources', 'templates'), os.path.join(target_path, 'etc'))
+    # copy resources/templates to etc
+    files_to_ignore = shutil.ignore_patterns('G2C.db', 'setupEnv', '*.template')
+    shutil.copytree(os.path.join(senzing_path,'resources', 'templates'), os.path.join(target_path, 'etc'), ignore=files_to_ignore)
 
     project_etc_path = os.path.join(target_path, 'etc')
 
-    for file in os.listdir(project_etc_path):
-        if file.endswith('.template'):
-            os.rename(os.path.join(project_etc_path, file), os.path.join(project_etc_path, file).replace('.template',''))
+    # copy setupEnv
+    shutil.copyfile(os.path.join(senzing_path, 'resources', 'templates', 'setupEnv'), os.path.join(target_path, 'setupEnv'))
 
     # copy G2C.db to runtime location
     os.makedirs(os.path.join(target_path, 'var', 'sqlite'))
-    shutil.copyfile(os.path.join(senzing_path, 'resources', 'templates', 'G2C.db.template'), os.path.join(target_path, 'var', 'sqlite','G2C.db'))
+    shutil.copyfile(os.path.join(senzing_path, 'resources', 'templates', 'G2C.db'), os.path.join(target_path, 'var', 'sqlite','G2C.db'))
     
     # soft link in data
     os.symlink('/opt/senzing/data/1.0.0', os.path.join(target_path, 'data'))
-
-    # soft link in the two resouces folders
-    os.symlink(os.path.join(senzing_path, 'resources', 'config'), os.path.join(target_path, 'resources', 'config'))
-    os.symlink(os.path.join(senzing_path, 'resources', 'schema'), os.path.join(target_path, 'resources', 'schema'))
 
     # files to update
     files_to_update = [
@@ -79,21 +74,15 @@ if __name__ == '__main__':
         'etc/G2Project.ini'
     ]
 
-    # paths to substitute
     senzing_path_subs = [
-        (senzing_path, target_path),
-        (os.path.join(senzing_path, 'data'), os.path.join(target_path, 'data')),
-        ('/etc/opt/senzing', os.path.join(target_path, 'etc')),
-        ('/var/opt/senzing', os.path.join(target_path, 'var')),
-        ('/opt/senzing', target_path),
         ('${SENZING_DIR}', target_path),
-        ('${SENZING_CONFIG_DIR}', os.path.join(target_path, 'etc'))
+        ('${SENZING_CONFIG_PATH}', os.path.join(target_path, 'etc')),
+        ('${SENZING_DATA_DIR}', os.path.join(target_path, 'data')),
+        ('${SENZING_RESOURCES_DIR}', os.path.join(target_path, 'resources')),
+        ('${SENZING_VAR_DIR}', os.path.join(target_path, 'var'))
     ]
 
     for f in files_to_update:
         for p in senzing_path_subs:
-            # Anchor the replace on the character that comes before the path. This ensures that we are only 
-            # replacing the begining of the path and not a substring of the path.
-            find_replace_in_file(os.path.join(target_path, f), '=' + p[0], '=' + os.path.join(target_path, p[1]))
-            find_replace_in_file(os.path.join(target_path, f), '@' + p[0], '@' + os.path.join(target_path, p[1]))
+            find_replace_in_file(os.path.join(target_path, f), p[0], p[1])
 

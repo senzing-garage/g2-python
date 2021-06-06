@@ -71,6 +71,8 @@ def redoFeed(q, processEverything, g2iniPath, debugTrace):
 
         g2_engine = G2Engine()
         g2_engine.initV2('pyG2Redo', iniParams, debugTrace)
+        g2_engine.primeEngine()
+
     except G2ModuleException as ex:
         print('ERROR: could not start the G2 engine at ' + g2iniPath)
         print(ex)
@@ -746,6 +748,7 @@ def sendToG2(threadId_, workQueue_, numThreads_, g2iniPath, debugTrace, threadSt
       iniParams = iniParamCreator.getJsonINIParams(g2iniPath)
       g2_engine = G2Engine()
       g2_engine.initV2('pyG2Engine' + str(threadId_), iniParams, debugTrace)
+      g2_engine.primeEngine()      
   except G2ModuleException as ex:
       print('ERROR: could not start the G2 engine at ' + g2iniPath)
       print(ex)

@@ -1,4 +1,4 @@
-# Steps:
+# Update individual repositories
 
 1. Update CHANGELOG.md
    1. This can be done in a "batch fashion".
@@ -6,7 +6,7 @@
 
 ```console
 git status
-git commit -a -m "#3 1.14.0"
+git commit -a -m "#3 1.14.1"
 git push
 git status
 ```
@@ -14,7 +14,7 @@ git status
 3. Create pull request with the following title:
 
 ```console
-Shipped with SenzingAPI 1.14.0
+Shipped with SenzingAPI 1.14.1
 ```
 
 4. Pull request, but do not delete branch

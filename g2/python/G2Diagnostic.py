@@ -50,6 +50,36 @@ class G2Diagnostic(object):
         _module_name: CME module name
         _ini_file_name: name and location of .ini file
     """
+    def init(self, module_name_, ini_file_name_, debug_=False):
+        """  Initializes the G2 diagnostic module engine
+        This should only be called once per process.
+        Args:
+            moduleName: A short name given to this instance of the diagnostic module
+            iniFilename: A fully qualified path to the G2 engine INI file (often /opt/senzing/g2/python/G2Module.ini)
+            verboseLogging: Enable diagnostic logging which will print a massive amount of information to stdout
+        """
+
+        self._module_name = self.prepareStringArgument(module_name_)
+        self._ini_file_name = self.prepareStringArgument(ini_file_name_)
+        self._debug = debug_
+
+        if self._debug:
+            print("Initializing G2 diagnostic module")
+
+        self._lib_handle.G2Diagnostic_init.argtypes = [c_char_p, c_char_p, c_int]
+        ret_code = self._lib_handle.G2Diagnostic_init(self._module_name,
+                                 self._ini_file_name,
+                                 self._debug)
+
+        if self._debug:
+            print("Initialization Status: " + str(ret_code))
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
 
     def initV2(self, module_name_, ini_params_, debug_=False):
 
@@ -176,19 +206,19 @@ class G2Diagnostic(object):
             booleanValue = 1
         return booleanToPrepare
 
-    def getEntityDetails(self,entityID,includeInternalFeatures,response):
+    def getEntityDetails(self,entityID,includeDerivedFeatures,response):
         # type: (int) -> str
         """ Get the details for the resolved entity
         Args:
             entityID: The entity ID to get results for
-            includeInternalFeatures: boolean value indicating whether to include internal features
+            includeDerivedFeatures: boolean value indicating whether to include derived features
         """
 
-        _includeInternalFeatures = self.prepareBooleanArgument(includeInternalFeatures);
+        _includeDerivedFeatures = self.prepareBooleanArgument(includeDerivedFeatures);
         responseBuf = c_char_p(addressof(tls_var.buf))
         responseSize = c_size_t(tls_var.bufSize)
         self._lib_handle.G2Diagnostic_getEntityDetails.argtypes = [c_longlong, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
-        ret_code = self._lib_handle.G2Diagnostic_getEntityDetails(entityID, _includeInternalFeatures,
+        ret_code = self._lib_handle.G2Diagnostic_getEntityDetails(entityID, _includeDerivedFeatures,
                                                                  pointer(responseBuf),
                                                                  pointer(responseSize),
                                                                  self._resize_func)
@@ -201,19 +231,19 @@ class G2Diagnostic(object):
 
         response += tls_var.buf.value
 
-    def getRelationshipDetails(self,relationshipID,includeInternalFeatures,response):
+    def getRelationshipDetails(self,relationshipID,includeDerivedFeatures,response):
         # type: (int) -> str
         """ Get the details for the resolved entity relationship
         Args:
             relationshipID: The relationshp ID to get results for
-            includeInternalFeatures: boolean value indicating whether to include internal features
+            includeDerivedFeatures: boolean value indicating whether to include derived features
         """
 
-        _includeInternalFeatures = self.prepareBooleanArgument(includeInternalFeatures);
+        _includeDerivedFeatures = self.prepareBooleanArgument(includeDerivedFeatures);
         responseBuf = c_char_p(addressof(tls_var.buf))
         responseSize = c_size_t(tls_var.bufSize)
         self._lib_handle.G2Diagnostic_getRelationshipDetails.argtypes = [c_longlong, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
-        ret_code = self._lib_handle.G2Diagnostic_getRelationshipDetails(relationshipID, _includeInternalFeatures,
+        ret_code = self._lib_handle.G2Diagnostic_getRelationshipDetails(relationshipID, _includeDerivedFeatures,
                                                                  pointer(responseBuf),
                                                                  pointer(responseSize),
                                                                  self._resize_func)
@@ -318,19 +348,19 @@ class G2Diagnostic(object):
 
         response += tls_var.buf.value
 
-    def getMappingStatistics(self,includeInternalFeatures,response):
+    def getMappingStatistics(self,includeDerivedFeatures,response):
         # type: () -> object
         """ Retrieve data source mapping statistics.
         Args:
-            includeInternalFeatures: boolean value indicating whether to include derived features
+            includeDerivedFeatures: boolean value indicating whether to include derived features
         """
 
-        _includeInternalFeatures = self.prepareBooleanArgument(includeInternalFeatures);
+        _includeDerivedFeatures = self.prepareBooleanArgument(includeDerivedFeatures);
         responseBuf = c_char_p(addressof(tls_var.buf))
         responseSize = c_size_t(tls_var.bufSize)
         self._lib_handle.G2Diagnostic_getMappingStatistics.argtypes = [c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
         ret_code = self._lib_handle.G2Diagnostic_getMappingStatistics(
-                                             _includeInternalFeatures,
+                                             _includeDerivedFeatures,
                                              pointer(responseBuf),
                                              pointer(responseSize),
                                              self._resize_func)
@@ -370,21 +400,21 @@ class G2Diagnostic(object):
 
         response += tls_var.buf.value
 
-    def getEntitySizeBreakdown(self,minimumEntitySize,includeInternalFeatures,response):
+    def getEntitySizeBreakdown(self,minimumEntitySize,includeDerivedFeatures,response):
         # type: () -> object
         """ Retrieve data source mapping statistics.
         Args:
             minimumEntitySize: the minimum entity size to report on
-            includeInternalFeatures: boolean value indicating whether to include derived features
+            includeDerivedFeatures: boolean value indicating whether to include derived features
         """
 
-        _includeInternalFeatures = self.prepareBooleanArgument(includeInternalFeatures);
+        _includeDerivedFeatures = self.prepareBooleanArgument(includeDerivedFeatures);
         responseBuf = c_char_p(addressof(tls_var.buf))
         responseSize = c_size_t(tls_var.bufSize)
         self._lib_handle.G2Diagnostic_getEntitySizeBreakdown.argtypes = [c_size_t, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
         ret_code = self._lib_handle.G2Diagnostic_getEntitySizeBreakdown(
                                              minimumEntitySize,
-                                             _includeInternalFeatures,
+                                             _includeDerivedFeatures,
                                              pointer(responseBuf),
                                              pointer(responseSize),
                                              self._resize_func)

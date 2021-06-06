@@ -45,20 +45,6 @@ import DumpStack
 maxThreadsPerProcess=16
 defaultThreadCount=4
 
-# -----------------------------------------------------------------------------
-# Class: Governor
-# -----------------------------------------------------------------------------
-
-
-class Governor:
-
-    def __init__(self, *args, **kwargs):
-        return
-
-    def govern(self, *args, **kwargs):
-        return
-
-
 #---------------------------------------------------------------------
 #--G2Loader
 #---------------------------------------------------------------------
@@ -66,15 +52,17 @@ class Governor:
 #---------------------------------------
 def processRedo(q, processEverything=False):
     #-- This may look weird but ctypes/ffi have problems with the native code and fork.
-    setupProcess = Process(target=redoFeed, args=(q, processEverything, g2iniPath, debugTrace, redoMode, redoModeInterval))
+    setupProcess = Process(target=redoFeed, args=(q, processEverything, g2iniPath, debugTrace))
     setupProcess.start()
     setupProcess.join()
     if setupProcess.exitcode != 0:
         exitCode = 1
         return
 
-#---------------------------------------
-def redoFeed(q, processEverything, g2iniPath, debugTrace, redoMode, redoModeInterval):
+
+
+
+def redoFeed(q, processEverything, g2iniPath, debugTrace):
     ''' process any records in the redo queue '''
     #--purge the repository
     try:
@@ -106,19 +94,9 @@ def redoFeed(q, processEverything, g2iniPath, debugTrace, redoMode, redoModeInte
         if not rec:
           passNum += 1
           if (passNum > 10):
-            if redoMode:
-              print("Waiting " + str(redoModeInterval) + " seconds for next cycle.")
-              # sleep in 1 second increments to respond to user input
-              for x in range (1, redoModeInterval):
-                  if threadStop.value == 9:
-                      break
-                  time.sleep(1.0)
-            else:
-              break
+            break
           sleep(0.05)
           continue
-        else:
-          passNum = 0
 
         cntRows += 1
         while True:
@@ -282,8 +260,6 @@ def loadProject():
     exitCode = 0
     DumpStack.listen()
     procStartTime = time.time()
-
-    governor = Governor()
 
     if testMode:
         actionStr = 'Testing'
@@ -524,9 +500,6 @@ def loadProject():
         #--remove shuffled file
         if (not noShuffle) and (not testMode) and transportThreadCount > 1:
             os.remove(shufFilePath)
-
-        #--invoke governor
-        governor.govern()
 
         #--print the stats if not error or they pressed control-c
         if exitCode in (0, 9):
@@ -959,7 +932,7 @@ if __name__ == '__main__':
     createJsonOnly = False
     iniFileName = ''
 
-    argParser = argparse.ArgumentParser(epilog="Governor: A plugin executed after each file of records is loaded. %(prog)s attempts to import Governor from senzing_governor.py, which must be findable through PYTHONPATH. A sample senzing_governor.py is in the resources/templates folder of your project or your Senzing installation.")
+    argParser = argparse.ArgumentParser()
     argParser.add_argument('-c', '--iniFile', dest='iniFile', default='', help='the name of a G2Project.ini file to use', nargs='?')
     argParser.add_argument('-p', '--projectFile', dest='projectFileName', default='', help='the name of a g2 project csv or json file', nargs='?')
     argParser.add_argument('-f', '--fileSpec', dest='projectFileSpec', default='', help='the name of a file to load such as /data/*.json/?data_source=?,file_format=?')
@@ -1040,14 +1013,6 @@ if __name__ == '__main__':
         testMode = True
         createJsonOnly = True
 
-    #--attempt to import the governor plugins
-    try:
-        import senzing_governor
-        from senzing_governor import Governor
-        print("User-supplied Governor loaded from %s" % senzing_governor.__file__)
-    except ImportError:
-        pass
-
     g2health = G2Health()
     g2health.checkIniParams(g2iniPath)
 
@@ -1059,6 +1024,12 @@ if __name__ == '__main__':
             exitCode = loadRedoQueueAndProcess()
             if threadStop.value == 9 or exitCode != 0:
                     break
+            print("Waiting " + str(redoModeInterval) + " seconds for next cycle.")
+            # sleep in 1 second increments to respond to user input
+            for x in range (1, redoModeInterval):
+                if threadStop.value == 9:
+                    break
+                time.sleep(1.0)
     else :
         # More validation specific to this mode.        
         if (not projectFileName) and (not projectFileSpec):

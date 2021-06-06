@@ -1,0 +1,91 @@
+TEST_GROUP,RESOLVED_ENTITY_ID,MATCH_KEY,DATA_SOURCE,RECORD_ID
+TI-1000,TI-1000-1,anchor,TRUTH-SET1,1001
+TI-1000,TI-1000-1,resolve: name var | dob swap | address | phone swap (moved),TRUTH-SET1,1002
+TI-1000,TI-1000-1,resolve: name | dob | email,TRUTH-SET1,1003
+TI-1000,TI-1000-1,resolve: weak name | address | email,TRUTH-SET1,1004
+TI-1000,TI-1000-1,resolve: name | address,TRUTH-SET1,1005
+TI-1015,TI-1015-1,anchor,TRUTH-SET1,1009
+TI-1015,TI-1015-1,resolve: name var | dob format | address,TRUTH-SET1,1010
+TI-1015,TI-1015-2,not related!,TRUTH-SET1,1011
+TI-1015,TI-1015-3,anchor,TRUTH-SET1,1015
+TI-1015,TI-1015-3,resolve: name var | dob | addr,TRUTH-SET1,1016
+TI-1015,TI-1015-3,resolve: name | ssn ,TRUTH-SET1,1017
+TI-1015,TI-1015-3,resolve: name var | close dob | phone,TRUTH-SET1,1018
+TI-1015,TI-1015-4,related: sur name | address  | email,TRUTH-SET1,1019
+TI-1015,TI-1015-5,related: sur name | address  | email,TRUTH-SET1,1020
+TI-1017,TI-1017-1,anchor,TRUTH-SET1,1022
+TI-1017,TI-1017-1,resolve: very close name  | dob,TRUTH-SET1,1023
+TI-1017,TI-1017-2,anchor,TRUTH-SET1,1025
+TI-1017,TI-1017-3,related: close name | dob (to darla),TRUTH-SET1,1026
+TI-1020,TI-1020-1,anchor,TRUTH-SET1,1028
+TI-1021,TI-1021-1,anchor,TRUTH-SET1,1030
+TI-1021,TI-1021-1,resolve: close name | dob | address,TRUTH-SET1,1031
+TI-1022,TI-1022-1,anchor,TRUTH-SET1,1032
+TI-1022,TI-1022-1,resolve: name swap | dob swap | close phone,TRUTH-SET1,1033
+TI-1023,TI-1023-1,anchor,TRUTH-SET1,1034
+TI-1023,TI-1023-1,resolve: close name | dob | address,TRUTH-SET1,1035
+TI-1023,TI-1023-1,resolve: close name | dob | address,TRUTH-SET1,1036
+TI-1024,TI-1024-1,anchor,TRUTH-SET1,1039
+TI-1024,TI-1024-2,relate: name | diff dob | address ,TRUTH-SET1,1040
+TI-1025,TI-1025-1,anchor,TRUTH-SET1,1043
+TI-1025,TI-1025-2,relate: name | diff dob | address ,TRUTH-SET1,1044
+TI-1025,TI-1025-1,resolve: name | dob | passport (to patrick),TRUTH-SET1,1045
+TI-1025,TI-1025-2,resolve: name | dob | passport (to patricia),TRUTH-SET1,1046
+TI-1027,TI-1027-1,anchor,TRUTH-SET1,1047
+TI-1027,TI-1027-1,resolve: name var | email,TRUTH-SET1,1048
+TI-1027,TI-1027-1,resolve: name var | email,TRUTH-SET1,1049
+TI-1028,TI-1028-1,anchor,TRUTH-SET1,1050
+TI-1028,TI-1028-1,resolve: name var | dob | passport,TRUTH-SET1,1051
+TI-1028,TI-1028-1,resolve: name var | passport,TRUTH-SET1,1052
+TI-1029,TI-1029-1,anchor,TRUTH-SET1,1053
+TI-1029,TI-1029-2,anchor,TRUTH-SET1,1054
+TI-1029,TI-1029-1,resolve: pname | address | passport,TRUTH-SET1,1055
+TI-1029,TI-1029-2,resolve: pname| dob | address | drlic,TRUTH-SET1,1056
+TI-1030,TI-1030-1,anchor,TRUTH-SET1,1057
+TI-1030,TI-1030-2,relate: name only | diff email domain,TRUTH-SET1,1058
+TI-1031,TI-1031-1,anchor,TRUTH-SET1,1059
+TI-1031,TI-1031-1,resolve: name | phone (initial),TRUTH-SET1,1060
+TI-1031,TI-1031-2,anchor,TRUTH-SET1,1061
+TI-1031,TI-1031-2,resolve: name | phone (no first name),TRUTH-SET1,1062
+TI-1032,TI-1032-1,anchor,TRUTH-SET1,1063
+TI-1032,TI-1032-1,resolve: name | dob (adds passport),TRUTH-SET1,1064
+TI-1032,TI-1032-1,resolve: name | passport (adds drlic),TRUTH-SET1,1065
+TI-1032,TI-1032-1,resolve: name | drlic (adds ssn),TRUTH-SET1,1066
+TI-1032,TI-1032-1,resolve: name | ssn (adds address),TRUTH-SET1,1067
+TI-1032,TI-1032-1,resolve: name | address ,TRUTH-SET1,1068
+TI-2003,TI-2003-1,anchor,TRUTH-SET1,1069
+TI-2003,TI-2003-1,resolve: name | gender | address | nationalID,TRUTH-SET1,1070
+TI-2003,TI-2003-2,anchor,TRUTH-SET1,1071
+TI-2003,TI-2003-2,resolve: name | dob |  gender | address | nationalID,TRUTH-SET1,1072
+TI-2003,TI-2003-3,anchor,TRUTH-SET1,1073
+TI-2003,TI-2003-3,resolve: name | dob | gender | address,TRUTH-SET1,1074
+TI-2003,TI-2003-4,anchor,TRUTH-SET1,1075
+TI-2003,TI-2003-4,resolve: name | dob | gender | address,TRUTH-SET1,1076
+TI-2003,TI-2003-5,anchor,TRUTH-SET1,1077
+TI-2003,TI-2003-5,resolve: name | dob | address,TRUTH-SET1,1078
+TI-2004,TI-2004-1,anchor,TRUTH-SET1,1079
+TI-2004,TI-2004-1,resolve: name | dob | last4ssn,TRUTH-SET1,1080
+TI-1034,TI-1034-1,anchor,TRUTH-SET1,1081
+TI-1034,TI-1034-1,resolve: name | dob | address |passport,TRUTH-SET1,1082
+TI-1034,TI-1034-2,anchor,TRUTH-SET1,1083
+TI-1034,TI-1034-2,resolve: name | dob | address |passport,TRUTH-SET1,1084
+TI-1034,TI-1034-3,anchor,TRUTH-SET1,1085
+TI-1034,TI-1034-3,resolve: name | dob | phone |email,TRUTH-SET1,1086
+TI-1035,TI-1035-1,anchor,TRUTH-SET1,1087
+TI-1035,TI-1035-1,resolve: name | dob | phone | email | gender diff,TRUTH-SET1,1088
+TI-1035,TI-1035-3,anchor,TRUTH-SET1,1089
+TI-1035,TI-1035-4,resolve: name | dob | address | passport / diff generation,TRUTH-SET1,1090
+TI-1035,TI-1035-5,anchor,TRUTH-SET1,1091
+TI-1035,TI-1035-5,resolve: name | dob | phone |email,TRUTH-SET1,1092
+TI-1036,TI-1036-1,anchor,TRUTH-SET1,1093
+TI-1036,TI-1036-1,resolve: name | dob | drlic ,TRUTH-SET1,1094
+TI-1036,TI-1036-3,anchor,TRUTH-SET1,1095
+TI-1036,TI-1036-3,resolve: name | dob | drlic | invalid gender,TRUTH-SET1,1096
+TI-1037,TI-1037-1,anchor,TRUTH-SET1,1097
+TI-1037,TI-1037-1,resolve: name | address | email ,TRUTH-SET1,1098
+TI-1037,TI-1037-3,anchor,TRUTH-SET1,1099
+TI-1037,TI-1037-3,resolve: name | address | email | invalid gender,TRUTH-SET1,1100
+TI-1038,TI-1038-1,anchor,TRUTH-SET1,1101
+TI-1038,TI-1038-1,resolve: name | email ,TRUTH-SET1,1102
+TI-1038,TI-1038-3,anchor,TRUTH-SET1,1103
+TI-1038,TI-1038-3,resolve: name | address | email | invalid  gender,TRUTH-SET1,1104

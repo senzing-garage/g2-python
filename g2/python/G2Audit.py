@@ -55,8 +55,6 @@ class G2Audit(object):
             moduleName: A short name given to this instance of the audit module
             iniFilename: A fully qualified path to the G2 engine INI file (often /opt/senzing/g2/python/G2Module.ini)
             verboseLogging: Enable diagnostic logging which will print a massive amount of information to stdout
-        Returns:
-            int: 0 on success
         """
 
         self._module_name = self.prepareStringArgument(module_name_)
@@ -74,14 +72,11 @@ class G2Audit(object):
         if self._debug:
             print("Initialization Status: " + str(ret_code))
 
-        if ret_code == -2:
-            self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-        elif ret_code == -1:
+        if ret_code == -1:
             raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
         elif ret_code < 0:
-            raise G2ModuleGenericException("Failed to initialize G2 Audit")
-        return ret_code
+            self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
 
 
     def initV2(self, module_name_, ini_params_, debug_=False):
@@ -101,14 +96,11 @@ class G2Audit(object):
         if self._debug:
             print("Initialization Status: " + str(ret_code))
 
-        if ret_code == -2:
-            self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-        elif ret_code == -1:
+        if ret_code == -1:
             raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
         elif ret_code < 0:
-            raise G2ModuleGenericException("Failed to initialize G2 Audit")
-        return ret_code
+            self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
 
 
     def initWithConfigIDV2(self, engine_name_, ini_params_, initConfigID_, debug_):
@@ -130,15 +122,11 @@ class G2Audit(object):
         if self._debug:
             print("Initialization Status: " + str(ret_code))
 
-        if ret_code == -2:
-            self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-        elif ret_code == -1:
+        if ret_code == -1:
             raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
         elif ret_code < 0:
-            raise G2ModuleGenericException("Failed to initialize G2 Audit")
-
-        return ret_code
+            self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
 
     def reinitV2(self, initConfigID):
 
@@ -147,15 +135,11 @@ class G2Audit(object):
         self._lib_handle.G2Audit_reinit_V2.argtypes = [ c_longlong ]
         ret_code = self._lib_handle.G2Audit_reinit_V2(configIDValue)
 
-        if ret_code == -2:
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
+        elif ret_code < 0:
             self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
-        elif ret_code == -1:
-            raise G2ModuleNotInitialized('G2 audit module has not been succesfully initialized')
-        elif ret_code < 0:
-            raise G2ModuleGenericException("Failed to initialize G2 Audit")
-
-        return ret_code
 
     def __init__(self):
         # type: (str, str, bool) -> None
@@ -217,8 +201,6 @@ class G2Audit(object):
     def clearLastException(self):
         """ Clears the last exception
 
-        Return:
-            None
         """
 
         self._lib_handle.G2Audit_clearLastException.restype = None
@@ -279,14 +261,14 @@ class G2Audit(object):
                                              self._resize_func)
         self._lib_handle.G2Audit_closeSession.argtypes = [c_void_p]
         self._lib_handle.G2Audit_closeSession(sessionHandle)
-        if ret_code == -2:
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
+        elif ret_code < 0:
             self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
-        elif ret_code == -1:
-            raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
 
         response += responseBuf.value
-        return ret_code
 
     def getSummaryDataDirect(self, response):
         # type: () -> object
@@ -301,14 +283,14 @@ class G2Audit(object):
                                              pointer(responseBuf),
                                              pointer(responseSize),
                                              self._resize_func)
-        if ret_code == -2:
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
+        elif ret_code < 0:
             self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
-        elif ret_code == -1:
-            raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
 
         response += responseBuf.value
-        return ret_code
 
     def getUsedMatchKeys(self,sessionHandle,fromDataSource,toDataSource,matchLevel,response):
         # type: (str,str,int) -> str
@@ -333,13 +315,14 @@ class G2Audit(object):
                                                                  pointer(responseBuf),
                                                                  pointer(responseSize),
                                                                  self._resize_func)
-        if ret_code == -2:
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
+        elif ret_code < 0:
             self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
-        elif ret_code == -1:
-            raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
+
         response += responseBuf.value
-        return ret_code
 
 
     def getUsedPrinciples(self,sessionHandle,fromDataSource,toDataSource,matchLevel,response):
@@ -365,13 +348,14 @@ class G2Audit(object):
                                                                  pointer(responseBuf),
                                                                  pointer(responseSize),
                                                                  self._resize_func)
-        if ret_code == -2:
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
+        elif ret_code < 0:
             self._lib_handle.G2Audit_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
-        elif ret_code == -1:
-            raise G2ModuleNotInitialized('G2Audit has not been succesfully initialized')
+
         response += responseBuf.value
-        return ret_code
 
 
     def getAuditReport(self,sessionHandle,fromDataSource,toDataSource,matchLevel):
@@ -427,10 +411,11 @@ class G2Audit(object):
         After it is called the engine will no longer function.
 
         Args:
+            None
 
         Return:
             None
         """
 
-        return self._lib_handle.G2Audit_destroy()
+        self._lib_handle.G2Audit_destroy()
 

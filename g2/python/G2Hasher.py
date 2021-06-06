@@ -57,7 +57,7 @@ class G2Hasher(object):
             verboseLogging: Enable diagnostic logging which will print a massive amount of information to stdout
         """
         if self._hasherSupported == False:
-            return 0
+            return
 
         self._hasher_name = self.prepareStringArgument(hasher_name_)
         self._ini_file_name = self.prepareStringArgument(ini_file_name_)
@@ -71,24 +71,20 @@ class G2Hasher(object):
                                  self._ini_file_name,
                                  self._debug)
 
-
         if self._debug:
             print("Initialization Status: " + str(ret_code))
 
-        if ret_code == -2:
-            self._lib_handle.G2Hasher_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-        elif ret_code == -1:
+        if ret_code == -1:
             raise G2ModuleNotInitialized('G2Hasher has not been succesfully initialized')
         elif ret_code < 0:
-            raise G2ModuleGenericException("Failed to initialize G2 Hasher")
-        return ret_code
+            self._lib_handle.G2Hasher_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
 
 
     def initV2(self, hasher_name_, ini_params_, debug_=False):
 
         if self._hasherSupported == False:
-            return 0
+            return
 
         self._hasher_name = self.prepareStringArgument(hasher_name_)
         self._ini_params = self.prepareStringArgument(ini_params_)
@@ -104,20 +100,16 @@ class G2Hasher(object):
         if self._debug:
             print("Initialization Status: " + str(ret_code))
 
-        if ret_code == -2:
-            self._lib_handle.G2Hasher_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-        elif ret_code == -1:
+        if ret_code == -1:
             raise G2ModuleNotInitialized('G2Hasher has not been succesfully initialized')
         elif ret_code < 0:
-            raise G2ModuleGenericException("Failed to initialize G2 Hasher")
-
-        return ret_code
+            self._lib_handle.G2Hasher_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
 
     def initWithConfigV2(self, hasher_name_, ini_params_, config_, debug_):
 
         if self._hasherSupported == False:
-            return 0
+            return
 
         self._hasher_name = self.prepareStringArgument(hasher_name_)
         self._ini_params = self.prepareStringArgument(ini_params_)
@@ -136,15 +128,11 @@ class G2Hasher(object):
         if self._debug:
             print("Initialization Status: " + str(ret_code))
 
-        if ret_code == -2:
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Hasher has not been succesfully initialized')
+        elif ret_code < 0:
             self._lib_handle.G2Hasher_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
-        elif ret_code == -1:
-            raise G2ModuleNotInitialized('G2 Hasher has not been succesfully initialized')
-        elif ret_code < 0:
-            raise G2ModuleGenericException("Failed to initialize G2 Hasher")
-
-        return ret_code
 
     def __init__(self):
         try:
@@ -221,15 +209,14 @@ class G2Hasher(object):
         ret_code = self._lib_handle.G2Hasher_exportTokenLibrary(pointer(responseBuf),
                                              pointer(responseSize),
                                              self._resize_func)
-        if ret_code == -2:
-            self._lib_handle.G2Hasher_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-        elif ret_code == -1:
+
+        if ret_code == -1:
             raise G2ModuleNotInitialized('G2Hasher has not been succesfully initialized')
         elif ret_code < 0:
-            raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
+            self._lib_handle.G2Hasher_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
         response += responseBuf.value
-        return ret_code
 
     def process(self,record,response):
         '''  process a G2Hasher record '''
@@ -243,20 +230,18 @@ class G2Hasher(object):
                                              pointer(responseBuf),
                                              pointer(responseSize),
                                              self._resize_func)
-        if ret_code == -2:
-            self._lib_handle.G2Hasher_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-        elif ret_code == -1:
+
+        if ret_code == -1:
             raise G2ModuleNotInitialized('G2Hasher has not been succesfully initialized')
         elif ret_code < 0:
-            raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
+            self._lib_handle.G2Hasher_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
         response += responseBuf.value
-        return ret_code
 
     def destroy(self):
         """ shuts down G2Module
         """
         if self._hasherSupported == True:
-            return self._lib_handle.G2Hasher_destroy()
-        return 0
+            self._lib_handle.G2Hasher_destroy()
 

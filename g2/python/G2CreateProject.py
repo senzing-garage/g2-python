@@ -86,7 +86,8 @@ if __name__ == '__main__':
         ('/etc/opt/senzing', os.path.join(target_path, 'etc')),
         ('/var/opt/senzing', os.path.join(target_path, 'var')),
         ('/opt/senzing', target_path),
-        ('${SENZING_DIR}', target_path)
+        ('${SENZING_DIR}', target_path),
+        ('${SENZING_CONFIG_DIR}', os.path.join(target_path, 'etc'))
     ]
 
     for f in files_to_update:

@@ -56,8 +56,6 @@ class G2Product(object):
             moduleName: A short name given to this instance of the product module
             iniFilename: A fully qualified path to the G2 engine INI file (often /opt/senzing/g2/python/G2Module.ini)
             verboseLogging: Enable diagnostic logging which will print a massive amount of information to stdout
-        Returns:
-            int: 0 on success
         """
         self._module_name = self.prepareStringArgument(module_name_)
         self._ini_file_name = self.prepareStringArgument(ini_file_name_)
@@ -74,14 +72,11 @@ class G2Product(object):
         if self._debug:
             print("Initialization Status: " + str(ret_code))
 
-        if ret_code == -2:
-            self._lib_handle.G2Product_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-        elif ret_code == -1:
+        if ret_code == -1:
             raise G2ModuleNotInitialized('G2Product has not been succesfully initialized')
         elif ret_code < 0:
-            raise G2ModuleGenericException("Failed to initialize G2 Product Module")
-        return ret_code
+            self._lib_handle.G2Product_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
 
 
     def initV2(self, module_name_, ini_params_, debug_=False):
@@ -101,14 +96,11 @@ class G2Product(object):
         if self._debug:
             print("Initialization Status: " + str(ret_code))
 
-        if ret_code == -2:
-            self._lib_handle.G2Product_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-        elif ret_code == -1:
+        if ret_code == -1:
             raise G2ModuleNotInitialized('G2Product has not been succesfully initialized')
         elif ret_code < 0:
-            raise G2ModuleGenericException("Failed to initialize G2 Product Module")
-        return ret_code
+            self._lib_handle.G2Product_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
 
 
     def __init__(self):
@@ -154,7 +146,7 @@ class G2Product(object):
         # type: () -> object
         """ Retrieve the G2 license details
 
-        Args:
+        Args: (None)
 
         Return:
             object: JSON document with G2 license details
@@ -171,7 +163,7 @@ class G2Product(object):
             licenseFilePath: The path of the license file to validate
 
         Return:
-            str: 0 for successful validation, 1 for failure, negative value for errors
+            str: 0 for successful validation, 1 for failure
         """
 
         _licenseFilePath = self.prepareStringArgument(licenseFilePath)
@@ -183,20 +175,20 @@ class G2Product(object):
                                                                  pointer(responseBuf),
                                                                  pointer(responseSize),
                                                                  self._resize_func)
-        if ret_code == -2:
-            self._lib_handle.G2Product_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-        elif ret_code == -1:
+
+        if ret_code == -1:
             raise G2ModuleNotInitialized('G2Product has not been succesfully initialized')
         elif ret_code < 0:
-            raise G2ModuleGenericException("ERROR_CODE: " + str(ret_code))
+            self._lib_handle.G2Product_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
         return ret_code
 
     def version(self):
         # type: () -> object
         """ Retrieve the G2 version details
 
-        Args:
+        Args: (None)
 
         Return:
             object: JSON document with G2 version details
@@ -211,19 +203,15 @@ class G2Product(object):
         This should be done once per process after init(...) is called.
         After it is called the engine will no longer function.
 
-        Args:
+        Args: (None)
 
-        Return:
-            None
         """
 
-        return self._lib_handle.G2Product_destroy()
+        self._lib_handle.G2Product_destroy()
 
     def clearLastException(self):
         """ Clears the last exception
 
-        Return:
-            None
         """
 
         self._lib_handle.G2Product_clearLastException.restype = None

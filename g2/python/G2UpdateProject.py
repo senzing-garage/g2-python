@@ -146,7 +146,8 @@ if __name__ == '__main__':
 
     # paths to substitute
     senzing_path_subs = [
-        ('${SENZING_DIR}', target_path)
+        ('${SENZING_DIR}', target_path),
+        ('${SENZING_CONFIG_DIR}', os.path.join(target_path, 'etc'))
     ]
 
     # New files copied in, now update some of the new files.

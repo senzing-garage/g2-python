@@ -55,8 +55,6 @@ class G2ConfigMgr(object):
             moduleName: A short name given to this instance of the config module
             iniParams: A json document that contains G2 system parameters.
             verboseLogging: Enable diagnostic logging which will print a massive amount of information to stdout
-        Returns:
-            int: 0 on success
         """
         self._module_name = self.prepareStringArgument(module_name_)
         self._ini_params = self.prepareStringArgument(ini_params_)
@@ -73,14 +71,11 @@ class G2ConfigMgr(object):
         if self._debug:
             print("Initialization Status: " + str(ret_code))
 
-        if ret_code == -2:
-            self._lib_handle.G2ConfigMgr_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-        elif ret_code == -1:
+        if ret_code == -1:
             raise G2ModuleNotInitialized('G2ConfigMgr has not been succesfully initialized')
         elif ret_code < 0:
-            raise G2ModuleGenericException("Failed to initialize G2 Config Manager")
-        return ret_code
+            self._lib_handle.G2ConfigMgr_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
 
     def __init__(self):
         # type: () -> None
@@ -150,13 +145,13 @@ class G2ConfigMgr(object):
         self._lib_handle.G2ConfigMgr_addConfig.restype = c_int
         ret_code = self._lib_handle.G2ConfigMgr_addConfig(_configStr,_configComments,cID)
 
-        if ret_code == -2:
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2ConfigMgr has not been succesfully initialized')
+        elif ret_code < 0:
             self._lib_handle.G2ConfigMgr_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
-        elif ret_code == -1:
-            raise G2ModuleNotInitialized('G2ConfigMgr has not been succesfully initialized')
+
         configID += (str(cID.value).encode())
-        return ret_code
 
     def getConfig(self,configID,response):
         """ retrieves the registered configuration document from the datastore
@@ -171,17 +166,15 @@ class G2ConfigMgr(object):
                                                                  pointer(responseBuf),
                                                                  pointer(responseSize),
                                                                  self._resize_func)
-        if ret_code == -2:
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2ConfigMgr has not been succesfully initialized')
+        elif ret_code < 0:
             self._lib_handle.G2ConfigMgr_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
-        elif ret_code == -1:
-            raise G2ModuleNotInitialized('G2ConfigMgr has not been succesfully initialized')
 
         #Add the bytes to the response bytearray from calling function
         response += tls_var.buf.value
-
-        #Return the RC
-        return ret_code
 
     def getConfigList(self,response):
         """ retrieves a list of known configurations from the datastore
@@ -195,17 +188,15 @@ class G2ConfigMgr(object):
                                                                  pointer(responseBuf),
                                                                  pointer(responseSize),
                                                                  self._resize_func)
-        if ret_code == -2:
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2ConfigMgr has not been succesfully initialized')
+        elif ret_code < 0:
             self._lib_handle.G2ConfigMgr_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
-        elif ret_code == -1:
-            raise G2ModuleNotInitialized('G2ConfigMgr has not been succesfully initialized')
 
         #Add the bytes to the response bytearray from calling function
         response += tls_var.buf.value
-
-        #Return the RC
-        return ret_code
 
     def setDefaultConfigID(self,configID):
         """ sets the default config identifier in the datastore
@@ -214,13 +205,12 @@ class G2ConfigMgr(object):
         self._lib_handle.G2ConfigMgr_setDefaultConfigID.restype = c_int
         self._lib_handle.G2ConfigMgr_setDefaultConfigID.argtypes = [c_longlong]
         ret_code = self._lib_handle.G2ConfigMgr_setDefaultConfigID(configID_)
-        if ret_code == -2:
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2ConfigMgr has not been succesfully initialized')
+        elif ret_code < 0:
             self._lib_handle.G2ConfigMgr_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
-        elif ret_code == -1:
-            raise G2ModuleNotInitialized('G2ConfigMgr has not been succesfully initialized')
-
-        return ret_code
 
     def replaceDefaultConfigID(self,oldConfigID,newConfigID):
         """ sets the default config identifier in the datastore
@@ -230,13 +220,12 @@ class G2ConfigMgr(object):
         self._lib_handle.G2ConfigMgr_replaceDefaultConfigID.restype = c_int
         self._lib_handle.G2ConfigMgr_replaceDefaultConfigID.argtypes = [c_longlong,c_longlong]
         ret_code = self._lib_handle.G2ConfigMgr_replaceDefaultConfigID(oldConfigID_,newConfigID_)
-        if ret_code == -2:
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2ConfigMgr has not been succesfully initialized')
+        elif ret_code < 0:
             self._lib_handle.G2ConfigMgr_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
-        elif ret_code == -1:
-            raise G2ModuleNotInitialized('G2ConfigMgr has not been succesfully initialized')
-
-        return ret_code
 
     def getDefaultConfigID(self, configID):
         """ gets the default config identifier from the datastore
@@ -247,21 +236,17 @@ class G2ConfigMgr(object):
         self._lib_handle.G2ConfigMgr_getDefaultConfigID.restype = c_int
         ret_code = self._lib_handle.G2ConfigMgr_getDefaultConfigID(cID)
 
-        if ret_code == -2:
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2ConfigMgr has not been succesfully initialized')
+        elif ret_code < 0:
             self._lib_handle.G2ConfigMgr_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
-        elif ret_code == -1:
-            raise G2ModuleNotInitialized('G2ConfigMgr has not been succesfully initialized')
+
         if cID.value:
             configID += (str(cID.value).encode())
-        return ret_code
-
 
     def clearLastException(self):
         """ Clears the last exception
-
-        Return:
-            None
         """
 
         self._lib_handle.G2ConfigMgr_clearLastException.restype = None
@@ -299,5 +284,5 @@ class G2ConfigMgr(object):
             None
         """
 
-        return self._lib_handle.G2ConfigMgr_destroy()
+        self._lib_handle.G2ConfigMgr_destroy()
 

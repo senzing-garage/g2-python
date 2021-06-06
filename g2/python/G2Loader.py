@@ -470,6 +470,16 @@ def loadProject():
             if threadStop.value != 0:
                 exitCode = threadStop.value
                 break
+
+            #--check if any of the threads died without throwing errors
+            areAlive = True
+            for thread in threadList:
+                if thread.is_alive() == False:
+                    print('ERROR: Thread failure!')
+                    areAlive = False;
+                    break
+            if areAlive == False:
+                break
         
         if threadStop.value == 0 and not testMode and processRedoQueue:
           redoError = processRedo(workQueue, True)

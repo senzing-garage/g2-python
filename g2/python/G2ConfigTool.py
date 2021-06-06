@@ -89,7 +89,7 @@ class G2CmdShell(cmd.Cmd):
         self.forceMode = forceMode
 
         self.attributeClassList = ('NAME', 'ATTRIBUTE', 'IDENTIFIER', 'ADDRESS', 'PHONE', 'RELATIONSHIP', 'OTHER')
-        self.lockedFeatureList = ('NAME','ADDRESS', 'PHONE', 'DOB', 'REL_LINK')
+        self.lockedFeatureList = ('NAME','ADDRESS', 'PHONE', 'DOB', 'REL_LINK', 'REL_ANCHOR', 'REL_POINTER')
         
         self.__hidden_methods = ('do_shell')
         self.doDebug = False
@@ -376,8 +376,8 @@ class G2CmdShell(cmd.Cmd):
                         g2ConfigMgr = G2ConfigMgr()
                         g2ConfigMgr.initV2('pyG2ConfigMgr', iniParams, False)
                         newConfigId = bytearray()
-                        retcode = g2ConfigMgr.addConfig(json.dumps(self.cfgData), 'Updated by G2ConfigTool', newConfigId)
-                        retcode = g2ConfigMgr.setDefaultConfigID(newConfigId)
+                        g2ConfigMgr.addConfig(json.dumps(self.cfgData), 'Updated by G2ConfigTool', newConfigId)
+                        g2ConfigMgr.setDefaultConfigID(newConfigId)
                         g2ConfigMgr.destroy()
                     except:
                         printWithNewLines('ERROR: Failed saving config!', 'B')
@@ -1235,6 +1235,11 @@ class G2CmdShell(cmd.Cmd):
         
                             del self.cfgData['G2_CONFIG']['CFG_EFCALL'][i1]        
     
+                    # delete the expression calls builder felems (must loop through backwards when deleting)
+                    for i2 in range(len(self.cfgData['G2_CONFIG']['CFG_EFBOM'])-1, -1, -1):
+                        if self.cfgData['G2_CONFIG']['CFG_EFBOM'][i2]['FTYPE_ID'] == self.cfgData['G2_CONFIG']['CFG_FTYPE'][i]['FTYPE_ID']:
+                            del self.cfgData['G2_CONFIG']['CFG_EFBOM'][i2]        
+
                     # delete any comparison calls and boms  (must loop through backwards when deleting)
                     for i1 in range(len(self.cfgData['G2_CONFIG']['CFG_CFCALL'])-1, -1, -1):
                         if self.cfgData['G2_CONFIG']['CFG_CFCALL'][i1]['FTYPE_ID'] == self.cfgData['G2_CONFIG']['CFG_FTYPE'][i]['FTYPE_ID']:
@@ -1510,7 +1515,7 @@ class G2CmdShell(cmd.Cmd):
             newRecord['USED_FOR_CAND'] = 'No' if parmData['CANDIDATES'].upper() == 'NO' else 'Yes'
             newRecord['PERSIST_HISTORY'] = 'Yes' 
             newRecord['VERSION'] = 1
-            newRecord['RTYPE_ID'] = 0
+            newRecord['RTYPE_ID'] = int(parmData['RTYPE_ID']) if 'RTYPE_ID' in parmData else 0
             self.cfgData['G2_CONFIG']['CFG_FTYPE'].append(newRecord)
             if self.doDebug:
                 showMeTheThings(newRecord, 'Feature build')
@@ -2052,6 +2057,40 @@ class G2CmdShell(cmd.Cmd):
             printWithNewLines('%s rows deleted!' % deleteCnt, 'B')
     
     # -----------------------------
+    def do_addEntityScore(self,arg):
+        '\n\taddEntityScore {"behavior": "<behavior code>", "grouperFeat": "<yes/no>", "richnessScore": "<richness score>", "exclusivityScore": "<exclusivity score>"}\n'
+
+        if not argCheck('addEntityScore', arg, self.do_addEntityScore.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+            parmData['BEHAVIOR'] = parmData['BEHAVIOR'].upper()
+        except (ValueError, KeyError) as e:
+            argError(arg, e)
+        else:
+
+            #--lookup behavior and error if it doesn't exist
+            if self.getRecord('CFG_ESCORE', 'BEHAVIOR_CODE', parmData['BEHAVIOR']):
+                printWithNewLines('Entity score entry %s already exists!' % parmData['BEHAVIOR'], 'B')
+                return
+
+            if 'GROUPERFEAT' not in parmData:
+                parmData['GROUPERFEAT'] = 'No'
+
+            newRecord = {}
+            newRecord['BEHAVIOR_CODE'] = parmData['BEHAVIOR']
+            newRecord['GROUPER_FEAT'] = 'Yes' if parmData['GROUPERFEAT'].upper() == 'YES' else 'No'
+            newRecord['RICHNESS_SCORE'] = int(parmData['RICHNESSSCORE'])
+            newRecord['EXCLUSIVITY_SCORE'] = int(parmData['EXCLUSIVITYSCORE'])
+            self.cfgData['G2_CONFIG']['CFG_ESCORE'].append(newRecord)
+            self.configUpdated = True
+            printWithNewLines('Successfully added!', 'B')
+            if self.doDebug:
+                showMeTheThings(newRecord)
+
+
+    # -----------------------------
     def do_addAttribute(self,arg):
         '\n\taddAttribute {"attribute": "<attribute_name>"}' \
         '\n\n\taddAttribute {"attribute": "<attribute_name>", "class": "<class_type>", "feature": "<feature_name>", "element": "<element_type>"}' \
@@ -2086,7 +2125,7 @@ class G2CmdShell(cmd.Cmd):
     
             if 'ELEMENT' in parmData and len(parmData['ELEMENT']) != 0:
                 parmData['ELEMENT'] = parmData['ELEMENT'].upper()
-                if parmData['ELEMENT'] == '<PREHASHED>':
+                if parmData['ELEMENT'] in ('<PREHASHED>', 'USED_FROM_DT', 'USED_THRU_DT', 'USAGE_TYPE'):
                     felemRecord = parmData['ELEMENT']
                 else:
                     felemRecord = self.getRecord('CFG_FELEM', 'FELEM_CODE', parmData['ELEMENT'])
@@ -3388,7 +3427,7 @@ class G2CmdShell(cmd.Cmd):
         '\n\tdeleteFragment {"id": "<fragment_id>"}' \
         '\n\tdeleteFragment {"fragment": "<fragment_code>"}'
 
-        if not argCheck('deleteFragment', arg, self.do_getFragment.__doc__):
+        if not argCheck('deleteFragment', arg, self.do_deleteFragment.__doc__):
             return
 
         try:
@@ -3420,6 +3459,85 @@ class G2CmdShell(cmd.Cmd):
                 printWithNewLines('Record not found!', 'B')
             printWithNewLines('%s rows deleted!' % deleteCnt, 'B')
         
+    # -----------------------------
+    def do_setFragment(self,arg):
+        '\n\tsetFragment {"id": "<fragment_id>", "fragment": "<fragment_code>", "source": "<fragment_source>"}\n'
+        if not argCheck('setFragment', arg, self.do_setFragment.__doc__):
+            return
+
+        try:
+            if arg.startswith('{'):
+                parmData = dictKeysUpper(json.loads(arg)) 
+            elif arg.isdigit():
+                parmData = {"ID": arg}
+            else:
+                parmData = {"FRAGMENT": arg}
+            if 'FRAGMENT' in parmData and len(parmData['FRAGMENT'].strip()) != 0:
+                searchField = 'ERFRAG_CODE'
+                searchValue = parmData['FRAGMENT'].upper()
+            elif 'ID' in parmData and len(parmData['ID'].strip()) != 0:
+                searchField = 'ERFRAG_ID'
+                searchValue = int(parmData['ID'])
+            else:
+                raise ValueError(arg)
+        except (ValueError, KeyError) as e:
+            argError(arg, e)
+        else:
+            printWithNewLines('')
+
+            #--lookup fragment and error if doesn't exist
+            listID = -1
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_ERFRAG'])-1, -1, -1):
+                if self.cfgData['G2_CONFIG']['CFG_ERFRAG'][i][searchField] == searchValue:
+                    listID = i
+            if listID == -1: 
+                printWithNewLines('Fragment does not exist!')
+                return
+
+            #--make the updates
+            for parmCode in parmData:
+                if parmCode == 'ID':
+                    pass
+
+                elif parmCode == 'SOURCE':
+                    #--compute dependencies from source
+                    #--example: './FRAGMENT[./SAME_NAME>0 and ./SAME_STAB>0] or ./FRAGMENT[./SAME_NAME1>0 and ./SAME_STAB1>0]'
+                    dependencyList = []
+                    sourceString = parmData['SOURCE']
+                    startPos = sourceString.find('FRAGMENT[')
+                    while startPos > 0:
+                        fragmentString = sourceString[startPos:sourceString.find(']', startPos) + 1]
+                        sourceString = sourceString.replace(fragmentString, '')
+                        #--parse the fragment string
+                        currentFrag = 'eof'
+                        fragmentChars = list(fragmentString)
+                        potentialErrorString = ''
+                        for thisChar in fragmentChars:
+                            potentialErrorString += thisChar
+                            if thisChar == '/':
+                                currentFrag = ''
+                            elif currentFrag != 'eof':
+                                if thisChar in '| =><)':
+                                    #--lookup the fragment code
+                                    fragRecord = self.getRecord('CFG_ERFRAG', 'ERFRAG_CODE', currentFrag)
+                                    if not fragRecord:
+                                        printWithNewLines('Invalid fragment reference: %s' % currentFrag, 'B')
+                                        return
+                                    else:
+                                        dependencyList.append(str(fragRecord['ERFRAG_ID']))
+                                    currentFrag = 'eof'
+                                else:
+                                    currentFrag += thisChar
+                        #--next list of fragments
+                        startPos = sourceString.find('FRAGMENT[')
+
+            self.cfgData['G2_CONFIG']['CFG_ERFRAG'][listID]['ERFRAG_SOURCE'] = parmData['SOURCE']
+            self.cfgData['G2_CONFIG']['CFG_ERFRAG'][listID]['ERFRAG_DEPENDS'] = ','.join(dependencyList)
+            printWithNewLines('Fragment source updated!')
+            self.configUpdated = True
+
+            printWithNewLines('')
+                
     # -----------------------------
     def do_addFragment(self,arg):
         '\n\taddFragment {"id": "<fragment_id>", "fragment": "<fragment_code>", "source": "<fragment_source>"}' \
@@ -3471,7 +3589,7 @@ class G2CmdShell(cmd.Cmd):
                     if thisChar == '/':
                         currentFrag = ''
                     elif currentFrag != 'eof':
-                        if thisChar in ' =><)':
+                        if thisChar in '| =><)':
                             #--lookup the fragment code
                             fragRecord = self.getRecord('CFG_ERFRAG', 'ERFRAG_CODE', currentFrag)
                             if not fragRecord:
@@ -3594,6 +3712,55 @@ class G2CmdShell(cmd.Cmd):
                 printWithNewLines('Record not found!', 'B')
             printWithNewLines('%s rows deleted!' % deleteCnt, 'B')
 
+    # -----------------------------
+    def do_setRule(self,arg):
+        '\n\tsetRule {"id": "<rule_id>", "rule": "<rule_name>", "desc": "<description>", "fragment": "<fragment_name>", "disqualifier": "<disqualifier_name>"}\n'
+        if not argCheck('setRule', arg, self.do_setRule.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+        except (ValueError, KeyError) as e:
+            argError(arg, e)
+        else:
+            printWithNewLines('')
+
+            #--lookup rule and error if doesn't exist
+            listID = -1
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_ERRULE'])):
+                if self.cfgData['G2_CONFIG']['CFG_ERRULE'][i]['ERRULE_ID'] == parmData['ID']:
+                    listID = i
+            if listID == -1: 
+                printWithNewLines('Rule %s does not exist!' % parmData['ID'])
+                return
+
+            #--make the updates
+            for parmCode in parmData:
+                if parmCode == 'ID':
+                    pass
+
+                elif parmCode == 'RULE':
+                    self.cfgData['G2_CONFIG']['CFG_ERRULE'][listID]['ERRULE_CODE'] = parmData['RULE']
+                    printWithNewLines('Rule code updated!')
+                    self.configUpdated = True
+
+                elif parmCode == 'DESC':
+                    self.cfgData['G2_CONFIG']['CFG_ERRULE'][listID]['ERRULE_DESC'] = parmData['DESC']
+                    printWithNewLines('Rule description updated!')
+                    self.configUpdated = True
+
+                elif parmCode == 'FRAGMENT':
+                    self.cfgData['G2_CONFIG']['CFG_ERRULE'][listID]['QUAL_ERFRAG_CODE'] = parmData['FRAGMENT']
+                    printWithNewLines('Rule fragment updated!')
+                    self.configUpdated = True
+
+                elif parmCode == 'DISQUALIFIER':
+                    self.cfgData['G2_CONFIG']['CFG_ERRULE'][listID]['DISQ_ERFRAG_CODE'] = parmData['DISQUALIFIER']
+                    printWithNewLines('Rule disqualifier updated!')
+                    self.configUpdated = True
+
+            printWithNewLines('')
+                
     # -----------------------------
     def do_addRule(self,arg):
         '\n\taddRule {"id": 130, "rule": "SF1_CNAME", "tier": 30, "resolve": "Yes", "relate": "No", "ref_score": 8, "fragment": "SF1_CNAME", "disqualifier": "DIFF_EXCL", "rtype_id": 1}' \
@@ -4073,13 +4240,14 @@ def getFeatureBehavior(feature):
 
 def parseFeatureBehavior(behaviorCode):
     behaviorDict = {"EXCLUSIVITY": 'No', "STABILITY": 'No'}
-    if 'E' in behaviorCode:
-        behaviorDict['EXCLUSIVITY'] = 'Yes'
-        behaviorCode = behaviorCode.replace('E','')
-    if 'S' in behaviorCode:
-        behaviorDict['STABILITY'] = 'Yes'
-        behaviorCode = behaviorCode.replace('S','')
-    if behaviorCode in ('F1', 'FF', 'FM', 'FVM', 'NONE'):
+    if behaviorCode not in ('NAME','NONE'):
+        if 'E' in behaviorCode:
+            behaviorDict['EXCLUSIVITY'] = 'Yes'
+            behaviorCode = behaviorCode.replace('E','')
+        if 'S' in behaviorCode:
+            behaviorDict['STABILITY'] = 'Yes'
+            behaviorCode = behaviorCode.replace('S','')
+    if behaviorCode in ('A1', 'F1', 'FF', 'FM', 'FVM', 'NONE', 'NAME'):
         behaviorDict['FREQUENCY'] = behaviorCode
     else:
         behaviorDict = None

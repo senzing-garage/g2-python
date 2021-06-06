@@ -99,9 +99,8 @@ def setupConfig(iniFileName,autoMode):
     # Save configuration JSON into G2 database.
     config_comment = "Configuration added from G2SetupConfig."
     new_config_id = bytearray()
-    return_code = 0;
     try:
-        return_code = g2ConfigMgr.addConfig(configJsonToUse, config_comment, new_config_id)
+        g2ConfigMgr.addConfig(configJsonToUse, config_comment, new_config_id)
     except G2Exception.G2ModuleException as exc:
         print(exc)
         exceptionInfo = g2ConfigMgr.getLastException()
@@ -111,13 +110,11 @@ def setupConfig(iniFileName,autoMode):
             return -1
         print ("Error:  Failed to add config to the datastore.")
         return -1
-    if return_code != 0:
-        print ("Error:  Failed to add config to the datastore.")
-        return -1
 
     # Set the default configuration ID.
-    return_code = g2ConfigMgr.setDefaultConfigID(new_config_id)
-    if return_code != 0:
+    try:
+        g2ConfigMgr.setDefaultConfigID(new_config_id)
+    except G2Exception.G2Exception as err:
         print ("Error:  Failed to set config as default.")
         return -1
 

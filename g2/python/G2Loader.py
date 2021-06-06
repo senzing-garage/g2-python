@@ -87,7 +87,7 @@ def redoFeed(q, processEverything, g2iniPath, debugTrace):
     while True:
         if threadStop.value != 0:
            break
-        ret = g2_engine.getRedoRecord(recBytes)
+        g2_engine.getRedoRecord(recBytes)
         rec = recBytes.decode()
         if not rec:
           passNum += 1
@@ -573,7 +573,7 @@ def addDataSource(g2ConfigModule,configDoc,dataSource,configuredDatasourcesOnly)
     configHandle = g2ConfigModule.load(configDoc)
     dsrcExists = False
     dsrcListDocString = bytearray()
-    ret_code = g2ConfigModule.listDataSources(configHandle,dsrcListDocString)
+    g2ConfigModule.listDataSources(configHandle,dsrcListDocString)
     dsrcListDoc = json.loads(dsrcListDocString.decode())
     dsrcListNode = dsrcListDoc['DSRC_CODE']
     for dsrcNode in dsrcListNode:
@@ -588,7 +588,7 @@ def addDataSource(g2ConfigModule,configDoc,dataSource,configuredDatasourcesOnly)
             addEntityTypeResultBuf = bytearray()
             g2ConfigModule.addEntityTypeV2(configHandle,addEntityTypeJson,addEntityTypeResultBuf)
             newConfig = bytearray()
-            ret_code = g2ConfigModule.save(configHandle,newConfig)
+            g2ConfigModule.save(configHandle,newConfig)
             configDoc[::]=b''
             configDoc += newConfig
             returnCode = 1
@@ -682,12 +682,14 @@ def enhanceG2Config(g2Project,iniParams,g2ConfigJson,configuredDatasourcesOnly):
             g2ConfigMgr = G2ConfigMgr()
             g2ConfigMgr.initV2("g2ConfigMgr", iniParams, False)
             new_config_id = bytearray()
-            return_code = g2ConfigMgr.addConfig(g2ConfigJson.decode(),'Updated From G2Loader', new_config_id)
-            if return_code != 0:
+            try: 
+                g2ConfigMgr.addConfig(g2ConfigJson.decode(),'Updated From G2Loader', new_config_id)
+            except G2Exception.G2Exception as err:
                 print ("Error:  Failed to add new config to the datastore")
                 return False
-            return_code = g2ConfigMgr.setDefaultConfigID(new_config_id)
-            if return_code != 0:
+            try: 
+                g2ConfigMgr.setDefaultConfigID(new_config_id)
+            except G2Exception.G2Exception as err:
                 print ("Error:  Failed to set new config as default")
                 return False
             g2ConfigMgr.destroy()
@@ -769,7 +771,9 @@ def sendToG2(threadId_, workQueue_, numThreads_, g2iniPath, debugTrace, threadSt
   if workloadStats > 0 and numProcessed > 0:
     statsResponse = bytearray()
     g2_engine.stats(statsResponse)
-    pprint.pprint(statsResponse.decode())
+    statsString = statsResponse.decode()
+    statsJson = json.loads(statsString)
+    pprint.pprint(statsJson)
   
   try: g2_engine.destroy()
   except: pass
@@ -828,14 +832,15 @@ def g2Thread(threadId_, workQueue_, g2Engine_, threadStop, workloadStats, dsrcAc
             if (workloadStats > 0 and (numProcessed%(maxThreadsPerProcess*sqlCommitSize)) == 0):
               statsResponse = bytearray()
               g2Engine_.stats(statsResponse)
-              print(statsResponse.decode())
+              statsString = statsResponse.decode()
+              statsJson = json.loads(statsString)
+              pprint.pprint(statsJson)
 
             try: 
-                returnCode = 0
                 if dsrcAction == 'X':
-                  returnCode = g2Engine_.reevaluateRecord(dataSource, recordID, 0)
+                  g2Engine_.reevaluateRecord(dataSource, recordID, 0)
                 else:
-                  returnCode = g2Engine_.process(row)
+                  g2Engine_.process(row)
             except G2ModuleLicenseException as err:
                 print(err)
                 print('ERROR: G2Engine licensing error!')

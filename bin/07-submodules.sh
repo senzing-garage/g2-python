@@ -27,5 +27,5 @@ SUBMODULES=(
     "g2project;1.8.0;G2Project.py"
     "g2s3;1.0.0;G2S3.py"
     "g2setupconfig;1.0.1;G2SetupConfig.py"
-    "g2updateproject;1.3.0;G2UpdateProject.py"
+    "g2updateproject;1.3.1;G2UpdateProject.py"
 )

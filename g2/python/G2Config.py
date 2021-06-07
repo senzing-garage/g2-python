@@ -536,6 +536,19 @@ class G2Config(object):
 
         response += responseBuf.value
 
+    def modifyFeatureV2(self,configHandle,inputJson):
+        """ Modifies a feature
+        """
+        _inputJson = self.prepareStringArgument(inputJson)
+        self._lib_handle.G2Config_modifyFeature_V2.argtypes = [c_void_p, c_char_p]
+        ret_code = self._lib_handle.G2Config_modifyFeature_V2(configHandle,_inputJson)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
     def deleteFeatureV2(self,configHandle,inputJson):
         """ Deletes a feature
         """
@@ -555,6 +568,19 @@ class G2Config(object):
         _inputJson = self.prepareStringArgument(inputJson)
         self._lib_handle.G2Config_addElementToFeature_V2.argtypes = [c_void_p, c_char_p]
         ret_code = self._lib_handle.G2Config_addElementToFeature_V2(configHandle,_inputJson)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+    def modifyElementForFeatureV2(self,configHandle,inputJson):
+        """ Modify an element for a feature
+        """
+        _inputJson = self.prepareStringArgument(inputJson)
+        self._lib_handle.G2Config_modifyElementForFeature_V2.argtypes = [c_void_p, c_char_p]
+        ret_code = self._lib_handle.G2Config_modifyElementForFeature_V2(configHandle,_inputJson)
 
         if ret_code == -1:
             raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
@@ -594,6 +620,26 @@ class G2Config(object):
 
         response += responseBuf.value
 
+    def addFeatureStandardizationFunctionV2(self,configHandle,inputJson,response):
+        """ Adds a feature standardization function
+        """
+        _inputJson = self.prepareStringArgument(inputJson)
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2Config_addFeatureStandardizationFunction_V2.argtypes = [c_void_p, c_char_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2Config_addFeatureStandardizationFunction_V2(configHandle,_inputJson,
+                                             pointer(responseBuf),
+                                             pointer(responseSize),
+                                             self._resize_func)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+        response += responseBuf.value
+
     def listFeatureExpressionFunctionsV2(self,configHandle,response):
         """ lists the set of expression functions
         """
@@ -612,6 +658,39 @@ class G2Config(object):
             raise TranslateG2ModuleException(tls_var.buf.value)
 
         response += responseBuf.value
+
+    def addFeatureExpressionFunctionV2(self,configHandle,inputJson,response):
+        """ Adds a feature expression function
+        """
+        _inputJson = self.prepareStringArgument(inputJson)
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2Config_addFeatureExpressionFunction_V2.argtypes = [c_void_p, c_char_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2Config_addFeatureExpressionFunction_V2(configHandle,_inputJson,
+                                             pointer(responseBuf),
+                                             pointer(responseSize),
+                                             self._resize_func)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+        response += responseBuf.value
+
+    def modifyFeatureExpressionFunctionV2(self,configHandle,inputJson):
+        """ Modifies a feature expression function
+        """
+        _inputJson = self.prepareStringArgument(inputJson)
+        self._lib_handle.G2Config_modifyFeatureExpressionFunction_V2.argtypes = [c_void_p, c_char_p]
+        ret_code = self._lib_handle.G2Config_modifyFeatureExpressionFunction_V2(configHandle,_inputJson)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
 
     def listFeatureComparisonFunctionsV2(self,configHandle,response):
         """ lists the set of comparison functions
@@ -632,6 +711,46 @@ class G2Config(object):
 
         response += responseBuf.value
 
+    def addFeatureComparisonFunctionV2(self,configHandle,inputJson,response):
+        """ Adds a feature comparison function
+        """
+        _inputJson = self.prepareStringArgument(inputJson)
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2Config_addFeatureComparisonFunction_V2.argtypes = [c_void_p, c_char_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2Config_addFeatureComparisonFunction_V2(configHandle,_inputJson,
+                                             pointer(responseBuf),
+                                             pointer(responseSize),
+                                             self._resize_func)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+        response += responseBuf.value
+
+    def addFeatureComparisonFunctionReturnCodeV2(self,configHandle,inputJson,response):
+        """ Adds a feature comparison function return code
+        """
+        _inputJson = self.prepareStringArgument(inputJson)
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2Config_addFeatureComparisonFunctionReturnCode_V2.argtypes = [c_void_p, c_char_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2Config_addFeatureComparisonFunctionReturnCode_V2(configHandle,_inputJson,
+                                             pointer(responseBuf),
+                                             pointer(responseSize),
+                                             self._resize_func)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+        response += responseBuf.value
+
     def listFeatureDistinctFunctionsV2(self,configHandle,response):
         """ lists the set of distinct functions
         """
@@ -639,6 +758,26 @@ class G2Config(object):
         responseSize = c_size_t(tls_var.bufSize)
         self._lib_handle.G2Config_listFeatureDistinctFunctions_V2.argtypes = [c_void_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
         ret_code = self._lib_handle.G2Config_listFeatureDistinctFunctions_V2(configHandle,
+                                             pointer(responseBuf),
+                                             pointer(responseSize),
+                                             self._resize_func)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+        response += responseBuf.value
+
+    def addFeatureDistinctFunctionV2(self,configHandle,inputJson,response):
+        """ Adds a feature distinct function
+        """
+        _inputJson = self.prepareStringArgument(inputJson)
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2Config_addFeatureDistinctFunction_V2.argtypes = [c_void_p, c_char_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2Config_addFeatureDistinctFunction_V2(configHandle,_inputJson,
                                              pointer(responseBuf),
                                              pointer(responseSize),
                                              self._resize_func)
@@ -1102,6 +1241,208 @@ class G2Config(object):
         _inputJson = self.prepareStringArgument(inputJson)
         self._lib_handle.G2Config_deleteAttribute_V2.argtypes = [c_void_p, c_char_p]
         ret_code = self._lib_handle.G2Config_deleteAttribute_V2(configHandle,_inputJson)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+    def listRulesV2(self,configHandle,response):
+        """ lists the set of rules
+        """
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2Config_listRules_V2.argtypes = [c_void_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2Config_listRules_V2(configHandle,
+                                             pointer(responseBuf),
+                                             pointer(responseSize),
+                                             self._resize_func)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+        response += responseBuf.value
+
+    def getRuleV2(self,configHandle,inputJson,response):
+        """ Get a rule
+        """
+        _inputJson = self.prepareStringArgument(inputJson)
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2Config_getRule_V2.argtypes = [c_void_p, c_char_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2Config_getRule_V2(configHandle,_inputJson,
+                                             pointer(responseBuf),
+                                             pointer(responseSize),
+                                             self._resize_func)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+        response += responseBuf.value
+
+    def addRuleV2(self,configHandle,inputJson,response):
+        """ Add a rule
+        """
+        _inputJson = self.prepareStringArgument(inputJson)
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2Config_addRule_V2.argtypes = [c_void_p, c_char_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2Config_addRule_V2(configHandle,_inputJson,
+                                             pointer(responseBuf),
+                                             pointer(responseSize),
+                                             self._resize_func)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+        response += responseBuf.value
+
+    def deleteRuleV2(self,configHandle,inputJson):
+        """ Delete a rule
+        """
+        _inputJson = self.prepareStringArgument(inputJson)
+        self._lib_handle.G2Config_deleteRule_V2.argtypes = [c_void_p, c_char_p]
+        ret_code = self._lib_handle.G2Config_deleteRule_V2(configHandle,_inputJson)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+    def listRuleFragmentsV2(self,configHandle,response):
+        """ lists the set of rule fragments
+        """
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2Config_listRuleFragments_V2.argtypes = [c_void_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2Config_listRuleFragments_V2(configHandle,
+                                             pointer(responseBuf),
+                                             pointer(responseSize),
+                                             self._resize_func)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+        response += responseBuf.value
+
+    def getRuleFragmentV2(self,configHandle,inputJson,response):
+        """ Get a rule fragment
+        """
+        _inputJson = self.prepareStringArgument(inputJson)
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2Config_getRuleFragment_V2.argtypes = [c_void_p, c_char_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2Config_getRuleFragment_V2(configHandle,_inputJson,
+                                             pointer(responseBuf),
+                                             pointer(responseSize),
+                                             self._resize_func)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+        response += responseBuf.value
+
+    def addRuleFragmentV2(self,configHandle,inputJson,response):
+        """ Add a rule fragment
+        """
+        _inputJson = self.prepareStringArgument(inputJson)
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2Config_addRuleFragment_V2.argtypes = [c_void_p, c_char_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2Config_addRuleFragment_V2(configHandle,_inputJson,
+                                             pointer(responseBuf),
+                                             pointer(responseSize),
+                                             self._resize_func)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+        response += responseBuf.value
+
+    def deleteRuleFragmentV2(self,configHandle,inputJson):
+        """ Delete a rule fragment
+        """
+        _inputJson = self.prepareStringArgument(inputJson)
+        self._lib_handle.G2Config_deleteRuleFragment_V2.argtypes = [c_void_p, c_char_p]
+        ret_code = self._lib_handle.G2Config_deleteRuleFragment_V2(configHandle,_inputJson)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+    def addConfigSectionV2(self,configHandle,inputJson):
+        """ Add a config section
+        """
+        _inputJson = self.prepareStringArgument(inputJson)
+        self._lib_handle.G2Config_addConfigSection_V2.argtypes = [c_void_p, c_char_p]
+        ret_code = self._lib_handle.G2Config_addConfigSection_V2(configHandle,_inputJson)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+    def addConfigSectionFieldV2(self,configHandle,inputJson):
+        """ Add a config section field
+        """
+        _inputJson = self.prepareStringArgument(inputJson)
+        self._lib_handle.G2Config_addConfigSectionField_V2.argtypes = [c_void_p, c_char_p]
+        ret_code = self._lib_handle.G2Config_addConfigSectionField_V2(configHandle,_inputJson)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+    def getCompatibilityVersionV2(self,configHandle,response):
+        """ Get the config compatibility version
+        """
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2Config_getCompatibilityVersion_V2.argtypes = [c_void_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2Config_getCompatibilityVersion_V2(configHandle,
+                                             pointer(responseBuf),
+                                             pointer(responseSize),
+                                             self._resize_func)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+        response += responseBuf.value
+
+    def modifyCompatibilityVersionV2(self,configHandle,inputJson):
+        """ modify the config compatibility version
+        """
+        _inputJson = self.prepareStringArgument(inputJson)
+        self._lib_handle.G2Config_modifyCompatibilityVersion_V2.argtypes = [c_void_p, c_char_p]
+        ret_code = self._lib_handle.G2Config_modifyCompatibilityVersion_V2(configHandle,_inputJson)
 
         if ret_code == -1:
             raise G2ModuleNotInitialized('G2Config has not been succesfully initialized')

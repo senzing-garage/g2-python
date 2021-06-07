@@ -200,7 +200,7 @@ def redoFeed(q, debugTrace, redoMode, redoModeInterval):
     return
 
 
-def check_resources():
+def check_resources(thread_count):
     ''' Check system resources and calculate a safe number of threads when argument not specified on command line '''
 
     try:
@@ -230,7 +230,7 @@ def check_resources():
     calc_max_avail_mem = 80
     
     # Allow for higher factor when logical cores are available 
-    calc_cores_factor = 2.5 if physical_cores != logical_cores else 2 
+    calc_cores_factor = 2.5 if physical_cores != logical_cores else 1.5
 
     print(textwrap.dedent(f'''\n\
         System Resources
@@ -243,7 +243,7 @@ def check_resources():
         '''))
 
     # Don't need to calculate in redo only mode
-    if not args.thread_count and not args.redoMode:
+    if not args.thread_count:
 
         # Allow for 1 GB / thread
         thread_calc_from_mem = math.ceil(available_mem / 100 * calc_max_avail_mem)
@@ -281,13 +281,6 @@ def check_resources():
                 {calc_thread_msg}
         '''))
 
-    else:
-        if not args.redoMode:
-            thread_count = args.thread_count
-        else:
-            thread_count = 1
-            redo_limit_msg = ' - Redo is single threaded. '
-
 
     # Limit number of threads when sqlite, unless -nt arg specified
     if db_type == 'SQLITE3':
@@ -309,7 +302,7 @@ def check_resources():
         Resources Requested
         -------------------
 
-            Number of Threads:           {thread_count} {sqlite_limit_msg} {redo_limit_msg}
+            Number of Threads:           {thread_count} {sqlite_limit_msg}
             Threads per Process:         {args.max_threads_per_process}
             Number of Processes:         {num_processes}
             Min Recommeded Cores:        {min_recommend_cores}
@@ -740,6 +733,8 @@ def perform_load():
             elapsedSecs = time.time() - fileStartTime
             elapsedMins = round(elapsedSecs / 60, 1)
             fileTps = int((cntGoodUmf + cntBadParse + cntBadUmf) / (elapsedSecs - time_governing.value - time_starting_engines.value)) if elapsedSecs > 0 else 0
+            # Use good records count istead of 0 on small fast files
+            fileTps = fileTps if fileTps > 0 else cntGoodUmf
 
             print(textwrap.dedent(f'''\n\
                 Statistics
@@ -755,7 +750,7 @@ def perform_load():
                     Total elapsed time:             {elapsedMins} mins
                     Time processing redo:           {str(round((time_redo.value - time_starting_engines.value) / 60, 1)) + ' mins' if not args.testMode and not args.noRedo else 'Redo disabled (-n)'}
                     Time paused in governor(s):     {round(time_governing.value / 60, 1)} mins
-                    Records per second:             {fileTps}{'              - Includes redo processing' if not args.testMode and not args.noRedo else ''}
+                    Records per second:             {fileTps}
             '''))
 
             statPack = g2Project.getStatPack()
@@ -1109,8 +1104,9 @@ def g2Thread(threadId_, workQueue_, g2Engine_, threadStop, workloadStats, dsrcAc
                 dump_workload_stats(g2Engine_)
 
             try: 
-                if dsrcAction == 'X':
-                    print(f'dataSource: {dataSource}, recordID: {recordID}')
+                # Temp fix for distinguising between X messages that are either JSON or UMF.
+                row_is_json = type(row) == dict
+                if row_is_json and dsrcAction == 'X':
                     g2Engine_.reevaluateRecord(dataSource, recordID, 0)
                 else:
                     g2Engine_.process(row)
@@ -1366,14 +1362,14 @@ if __name__ == '__main__':
     if args.purgeFirst and not args.forcePurge:
         if not input(textwrap.dedent('''
             WARNING: Purging (-P) will delete all loaded data from the Senzing repository!
-                     Bypass this confirmation governor = importlib.import_module(import_governor)using the --FORCEPURGE command line argument
+                     Bypass this confirmation using the --FORCEPURGE command line argument
 
             Type YESPURGE to continue and purge or enter to quit:
         ''')) == "YESPURGE":
            sys.exit(0)
 
     # Check resources and acquire num threads
-    defaultThreadCount = check_resources()
+    defaultThreadCount = check_resources(args.thread_count)
 
     # -w has been deprecated and the default is now output workload stats, noWorkloadStats is checked in place of
     # workloadStats. -w will be removed in future updates.
@@ -1392,7 +1388,7 @@ if __name__ == '__main__':
     if args.reprocessMode:
         dsrcAction = 'X'
 
-    # Running if redo only mode? Don't purge in redo only mode, would purge the queue!
+    # Running in redo only mode? Don't purge in redo only mode, would purge the queue!
     if args.redoMode:
         exitCode = runSetupProcess(False) 
         while threadStop.value != 9 and exitCode == 0:

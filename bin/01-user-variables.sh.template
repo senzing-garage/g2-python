@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-SENZING_VERSION=2.3.2
+SENZING_VERSION=2.3.3
 
 SOURCE_PYTHON_DIR=/opt/senzing-${SENZING_VERSION}/g2/python
 

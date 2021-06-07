@@ -1,29 +1,31 @@
 #! /usr/bin/env python3
 
+import csv
+import json
 #--python imports
 import optparse
+import os
+import sys
+import time
+from datetime import datetime, timedelta
+
+import G2Paths
+#--project classes
+from G2Engine import G2Engine
+from G2Exception import G2ModuleException
+from G2Health import G2Health
+from G2IniParams import G2IniParams
+
 try: import configparser
 except: import ConfigParser as configparser
-import sys
 if sys.version[0] == '2':
     reload(sys)
     sys.setdefaultencoding('utf-8')
-import os
-import json
-import csv
-import time
-import G2Paths
-from datetime import datetime, timedelta
 
 #--extended format (with lens_id, errule code, etc) is hard coded to false for now
 extendedFormat = False
 
 
-#--project classes
-from G2Engine import G2Engine
-from G2Exception import G2ModuleException
-from G2IniParams import G2IniParams
-from G2Health import G2Health
 
 #---------------------------------------------------------------------
 #-- g2 export
@@ -79,7 +81,7 @@ def exportEntityResume(appError):
     elif outputFilter >= 5:
         exportFlags = g2_module.G2_EXPORT_INCLUDE_RESOLVED | g2_module.G2_EXPORT_INCLUDE_POSSIBLY_SAME | g2_module.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | g2_module.G2_EXPORT_INCLUDE_NAME_ONLY | g2_module.G2_EXPORT_INCLUDE_DISCLOSED | g2_module.G2_ENTITY_INCLUDE_ALL_RELATIONS
     else:
-        exportFlags = g2_module.G2_EXPORT_INCLUDE_ALL_ENTITIES
+        exportFlags = g2_module.G2_EXPORT_INCLUDE_ALL_ENTITIES | g2_module.G2_ENTITY_INCLUDE_ALL_RELATIONS
 
     #if not extended:
     #  exportFlags |= g2_module.G2_ENTITY_MINIMAL_FORMAT
@@ -458,4 +460,3 @@ if __name__ == '__main__':
     print('')
 
     sys.exit(appError)
-

@@ -587,28 +587,6 @@ def erCompare(fileName1, fileName2, outputRoot):
     with open(outputJsonFile, 'w') as outfile:
         json.dump(statpack, outfile)    
 
-    #print(json.dumps(statpack, indent=4))
-    print ('')
-    print ('%s prior entities ' % statpack['ENTITY']['STANDARD_COUNT'])
-    print ('%s new entities ' % statpack['ENTITY']['RESULT_COUNT'])
-    print ('%s common entities ' % statpack['ENTITY']['COMMON_COUNT'])
-    print ('%s precision ' % statpack['ENTITY']['PRECISION'])
-    print ('%s recall ' % statpack['ENTITY']['RECALL'])
-    print ('%s f1-score ' % statpack['ENTITY']['F1-SCORE'])
-    print ('')
-    print ('%s prior clusters ' % statpack['CLUSTERS']['STANDARD_COUNT'])
-    print ('%s new clusters ' % statpack['CLUSTERS']['RESULT_COUNT'])
-    print ('%s common clusters ' % statpack['CLUSTERS']['COMMON_COUNT'])
-    print ('%s precision ' % statpack['CLUSTERS']['PRECISION'])
-    print ('%s recall ' % statpack['CLUSTERS']['RECALL'])
-    print ('%s f1-score ' % statpack['CLUSTERS']['F1-SCORE'])
-    print ('')
-    print ('%s prior pairs ' % statpack['PAIRS']['STANDARD_COUNT'])
-    print ('%s new pairs ' % statpack['PAIRS']['RESULT_COUNT'])
-    print ('%s common pairs ' % statpack['PAIRS']['COMMON_COUNT'])
-    print ('%s precision ' % statpack['PAIRS']['PRECISION'])
-    print ('%s recall ' % statpack['PAIRS']['RECALL'])
-    print ('%s f1-score ' % statpack['PAIRS']['F1-SCORE'])
     print ('')
     print ('%s prior positives ' % statpack['ACCURACY']['PRIOR_POSITIVE'])
     print ('%s new positives ' % statpack['ACCURACY']['NEW_POSITIVE'])
@@ -616,6 +594,13 @@ def erCompare(fileName1, fileName2, outputRoot):
     print ('%s precision ' % statpack['ACCURACY']['PRECISION'])
     print ('%s recall ' % statpack['ACCURACY']['RECALL'])
     print ('%s f1-score ' % statpack['ACCURACY']['F1-SCORE'])
+    print ('')
+    print ('%s prior entities ' % statpack['ENTITY']['STANDARD_COUNT'])
+    print ('%s new entities ' % statpack['ENTITY']['RESULT_COUNT'])
+    print ('%s common entities ' % statpack['ENTITY']['COMMON_COUNT'])
+    print ('%s merged entities ' % (statpack['AUDIT']['MERGE']['COUNT'] if 'MERGE' in statpack['AUDIT'] else 0))
+    print ('%s split entities ' % (statpack['AUDIT']['SPLIT']['COUNT'] if 'SPLIT' in statpack['AUDIT'] else 0))
+    print ('%s split+merge entities ' % (statpack['AUDIT']['SPLIT+MERGE']['COUNT'] if 'SPLIT+MERGE' in statpack['AUDIT'] else 0))
     print ('')
     #print ('%s slice edit distance ' % statpack['SLICE']['COST'])
     #print('')
@@ -650,8 +635,6 @@ if __name__ == '__main__':
     priorFile = args.priorFile
     outputRoot = args.outputRoot
     debugOn = args.debug
-    #inMemory = args.inMemory
-    #inMemoryArray = args.inMemoryArray
 
     #--validations
     if not newerFile:

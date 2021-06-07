@@ -390,7 +390,7 @@ class G2CmdShell(cmd.Cmd, object):
         if not save_detected and self.configUpdated:
             if not self.forceMode:
                 if input('\nWARN: No save command was issued would you like to save now? ') in ['y','Y', 'yes', 'YES']:
-                    exec('do_save')
+                    self.do_save(self)
                     print()
                     return
 
@@ -3477,6 +3477,61 @@ class G2CmdShell(cmd.Cmd, object):
         self.configUpdated = True
 
         return
+
+    def do_listGenericThresholds(self, arg):
+        '\n\tlistGenericThresholds\n'
+        planCode = {}
+        planCode[1] = 'load'
+        planCode[2] = 'search'
+        print()
+        for thisRecord in sorted(self.getRecordList('CFG_GENERIC_THRESHOLD'), key = lambda k: k['GPLAN_ID']):
+            print('{"plan": "%s", "behavior": "%s", "candidateCap": %s, "scoringCap": %s}' % (planCode[thisRecord['GPLAN_ID']], thisRecord['BEHAVIOR'], thisRecord['CANDIDATE_CAP'], thisRecord['SCORING_CAP']))
+            #{
+            #    "BEHAVIOR": "NAME",
+            #    "CANDIDATE_CAP": 10,
+            #    "FTYPE_ID": 0,
+            #    "GPLAN_ID": 1,
+            #    "SCORING_CAP": -1,
+            #    "SEND_TO_REDO": "No"
+            #},
+        print()
+
+    def do_setGenericThreshold(self, arg):
+        '\n\tsetFeature {"plan": "load", "behavior": "<behavior_type>", "scoringCap": 99}' \
+        '\n\tsetFeature {"plan": "search", "behavior": "<behavior_type>", "candidateCap": 99}\n'
+
+        if not argCheck('setGenericThreshold', arg, self.do_setGenericThreshold.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+            parmData['PLAN'] = {'LOAD': 1, 'SEARCH': 2}[parmData['PLAN'].upper()]
+            parmData['BEHAVIOR'] = parmData['BEHAVIOR'].upper()
+        except (ValueError, KeyError) as e:
+            argError(arg, e)
+        else:
+            print()
+
+            #--lookup threshold and error if doesn't exist
+            listID = -1
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_GENERIC_THRESHOLD'])):
+                if self.cfgData['G2_CONFIG']['CFG_GENERIC_THRESHOLD'][i]['GPLAN_ID'] == parmData['PLAN'] and self.cfgData['G2_CONFIG']['CFG_GENERIC_THRESHOLD'][i]['BEHAVIOR'] == parmData['BEHAVIOR']:
+                    listID = i
+            if listID == -1:
+                printWithNewLines('Threshold does not exist!')
+                return
+
+            #--make the updates
+            if 'CANDIDATECAP' in parmData:
+                self.cfgData['G2_CONFIG']['CFG_GENERIC_THRESHOLD'][listID]['CANDIDATE_CAP'] = int(parmData['CANDIDATECAP'])
+                printWithNewLines('Candidate cap updated!')
+                self.configUpdated = True
+            if 'SCORINGCAP' in parmData:
+                self.cfgData['G2_CONFIG']['CFG_GENERIC_THRESHOLD'][listID]['SCORING_CAP'] = int(parmData['SCORINGCAP'])
+                printWithNewLines('Scoring cap updated!')
+                self.configUpdated = True
+
+            print()
 
 
 # ===== template commands =====

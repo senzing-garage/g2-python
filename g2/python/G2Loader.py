@@ -1,45 +1,44 @@
 #! /usr/bin/env python3
 
-#--python imports
 import argparse
-try: import configparser
-except: import ConfigParser as configparser
-import sys
-if sys.version[0] == '2':
-    reload(sys)
-    sys.setdefaultencoding('utf-8')
-import signal
-import os
-import json
 import csv
-import time
-import tempfile
+import json
 import math
-
-from time import sleep
+import os
+import signal
+import subprocess
+import sys
+import tempfile
+import threading
+import time
 from datetime import datetime, timedelta
 from glob import glob
-from multiprocessing import Queue,Value,Process
-try: from queue import Full,Empty
-except: from Queue import Full,Empty
-import threading
-import pprint
+from multiprocessing import Process, Queue, Value
+from time import sleep
 
-#--project classes
+import DumpStack
 import G2Exception
-from G2ConfigTables import G2ConfigTables
-from G2Project import G2Project
-from G2Engine import G2Engine
-from G2Diagnostic import G2Diagnostic
-from G2Product import G2Product
+import G2Paths
+from CompressedFile import (fileRowParser, isCompressedFile,
+                            openPossiblyCompressedFile)
 from G2Config import G2Config
 from G2ConfigMgr import G2ConfigMgr
-from G2Exception import G2ModuleException, G2ModuleResolveMissingResEnt, G2ModuleLicenseException
-import G2Paths
-from G2IniParams import G2IniParams
+from G2ConfigTables import G2ConfigTables
+from G2Diagnostic import G2Diagnostic
+from G2Engine import G2Engine
+from G2Exception import (G2ModuleException, G2ModuleLicenseException,
+                         G2ModuleResolveMissingResEnt)
 from G2Health import G2Health
-from CompressedFile import openPossiblyCompressedFile, isCompressedFile, fileRowParser
-import DumpStack
+from G2IniParams import G2IniParams
+from G2Product import G2Product
+from G2Project import G2Project
+
+try: import configparser
+except: import ConfigParser as configparser
+
+try: from queue import Full,Empty
+except: from Queue import Full,Empty
+
  
 #--set globals for the g2 engine
 maxThreadsPerProcess=16
@@ -299,7 +298,7 @@ def loadProject():
     #--get the system parameters
     iniParamCreator = G2IniParams()
     iniParams = iniParamCreator.getJsonINIParams(g2iniPath)
-	
+    
     #--prepare the G2 configuration
     g2ConfigJson = bytearray()
     if not getInitialG2Config(iniParams,g2ConfigJson):
@@ -364,24 +363,18 @@ def loadProject():
 
         #--shuffle unless directed not to or in test mode or single threaded
         if (not noShuffle) and (not testMode) and transportThreadCount > 1:
-            print (' shuffling file ...')
-            #if not os.path.exists(tempFolderPath):
-            #    try: os.makedirs(tempFolderPath)
-            #    except: 
-            #        print('ERROR: could not create temp directory %s' % tempFolderPath)
-            #        exitCode = 1
-            #        return
-            #shufFilePath = tempFolderPath + os.sep + sourceDict['FILE_NAME']
-            #--abandoned above ... shuffling to temp folder is more likley to run out of space!
+
             shufFilePath = filePath + '.shuf'
-            if sourceDict['FILE_FORMAT'] in ('JSON', 'UMF'):
-                cmd = 'shuf %s > %s' % (filePath, shufFilePath)
-            else:
-                #cmd = 'cat ' + filePath + ' | (read -r; printf "%s\n" "$REPLY"; shuf) > ' + shufFilePath
-                cmd = 'head -n1 ' + filePath + ' > ' + shufFilePath + ' && tail -n+2 ' + filePath + ' | shuf >> ' + shufFilePath
-            try: os.system(cmd)
-            except: 
-                print('ERROR: shuffle command failed: %s' % cmd)
+            print(f'\nShuffling file into {shufFilePath}...\n')
+           
+            cmd = f'shuf {filePath} > {shufFilePath}'
+            if sourceDict['FILE_FORMAT'] not in ('JSON', 'UMF'):
+                cmd = f'head -n1 {filePath} > {shufFilePath} && tail -n+2 {filePath} | shuf >> {shufFilePath}'
+            
+            try: 
+                process = subprocess.run(cmd, shell=True, check=True)
+            except subprocess.CalledProcessError as err: 
+                print(f'\nERROR: Shuffle command failed: {err}')
                 exitCode = 1
                 return
             else:
@@ -430,15 +423,8 @@ def loadProject():
                     rowData['ENTITY_TYPE'] = sourceDict['ENTITY_TYPE']
                 if 'LOAD_ID' not in rowData:
                     rowData['LOAD_ID'] = sourceDict['FILE_NAME']
-                #if 'DSRC_ACTION' not in rowData:
-                #    rowData['DSRC_ACTION'] = dsrcAction
 
-                #if 'DATA_SOURCE' not in rowData or 'ENTITY_TYPE' not in rowData:
-                #    print('  WARNING: data source or entity type missing on row %s' % cntRows) 
-                #    cntBadParse += 1
-                #    okToContinue = False
-                #    continue
-                    #--update with file defaults
+                #--update with file defaults
                 if sourceDict['MAPPING_FILE']:
                     rowData['_MAPPING_FILE'] = sourceDict['MAPPING_FILE']
                     
@@ -604,6 +590,7 @@ def verifyEntityTypeExists(configJson,entityType):
         if rowNode['ETYPE_CODE'] == entityType:
             etypeExists = True
     return etypeExists
+
 #----------------------------------------
 def addDataSource(g2ConfigModule,configDoc,dataSource,configuredDatasourcesOnly):
     ''' adds a data source if does not exist '''
@@ -618,14 +605,11 @@ def addDataSource(g2ConfigModule,configDoc,dataSource,configuredDatasourcesOnly)
     for dsrcNode in dsrcListNode:
         if dsrcNode.upper() == dataSource:
             dsrcExists = True
-    if dsrcExists == False :
+    if not dsrcExists:
         if configuredDatasourcesOnly == False:
             addDataSourceJson = '{\"DSRC_CODE\":\"%s\"}' % dataSource
             addDataSourceResultBuf = bytearray()
             g2ConfigModule.addDataSourceV2(configHandle,addDataSourceJson,addDataSourceResultBuf)
-            addEntityTypeJson = '{\"ETYPE_CODE\":\"%s\",\"ECLASS_CODE\":\"ACTOR\"}' % dataSource
-            addEntityTypeResultBuf = bytearray()
-            g2ConfigModule.addEntityTypeV2(configHandle,addEntityTypeJson,addEntityTypeResultBuf)
             newConfig = bytearray()
             g2ConfigModule.save(configHandle,newConfig)
             configDoc[::]=b''
@@ -635,7 +619,35 @@ def addDataSource(g2ConfigModule,configDoc,dataSource,configuredDatasourcesOnly)
             raise G2Exception.UnconfiguredDataSourceException(dataSource)
     g2ConfigModule.close(configHandle)
     return returnCode
-#---------------------------------------
+
+#----------------------------------------
+def addEntityType(g2ConfigModule,configDoc,entityType, configuredDatasourcesOnly):
+    ''' adds an entity type if does not exist '''
+    returnCode = 0  #--1=inserted, 2=updated
+
+    configHandle = g2ConfigModule.load(configDoc)
+    etypeExists = False
+    entityTypeDocString = bytearray()
+    g2ConfigModule.listEntityTypesV2(configHandle,entityTypeDocString)
+    etypeListDoc = json.loads(entityTypeDocString.decode())
+    etypeListNode = etypeListDoc['ENTITY_TYPES']
+    for etypeNode in etypeListNode:
+        if etypeNode['ETYPE_CODE'].upper() == entityType:
+            etypeExists = True
+    if not etypeExists:
+        if configuredDatasourcesOnly == False:
+            addEntityTypeJson = '{\"ETYPE_CODE\":\"%s\",\"ECLASS_CODE\":\"ACTOR\"}' % entityType
+            addEntityTypeResultBuf = bytearray()
+            g2ConfigModule.addEntityTypeV2(configHandle,addEntityTypeJson,addEntityTypeResultBuf)
+            newConfig = bytearray()
+            g2ConfigModule.save(configHandle,newConfig)
+            configDoc[::]=b''
+            configDoc += newConfig
+            returnCode = 1
+        else:
+            raise G2Exception.UnconfiguredDataSourceException(entityType)
+    g2ConfigModule.close(configHandle)
+    return returnCode
 
 
 #---------------------------------------
@@ -707,6 +719,13 @@ def enhanceG2Config(g2Project,iniParams,g2ConfigJson,configuredDatasourcesOnly):
         if 'DATA_SOURCE' in sourceDict: 
             try: 
                 if addDataSource(g2Config,g2ConfigJson,sourceDict['DATA_SOURCE'],configuredDatasourcesOnly) == 1: #--inserted
+                    g2NewConfigRequired = True
+            except G2Exception.UnconfiguredDataSourceException as err:
+                print(err)
+                return False
+        if 'ENTITY_TYPE' in sourceDict: 
+            try: 
+                if addEntityType(g2Config,g2ConfigJson,sourceDict['ENTITY_TYPE'],configuredDatasourcesOnly) == 1: #--inserted
                     g2NewConfigRequired = True
             except G2Exception.UnconfiguredDataSourceException as err:
                 print(err)
@@ -809,11 +828,7 @@ def sendToG2(threadId_, workQueue_, numThreads_, g2iniPath, debugTrace, threadSt
   except: pass
 
   if workloadStats > 0 and numProcessed > 0:
-    statsResponse = bytearray()
-    g2_engine.stats(statsResponse)
-    statsString = statsResponse.decode()
-    statsJson = json.loads(statsString)
-    pprint.pprint(statsJson)
+    dump_workload_stats(g2_engine)
   
   try: g2_engine.destroy()
   except: pass
@@ -870,11 +885,7 @@ def g2Thread(threadId_, workQueue_, g2Engine_, threadStop, workloadStats, dsrcAc
 
             numProcessed += 1
             if (workloadStats > 0 and (numProcessed%(maxThreadsPerProcess*sqlCommitSize)) == 0):
-              statsResponse = bytearray()
-              g2Engine_.stats(statsResponse)
-              statsString = statsResponse.decode()
-              statsJson = json.loads(statsString)
-              pprint.pprint(statsJson)
+                dump_workload_stats(g2Engine_)
 
             try: 
                 if dsrcAction == 'X':
@@ -896,9 +907,19 @@ def g2Thread(threadId_, workQueue_, g2Engine_, threadStop, workloadStats, dsrcAc
 
     return
 
+
+def dump_workload_stats(engine):
+    ''' Print valid JSON workload stats '''
+
+    response = bytearray()
+    engine.stats(response)
+    
+    print(f'\n{json.dumps(json.loads(response.decode()))}\n')
+
 #---------------------------------------------------------------------
 #-- utilities
 #---------------------------------------------------------------------
+
 
 #---------------------------------------
 def safe_csv_reader(csv_reader, cntBadParse): 
@@ -969,7 +990,8 @@ if __name__ == '__main__':
     argParser.add_argument('-X', '--reprocess', dest='reprocessMode', action='store_true', default=False, help='force reprocessing of previously loaded file')
     argParser.add_argument('-t', '--debugTrace', dest='debugTrace', action='store_true', default=False, help='output debug trace information')
     argParser.add_argument('-ns', '--noShuffle', dest='noShuffle', action='store_true', default=False, help='shuffle the file to improve performance')
-    argParser.add_argument('-w', '--workloadStats', dest='workloadStats', action='store_true', default=False, help='output workload statistics information')
+    argParser.add_argument('-w', '--workloadStats', dest='workloadStats', action='store_false', default=False, help='DEPRECATED workload statistics on by default, -nw to disable')
+    argParser.add_argument('-nw', '--noWorkloadStats', dest='noWorkloadStats', action='store_false', default=True, help='disable workload statistics information')
     argParser.add_argument('-n', '--noRedo', dest='noRedo', action='store_false', default=True, help='disable redo processing')
     argParser.add_argument('-R', '--redoMode', dest='redoMode', action='store_true', default=False, help='run in redo mode that only processes the redo queue')
     argParser.add_argument('-i', '--redoModeInterval', dest='redoModeInterval', type=int, default=60, help='time to wait between redo processing runs, in seconds. Only used in redo mode')
@@ -1026,8 +1048,11 @@ if __name__ == '__main__':
         debugTrace = 1
     if args.noShuffle:
         noShuffle = 1
-    if args.workloadStats:
-        workloadStats = 1
+
+    # -w has been deprecated and the default is now output workload stats, noWorkloadStats is checked in place of
+    # workloadStats. -w will be removed in future updates.
+    workloadStats = args.noWorkloadStats
+    
     if args.defaultThreadCount:
         defaultThreadCount = args.defaultThreadCount
     if args.maxThreadsPerProcess:

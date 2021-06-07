@@ -57,129 +57,66 @@ class G2Engine(object):
         _ini_file_name: name and location of .ini file
     """
 
+
     # flags for exporting entity data
-    G2_EXPORT_INCLUDE_ALL_ENTITIES = ( 1 << 0 )
-    G2_EXPORT_INCLUDE_RESOLVED = ( 1 << 2 )
-    G2_EXPORT_INCLUDE_POSSIBLY_SAME = ( 1 << 3 )
-    G2_EXPORT_INCLUDE_POSSIBLY_RELATED = ( 1 << 4 )
-    G2_EXPORT_INCLUDE_NAME_ONLY = ( 1 << 5 )
-    G2_EXPORT_INCLUDE_DISCLOSED = ( 1 << 6 )
-	
-    # flags for controlling CSV export data columns (deprecated)
-    G2_EXPORT_CSV_INCLUDE_FULL_DETAILS = ( 1 << 1 )
+    G2_EXPORT_INCLUDE_RESOLVED = ( 1 << 0 )
+    G2_EXPORT_INCLUDE_POSSIBLY_SAME = ( 1 << 1 )
+    G2_EXPORT_INCLUDE_POSSIBLY_RELATED = ( 1 << 2 )
+    G2_EXPORT_INCLUDE_NAME_ONLY = ( 1 << 3 )
+    G2_EXPORT_INCLUDE_DISCLOSED = ( 1 << 4 )
+    G2_EXPORT_INCLUDE_SINGLETONS = ( 1 << 5 )
+    G2_EXPORT_INCLUDE_ALL_ENTITIES = G2_EXPORT_INCLUDE_RESOLVED | G2_EXPORT_INCLUDE_SINGLETONS
+    G2_EXPORT_INCLUDE_ALL_RELATIONSHIPS = G2_EXPORT_INCLUDE_POSSIBLY_SAME | G2_EXPORT_INCLUDE_POSSIBLY_RELATED | G2_EXPORT_INCLUDE_NAME_ONLY | G2_EXPORT_INCLUDE_DISCLOSED
 
     # flags for outputting entity relation data
-    G2_ENTITY_INCLUDE_ALL_RELATIONS = ( 1 << 12 )
-    G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS = ( 1 << 13 )
-    G2_ENTITY_INCLUDE_POSSIBLY_RELATED_RELATIONS = ( 1 << 14 )
-    G2_ENTITY_INCLUDE_NAME_ONLY_RELATIONS = ( 1 << 15 )
-    G2_ENTITY_INCLUDE_DISCLOSED_RELATIONS = ( 1 << 16 )
-    G2_ENTITY_INCLUDE_NO_RELATIONS = ( 1 << 17 )
-	
+    G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS = ( 1 << 6 )
+    G2_ENTITY_INCLUDE_POSSIBLY_RELATED_RELATIONS = ( 1 << 7 )
+    G2_ENTITY_INCLUDE_NAME_ONLY_RELATIONS = ( 1 << 8 )
+    G2_ENTITY_INCLUDE_DISCLOSED_RELATIONS = ( 1 << 9 )
+    G2_ENTITY_INCLUDE_ALL_RELATIONS = G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS | G2_ENTITY_INCLUDE_POSSIBLY_RELATED_RELATIONS | G2_ENTITY_INCLUDE_NAME_ONLY_RELATIONS | G2_ENTITY_INCLUDE_DISCLOSED_RELATIONS
+
     # flags for outputting entity feature data
-    G2_ENTITY_INCLUDE_ALL_FEATURES = ( 1 << 7 )
-    G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES = ( 1 << 8 )
-    G2_ENTITY_INCLUDE_SINGLE_FEATURES = ( 1 << 9 )
-    G2_ENTITY_INCLUDE_NO_FEATURES = ( 1 << 10 )
+    G2_ENTITY_INCLUDE_ALL_FEATURES = ( 1 << 10 )
+    G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES = ( 1 << 11 )
 	
-    # flag for getting a minimal entity
-    G2_ENTITY_MINIMAL_FORMAT = ( 1 << 18 )
-    G2_ENTITY_BRIEF_FORMAT = ( 1 << 20 )
+    # flags for getting extra information about an entity
+    G2_ENTITY_INCLUDE_ENTITY_NAME = ( 1 << 12 )
+    G2_ENTITY_INCLUDE_RECORD_SUMMARY = ( 1 << 13 )
+    G2_ENTITY_INCLUDE_RECORD_DATA = ( 1 << 14 )
+    G2_ENTITY_INCLUDE_RECORD_MATCHING_INFO = ( 1 << 15 )
+    G2_ENTITY_INCLUDE_RECORD_JSON_DATA = ( 1 << 16 )
+    G2_ENTITY_INCLUDE_RECORD_FORMATTED_DATA = ( 1 << 17 )
+    G2_ENTITY_INCLUDE_RECORD_FEATURE_IDS = ( 1 << 18 )
+    G2_ENTITY_INCLUDE_RELATED_ENTITY_NAME = ( 1 << 19 )
+    G2_ENTITY_INCLUDE_RELATED_MATCHING_INFO = ( 1 << 20 )
+    G2_ENTITY_INCLUDE_RELATED_RECORD_SUMMARY = ( 1 << 21 )
+    G2_ENTITY_INCLUDE_RELATED_RECORD_DATA = ( 1 << 22 )
 
     # flag for extra feature data
-    G2_ENTITY_SHOW_FEATURES_EXPRESSED = ( 1 << 21 )
-    G2_ENTITY_SHOW_FEATURES_STATS = ( 1 << 22 )
+    G2_ENTITY_OPTION_INCLUDE_INTERNAL_FEATURES = ( 1 << 23 )
+    G2_ENTITY_OPTION_INCLUDE_FEATURE_STATS = ( 1 << 24 )
 
     # flags for finding entity path data
-    G2_FIND_PATH_PREFER_EXCLUDE = ( 1 << 11 )
+    G2_FIND_PATH_PREFER_EXCLUDE = ( 1 << 25 )
 	
-    # flag for excluding feature scores from search results
-    G2_SEARCH_NO_FEATURE_SCORES = ( 1 << 19 )
+    # flag for including search result information
+    G2_SEARCH_INCLUDE_FEATURE_SCORES = ( 1 << 26 )
 
 
     # recommended settings
-    G2_EXPORT_DEFAULT_FLAGS = G2_EXPORT_INCLUDE_ALL_ENTITIES
-    G2_ENTITY_DEFAULT_FLAGS = G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES | G2_ENTITY_INCLUDE_ALL_RELATIONS
-    G2_FIND_PATH_DEFAULT_FLAGS = G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES | G2_ENTITY_INCLUDE_ALL_RELATIONS
+    G2_RECORD_DEFAULT_FLAGS = G2_ENTITY_INCLUDE_RECORD_JSON_DATA
+    G2_ENTITY_DEFAULT_FLAGS = G2_ENTITY_INCLUDE_ALL_RELATIONS | G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES | G2_ENTITY_INCLUDE_ENTITY_NAME | G2_ENTITY_INCLUDE_RECORD_SUMMARY | G2_ENTITY_INCLUDE_RECORD_DATA | G2_ENTITY_INCLUDE_RECORD_MATCHING_INFO | G2_ENTITY_INCLUDE_RELATED_ENTITY_NAME | G2_ENTITY_INCLUDE_RELATED_RECORD_SUMMARY | G2_ENTITY_INCLUDE_RELATED_MATCHING_INFO
+    G2_ENTITY_BRIEF_DEFAULT_FLAGS = G2_ENTITY_INCLUDE_RECORD_MATCHING_INFO | G2_ENTITY_INCLUDE_ALL_RELATIONS | G2_ENTITY_INCLUDE_RELATED_MATCHING_INFO
+    G2_EXPORT_DEFAULT_FLAGS = G2_EXPORT_INCLUDE_ALL_ENTITIES | G2_EXPORT_INCLUDE_ALL_RELATIONSHIPS | G2_ENTITY_INCLUDE_ALL_RELATIONS | G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES | G2_ENTITY_INCLUDE_ENTITY_NAME | G2_ENTITY_INCLUDE_RECORD_DATA | G2_ENTITY_INCLUDE_RECORD_MATCHING_INFO | G2_ENTITY_INCLUDE_RELATED_MATCHING_INFO
+    G2_FIND_PATH_DEFAULT_FLAGS = G2_ENTITY_INCLUDE_ALL_RELATIONS | G2_ENTITY_INCLUDE_ENTITY_NAME | G2_ENTITY_INCLUDE_RECORD_SUMMARY | G2_ENTITY_INCLUDE_RELATED_MATCHING_INFO
+    G2_WHY_ENTITY_DEFAULT_FLAGS = G2_ENTITY_DEFAULT_FLAGS | G2_ENTITY_INCLUDE_RECORD_FEATURE_IDS | G2_ENTITY_OPTION_INCLUDE_INTERNAL_FEATURES | G2_ENTITY_OPTION_INCLUDE_FEATURE_STATS
 
-    G2_SEARCH_BY_ATTRIBUTES_DEFAULT_FLAGS = G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES
-    G2_SEARCH_BY_ATTRIBUTES_MINIMAL_STRONG = G2_ENTITY_MINIMAL_FORMAT | G2_SEARCH_NO_FEATURE_SCORES | G2_ENTITY_INCLUDE_NO_RELATIONS | G2_EXPORT_INCLUDE_RESOLVED | G2_EXPORT_INCLUDE_POSSIBLY_SAME 
-    G2_SEARCH_BY_ATTRIBUTES_MINIMAL_ALL = G2_ENTITY_MINIMAL_FORMAT | G2_SEARCH_NO_FEATURE_SCORES | G2_ENTITY_INCLUDE_NO_RELATIONS 
+    G2_SEARCH_BY_ATTRIBUTES_ALL = G2_EXPORT_INCLUDE_ALL_ENTITIES | G2_EXPORT_INCLUDE_ALL_RELATIONSHIPS | G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES | G2_ENTITY_INCLUDE_ENTITY_NAME | G2_ENTITY_INCLUDE_RECORD_SUMMARY | G2_SEARCH_INCLUDE_FEATURE_SCORES
+    G2_SEARCH_BY_ATTRIBUTES_STRONG = G2_EXPORT_INCLUDE_RESOLVED | G2_EXPORT_INCLUDE_POSSIBLY_SAME | G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES | G2_ENTITY_INCLUDE_ENTITY_NAME | G2_ENTITY_INCLUDE_RECORD_SUMMARY | G2_SEARCH_INCLUDE_FEATURE_SCORES
+    G2_SEARCH_BY_ATTRIBUTES_MINIMAL_ALL = G2_EXPORT_INCLUDE_ALL_ENTITIES | G2_EXPORT_INCLUDE_ALL_RELATIONSHIPS
+    G2_SEARCH_BY_ATTRIBUTES_MINIMAL_STRONG = G2_EXPORT_INCLUDE_RESOLVED | G2_EXPORT_INCLUDE_POSSIBLY_SAME
+    G2_SEARCH_BY_ATTRIBUTES_DEFAULT_FLAGS = G2_SEARCH_BY_ATTRIBUTES_ALL
 
-    G2_WHY_ENTITY_DEFAULT_FLAGS = G2_ENTITY_INCLUDE_ALL_FEATURES | G2_ENTITY_SHOW_FEATURES_EXPRESSED | G2_ENTITY_SHOW_FEATURES_STATS | G2_ENTITY_INCLUDE_NO_RELATIONS 
-
-
-    # backwards compatability flags
-    G2_EXPORT_DEFAULT_REPORT_FLAGS = G2_EXPORT_INCLUDE_ALL_ENTITIES
-
-
-    def init(self, engine_name_, ini_file_name_, debug_=False):
-        """  Initializes the G2 engine
-        This should only be called once per process.  Currently re-initializing the G2 engin
-        after a destroy requires unloaded the class loader used to load this class.
-        Args:
-            engineName: A short name given to this instance of the engine
-            iniFilename: A fully qualified path to the G2 engine INI file (often /opt/senzing/g2/python/G2Module.ini)
-            verboseLogging: Enable diagnostic logging which will print a massive amount of information to stdout
-
-        """
-
-        self._engine_name = self.prepareStringArgument(engine_name_)
-        self._ini_file_name = self.prepareStringArgument(ini_file_name_)
-        self._debug = debug_
-        if self._debug:
-            print("Initializing G2 engine")
-
-        self._lib_handle.G2_init.argtypes = [c_char_p, c_char_p, c_int]
-        ret_code = self._lib_handle.G2_init(self._engine_name,
-                                 self._ini_file_name,
-                                 self._debug)
-
-        if self._debug:
-            print("Initialization Status: " + str(ret_code))
-
-        if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
-        elif ret_code < 0:
-            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-        
-
-    def initAndGetConfigID(self, engine_name_, ini_file_name_, debug_, configID):
-        """  Initializes the G2 engine
-        This should only be called once per process.  Currently re-initializing the G2 engin
-        after a destroy requires unloaded the class loader used to load this class.
-        Args:
-            engineName: A short name given to this instance of the engine
-            iniFilename: A fully qualified path to the G2 engine INI file (often /opt/senzing/g2/python/G2Module.ini)
-            verboseLogging: Enable diagnostic logging which will print a massive amount of information to stdout
-        """
-
-        configID[::]=b''
-        configIDValue = c_longlong(0)
-
-        self._engine_name = self.prepareStringArgument(engine_name_)
-        self._ini_file_name = self.prepareStringArgument(ini_file_name_)
-        self._debug = debug_
-        if self._debug:
-            print("Initializing G2 engine")
-
-        self._lib_handle.G2_initAndGetConfigID.argtypes = [ c_char_p, c_char_p, c_int, POINTER(c_longlong) ]
-        ret_code = self._lib_handle.G2_initAndGetConfigID(self._engine_name,
-                                 self._ini_file_name,
-                                 self._debug,
-                                 configIDValue)
-
-        if self._debug:
-            print("Initialization Status: " + str(ret_code))
-
-        if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
-        elif ret_code < 0:
-            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-
-        configID += (str(configIDValue.value).encode())
 
     def initV2(self, engine_name_, ini_params_, debug_=False):
 
@@ -446,23 +383,6 @@ class G2Engine(object):
         self._lib_handle.G2_exportJSONEntityReport.restype = c_void_p
         self._lib_handle.G2_exportJSONEntityReport.argtypes = [c_int]
         exportHandle = self._lib_handle.G2_exportJSONEntityReport(exportFlags)
-        if exportHandle == None:
-            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-        return exportHandle
-
-    def exportCSVEntityReport(self, exportFlags):
-        """ Generate a CSV export
-        This is used to export entity data from known entities.  This function
-        returns an export-handle that can be read from to get the export data
-        in the requested format.  The export-handle should be read using the "G2_fetchNext"
-        function, and closed when work is complete.  Tthe first output row returned
-        by the export-handle contains the CSV column headers as a string.  Each
-        following row contains the exported entity data.
-        """
-        self._lib_handle.G2_exportCSVEntityReport.restype = c_void_p
-        self._lib_handle.G2_exportCSVEntityReport.argtypes = [c_int]
-        exportHandle = self._lib_handle.G2_exportCSVEntityReport(exportFlags)
         if exportHandle == None:
             self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
@@ -1189,6 +1109,46 @@ class G2Engine(object):
         self._lib_handle.G2_whyEntityByEntityID_V2.restype = c_int
         self._lib_handle.G2_whyEntityByEntityID_V2.argtypes = [c_longlong, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
         ret_code = self._lib_handle.G2_whyEntityByEntityID_V2(entityID,flags,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+        response += tls_var.buf.value
+
+    def whyEntities(self,entityID1,entityID2,response):
+
+        response[::]=b''
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2_whyEntities.restype = c_int
+        self._lib_handle.G2_whyEntities.argtypes = [c_longlong, c_longlong, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_whyEntities(entityID1,entityID2,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+        response += tls_var.buf.value
+
+    def whyEntitiesV2(self,entityID1,entityID2,flags,response):
+
+        response[::]=b''
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2_whyEntities_V2.restype = c_int
+        self._lib_handle.G2_whyEntities_V2.argtypes = [c_longlong, c_longlong, c_int, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_whyEntities_V2(entityID1,entityID2,flags,
                                                                  pointer(responseBuf),
                                                                  pointer(responseSize),
                                                                  self._resize_func)

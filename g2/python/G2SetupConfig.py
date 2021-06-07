@@ -156,6 +156,8 @@ if __name__ == '__main__':
     if ini_file_name == '':
         ini_file_name = G2Paths.get_G2Module_ini_path()
 
+    G2Paths.check_file_exists_and_readable(ini_file_name)
+
     autoMode = args.auto == True
 
     exitCode = setupConfig(ini_file_name,autoMode)

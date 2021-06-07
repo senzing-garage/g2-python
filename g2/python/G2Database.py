@@ -1,13 +1,13 @@
 #! /usr/bin/env python3
 
-#--python imports
 import optparse
-import sys
 import os
+import sys
 from importlib import import_module
 
 #--project classes
 import G2Exception
+
 
 #======================
 class G2Database:
@@ -49,9 +49,10 @@ class G2Database:
             return
         except Exception as err:
             print(self)
-            print('ERROR: could not open database ' + self.dsn)
-            print(type(err))
+            #### print('ERROR: could not open database ' + self.dsn)
             print(err)
+            print(type(err))
+            print()
             return
         else:
             #--attempt to set the schema (if there is one)import 
@@ -72,6 +73,7 @@ class G2Database:
 
     #----------------------------------------
     def Connect(self):
+
         try:
             if self.dbType == 'MYSQL':
                 self.dbo = self.pyodbc.connect('DRIVER={' + self.dbType + '};SERVER=' + self.dsn + ';PORT=' + self.port + ';DATABASE=' + self.schema + ';UID=' + self.userId + '; PWD=' + self.password, autocommit = True)
@@ -100,7 +102,8 @@ class G2Database:
     #----------------------------------------
     def __str__(self):
         ''' return the database we connected to '''
-        return "dbType:" + str(self.dbType) + " dsn:" + str(self.dsn) + " port:" + str(self.port) +" userId:" + str(self.userId) + " password:" + str(self.password) + " schema:" + str(self.schema) + " table:" + str(self.table)
+
+        return "\ndbType:" + str(self.dbType) + " dsn:" + str(self.dsn) + " port:" + str(self.port) +" userId:" + str(self.userId) + " password:" + str(self.password) + " schema:" + str(self.schema) + " table:" + str(self.table) + '\n'
 
     #----------------------------------------
     #-- basic database functions
@@ -130,12 +133,14 @@ class G2Database:
     #----------------------------------------
     def execMany(self, sql, parmList):
         ''' make a database call '''
+
         execSuccess = False
-        try: cursor = self.dbo.cursor().executemany(sql, parmList)
+        try: 
+            cursor = self.dbo.cursor().executemany(sql, parmList)
         except Exception as err:
             raise self.TranslateException(err)
-        except self.sqlite3.DatabaseError as err:
-            raise self.TranslateException(err)
+        ####except self.sqlite3.DatabaseError as err:
+        ####    raise self.TranslateException(err)
         else:
             execSuccess = True
         return execSuccess
@@ -304,9 +309,12 @@ class G2Database:
     #----------------------------------------
     def TranslateException(self, ex):
         '''Translate DB specific exception into a common exception'''
-        errMessage = ex.message #--default for all database types
+
+        #### Python3 no longer supports message attribute, uses args
+        #### errMessage = ex.message #--default for all database types
+
         if self.dbType == 'DB2':
-            errMessage = ex.args[1] #--ex.message is empty for db2!
+            errMessage = ex.args[1]
             if ex.args[0] == '42S02':
                 return G2Exception.G2DBUnknownException(errMessage)
             if ex.args[0] == '42704':
@@ -315,12 +323,13 @@ class G2Database:
                 return G2Exception.G2DBUniqueConstraintViolation(errMessage)
 
         elif self.dbType == 'SQLITE3':
-            if type(ex) == self.sqlite3.OperationalError:
-                if errMessage.startswith('no such table'):
-                    return G2Exception.G2TableNoExist(errMessage)
-            if type(ex) == self.sqlite3.IntegrityError:
-                if 'not unique' in errMessage:
-                    return G2Exception.G2DBUniqueConstraintViolation(errMessage)
+            #### if type(ex) == self.sqlite3.OperationalError:
+            ####     if errMessage.startswith('no such table'):
+            ####         return G2Exception.G2TableNoExist(errMessage)
+            #### if type(ex) == self.sqlite3.IntegrityError:
+            ####     if 'not unique' in errMessage:
+            #### SQLITE3 only returns 1 arg
+            errMessage = ex.args[0]
         elif self.dbType == 'MYSQL':
             errMessage = ex.args[1]
             pass
@@ -329,7 +338,10 @@ class G2Database:
             pass
         else:
             raise G2Exception.G2UnsupportedDatabaseType('ERROR: ' + self.dbType + ' is an unsupported database type')
-        raise G2Exception.G2DBUnknownException(errMessage)
+        
+        ####raise G2Exception.G2DBUnknownException(errMessage)
+        raise G2Exception.G2DBException(errMessage)
+
 
 #----------------------------------------
 if __name__ == "__main__":
@@ -357,4 +369,3 @@ if __name__ == "__main__":
         print('ERROR: connection to ' + testDbo.dsn + ' failed!')
 
     sys.exit()
-

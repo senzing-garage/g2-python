@@ -103,8 +103,7 @@ if __name__ == '__main__':
     # Files to modify in new project
     files_to_update = [
         'setupEnv',
-        'etc/G2Module.ini',
-        'etc/G2Project.ini'
+        'etc/G2Module.ini'
     ]
 
     senzing_path_subs = [

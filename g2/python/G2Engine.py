@@ -418,6 +418,13 @@ class G2Engine(object):
         self._lib_handle.G2_fetchNext.argtypes = [c_void_p, c_char_p, c_size_t]
         rowData = self._lib_handle.G2_fetchNext(c_void_p(exportHandle),tls_var.buf,sizeof(tls_var.buf))
         while rowData:
+
+            if rowData == -1:
+                raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
+            elif rowData < 0:
+                self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+                raise TranslateG2ModuleException(tls_var.buf.value)
+
             response += tls_var.buf.value
             if (response)[-1] == 0x0a:
                 break

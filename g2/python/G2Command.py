@@ -125,6 +125,10 @@ class G2CmdShell(cmd.Cmd, object):
         exportEntityCsvV2_parser.add_argument('-f', '--flags', required=True, default=0, type=int)
         exportEntityCsvV2_parser.add_argument('-o', '--outputFile', required=False)
 
+        exportEntityCsvV3_parser = self.subparsers.add_parser('exportEntityCsvV3', usage=argparse.SUPPRESS)
+        exportEntityCsvV3_parser.add_argument('-t', '--headersForCSV', required=False)
+        exportEntityCsvV3_parser.add_argument('-f', '--flags', required=True, default=0, type=int)
+        exportEntityCsvV3_parser.add_argument('-o', '--outputFile', required=False)
         recordModify_parser = self.subparsers.add_parser('recordModify', usage=argparse.SUPPRESS)
         recordModify_parser.add_argument('dataSourceCode')
         recordModify_parser.add_argument('recordID')
@@ -491,10 +495,15 @@ class G2CmdShell(cmd.Cmd, object):
                     printWithNewLines(f'{line}', 'S')
 
                     if process_cmd not in dir(self):
-                        printWithNewLines(f'ERROR: Command {read_cmd} not found', 'E')
+                        printWithNewLines(f'ERROR: Command {read_cmd} not found', 'B')
                     else:
-                        exec_cmd = f"self.{process_cmd}('{' '.join(args)}')"
-                        exec(exec_cmd)
+                        # Join the args into a printable string, format into the command + args to call
+                        try:
+                            exec_cmd = f'self.{process_cmd}({repr(" ".join(args))})'
+                            exec(exec_cmd)
+                        except (ValueError, TypeError) as ex: 
+                            printWithNewLines('ERROR: Command could not be run!', 'S')
+                            printWithNewLines(f'       {ex}', 'E')
 
 
     def get_names(self):
@@ -927,6 +936,62 @@ class G2CmdShell(cmd.Cmd, object):
             print('Number of exported records = %s\n' % (recCnt) )
 
 
+    def do_exportCSVEntityReportV3(self, arg):
+        '\nExport repository contents as CSV:  exportCSVEntityReportV3 -t <csvColumnList> -f <flags> [-o <output_file>]\n' 
+        try:
+            args = self.parser.parse_args(['exportEntityCsvV3'] + parse(arg))
+        except SystemExit:
+            print(self.do_exportCSVEntityReportV3.__doc__)
+            return
+        try: 
+            exportHandle = self.g2_module.exportCSVEntityReportV3(args.headersForCSV, args.flags)
+            response = bytearray() 
+            rowData = self.g2_module.fetchNextV3(exportHandle,response)
+            recCnt = 0
+            resultString = b""
+            while rowData:
+                resultString += response
+                recCnt = recCnt + 1
+                response = bytearray()
+                rowData = self.g2_module.fetchNextV3(exportHandle,response)
+            self.g2_module.closeExportV3(exportHandle)
+            if args.outputFile:
+                with open(args.outputFile, 'w') as data_out:
+                    data_out.write(resultString.decode())
+            else:
+                print('{}'.format(resultString.decode()))
+        except G2Exception.G2Exception as err:
+            print(err)
+        else:
+            print('Number of exported records = %s\n' % (recCnt-1) )
+    def do_exportJSONEntityReportV3(self, arg):
+        '\nExport repository contents as JSON:  exportJSONEntityReportV3 -f <flags> [-o <output_file>]\n' 
+        try:
+            args = self.parser.parse_args(['exportEntityReport'] + parse(arg))
+        except SystemExit:
+            print(self.do_exportJSONEntityReportV3.__doc__)
+            return
+        try: 
+            exportHandle = self.g2_module.exportJSONEntityReportV3(args.flags)
+            response = bytearray() 
+            rowData = self.g2_module.fetchNextV3(exportHandle,response)
+            recCnt = 0
+            resultString = b""
+            while rowData:
+                resultString += response
+                recCnt = recCnt + 1
+                response = bytearray()
+                rowData = self.g2_module.fetchNextV3(exportHandle,response)
+            self.g2_module.closeExportV3(exportHandle)
+            if args.outputFile:
+                with open(args.outputFile, 'w') as data_out:
+                    data_out.write(resultString.decode())
+            else:
+                print('{}'.format(resultString.decode()))
+        except G2Exception.G2Exception as err:
+            print(err)
+        else:
+            print('Number of exported records = %s\n' % (recCnt) )
     def do_getTemplateConfig(self, arg):
         '\nGet a template config:  getTemplateConfig \n'
 
@@ -2013,6 +2078,30 @@ class G2CmdShell(cmd.Cmd, object):
             print(err)
 
 
+    def do_getEntityListBySizeV2(self, arg):
+        '\nGet list of resolved entities of specified size:  getEntityListBySizeV2 -s <entitySize> [-o <output_file>]\n'
+        try:
+            args = self.parser.parse_args(['getEntityListBySize'] + parse(arg))
+        except SystemExit:
+            print(self.do_getEntityListBySizeV2.__doc__)
+            return
+        try: 
+            sizedEntityHandle = self.g2_diagnostic_module.getEntityListBySizeV2(args.entitySize)
+            response = bytearray() 
+            rowData = self.g2_diagnostic_module.fetchNextEntityBySizeV2(sizedEntityHandle,response)
+            resultString = b""
+            while rowData:
+                resultString += response
+                response = bytearray()
+                rowData = self.g2_diagnostic_module.fetchNextEntityBySizeV2(sizedEntityHandle,response)
+            self.g2_diagnostic_module.closeEntityListBySizeV2(sizedEntityHandle)
+            if args.outputFile:
+                with open(args.outputFile, 'w') as data_out:
+                    data_out.write(resultString.decode())
+            else:
+                print('{}'.format(resultString.decode()))
+        except G2Exception.G2Exception as err:
+            print(err)
     def do_checkDBPerf(self,arg):
         '\nRun a check on the DB performance:  checkDBPerf\n'
         

@@ -37,7 +37,7 @@ def resize_return_buffer(buf_, size_):
       #print("Created new Buffer {}".format(tls_var.buf))
       tls_var.bufSize = size_
   return addressof(tls_var.buf)
-  
+
 
 
 class G2Diagnostic(object):
@@ -252,7 +252,7 @@ class G2Diagnostic(object):
 
     def getEntityListBySize(self,entitySize):
         """ Generate a list of resolved entities of a particular size
-   
+
         Args:
             entitySize: The size of the resolved entity (observed entity count)
         """
@@ -290,6 +290,52 @@ class G2Diagnostic(object):
         self._lib_handle.G2Diagnostic_closeEntityListBySize(c_void_p(sizedEntityHandle))
 
 
+
+    def getEntityListBySizeV2(self,entitySize):
+        """ Generate a list of resolved entities of a particular size
+
+        Args:
+            entitySize: The size of the resolved entity (observed entity count)
+        """
+        self._lib_handle.G2Diagnostic_getEntityListBySize_V2.restype = c_int
+        self._lib_handle.G2Diagnostic_getEntityListBySize_V2.argtypes = [c_ulonglong,POINTER(c_void_p)]
+        sizedEntityHandle = c_void_p(0)
+        ret_code = self._lib_handle.G2Diagnostic_getEntityListBySize_V2(entitySize,byref(sizedEntityHandle))
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+        return sizedEntityHandle.value
+
+    def fetchNextEntityBySizeV2(self, sizedEntityHandle,response):
+        response[::]=b''
+        self._lib_handle.G2Diagnostic_fetchNextEntityBySize_V2.restype = c_int
+        self._lib_handle.G2Diagnostic_fetchNextEntityBySize_V2.argtypes = [c_void_p, c_char_p, c_size_t]
+        resultValue = self._lib_handle.G2Diagnostic_fetchNextEntityBySize_V2(c_void_p(sizedEntityHandle),tls_var.buf,sizeof(tls_var.buf))
+        while resultValue != 0:
+
+            if resultValue == -1:
+                raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
+            elif resultValue < 0:
+                self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
+                raise TranslateG2ModuleException(tls_var.buf.value)
+
+            response += tls_var.buf.value
+            if (response.decode())[-1] == '\n':
+                break
+            else:
+                resultValue = self._lib_handle.G2Diagnostic_fetchNextEntityBySize(c_void_p(sizedEntityHandle),tls_var.buf,sizeof(tls_var.buf))
+        return response
+
+    def closeEntityListBySizeV2(self, sizedEntityHandle):
+        self._lib_handle.G2Diagnostic_closeEntityListBySize_V2.restype = c_int
+        self._lib_handle.G2Diagnostic_closeEntityListBySize_V2.argtypes = [c_void_p]
+        self._lib_handle.G2Diagnostic_closeEntityListBySize_V2(c_void_p(sizedEntityHandle))
+
+
     def checkDBPerf(self,secondsToRun,response):
         # type: () -> object,int
         """ Retrieve JSON of DB performance test
@@ -299,6 +345,26 @@ class G2Diagnostic(object):
         responseSize = c_size_t(tls_var.bufSize)
         self._lib_handle.G2Diagnostic_checkDBPerf.argtypes = [c_int,POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
         ret_code = self._lib_handle.G2Diagnostic_checkDBPerf(secondsToRun,pointer(responseBuf),
+                                             pointer(responseSize),
+                                             self._resize_func)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+        response += tls_var.buf.value
+
+    def getDBInfo(self,response):
+        # type: () -> object,int
+        """ Retrieve JSON of DB information
+        """
+
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2Diagnostic_getDBInfo.argtypes = [POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2Diagnostic_getDBInfo(pointer(responseBuf),
                                              pointer(responseSize),
                                              self._resize_func)
 
@@ -538,4 +604,3 @@ class G2Diagnostic(object):
             raise TranslateG2ModuleException(tls_var.buf.value)
 
         response += tls_var.buf.value
-

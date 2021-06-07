@@ -464,6 +464,83 @@ class G2Engine(object):
         self._lib_handle.G2_closeExport.argtypes = [c_void_p]
         self._lib_handle.G2_closeExport(c_void_p(exportHandle))
 
+
+    def exportJSONEntityReportV3(self, exportFlags):
+        """ Generate a JSON export
+        This is used to export entity data from known entities.  This function
+        returns an export-handle that can be read from to get the export data
+        in the requested format.  The export-handle should be read using the "G2_fetchNext"
+        function, and closed when work is complete. 
+        """
+        self._lib_handle.G2_exportJSONEntityReport_V3.restype = c_int
+        self._lib_handle.G2_exportJSONEntityReport_V3.argtypes = [c_int,POINTER(c_void_p)]
+        exportHandle = c_void_p(0)
+        ret_code = self._lib_handle.G2_exportJSONEntityReport_V3(exportFlags,byref(exportHandle))
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+        return exportHandle.value
+
+    def exportCSVEntityReportV3(self, headersForCSV, exportFlags):
+        """ Generate a CSV export
+        This is used to export entity data from known entities.  This function
+        returns an export-handle that can be read from to get the export data
+        in the requested format.  The export-handle should be read using the "G2_fetchNext"
+        function, and closed when work is complete.  Tthe first output row returned
+        by the export-handle contains the CSV column headers as a string.  Each
+        following row contains the exported entity data.
+        """
+        _headersForCSV = self.prepareStringArgument(headersForCSV)
+        self._lib_handle.G2_exportCSVEntityReport_V3.restype = c_int
+        self._lib_handle.G2_exportCSVEntityReport_V3.argtypes = [c_char_p,c_int,POINTER(c_void_p)]
+        exportHandle = c_void_p(0)
+        ret_code = self._lib_handle.G2_exportCSVEntityReport_V3(_headersForCSV,exportFlags,byref(exportHandle))
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+        return exportHandle.value
+
+    def fetchNextV3(self,exportHandle,response):
+        """ Fetch a record from an export
+        Args:
+            exportHandle: handle from generated export
+
+        Returns:
+            str: Record fetched, empty if there is no more data
+        """
+        response[::]=b''
+        self._lib_handle.G2_fetchNext_V3.restype = c_int
+        self._lib_handle.G2_fetchNext_V3.argtypes = [c_void_p, c_char_p, c_size_t]
+        resultValue = self._lib_handle.G2_fetchNext_V3(c_void_p(exportHandle),tls_var.buf,sizeof(tls_var.buf))
+        while resultValue != 0:
+
+            if resultValue == -1:
+                raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
+            elif resultValue < 0:
+                self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+                raise TranslateG2ModuleException(tls_var.buf.value)
+
+            response += tls_var.buf.value
+            if (response)[-1] == 0x0a:
+                break
+            else:
+                resultValue = self._lib_handle.G2_fetchNext_V3(c_void_p(exportHandle),tls_var.buf,sizeof(tls_var.buf))
+        return response
+		
+    def closeExportV3(self, exportHandle):
+        self._lib_handle.G2_closeExport_V3.restype = c_int
+        self._lib_handle.G2_closeExport_V3.argtypes = [c_void_p]
+        self._lib_handle.G2_closeExport_V3(c_void_p(exportHandle))
+
+
     def prepareStringArgument(self, stringToPrepare):
         # type: (str) -> str
         """ Internal processing function """

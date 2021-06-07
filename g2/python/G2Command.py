@@ -1,45 +1,71 @@
 #! /usr/bin/env python3
 
-#--python imports
-import cmd
-import sys
-from G2Engine import G2Engine
-from G2Hasher import G2Hasher
-from G2Audit import G2Audit
-from G2Product import G2Product
-from G2Diagnostic import G2Diagnostic
-from G2Config import G2Config
-from G2ConfigMgr import G2ConfigMgr
-from G2IniParams import G2IniParams
-from G2Health import G2Health
-import G2Paths
-import G2Exception
-import json
-import shlex
 import argparse
-import os
+import cmd
 import csv
 import inspect
+import json
+import os
+import shlex
+import sys
+import textwrap
+from collections import OrderedDict
+
+import G2Exception
+import G2Paths
+from G2Config import G2Config
+from G2ConfigMgr import G2ConfigMgr
+from G2Diagnostic import G2Diagnostic
+from G2Engine import G2Engine
+from G2Hasher import G2Hasher
+from G2Health import G2Health
+from G2IniParams import G2IniParams
+from G2Product import G2Product
+
+try:
+    import readline
+    import atexit
+except ImportError:
+    readline = None
 
 class G2CmdShell(cmd.Cmd, object):
 
+    #Override function from cmd module to make command completion case insensitive 
+    def completenames(self, text, *ignored):
+        dotext = 'do_'+text                                                                                                                                                              
+        return  [a[3:] for a in self.get_names() if a.lower().startswith(dotext.lower())]
+
     def __init__(self, ini_file = ''):
         cmd.Cmd.__init__(self)
+
+        # Cmd Module settings
         self.intro = ''
-        self.prompt = '(g2) '
+        self.prompt = '(g2cmd) '
+        self.ruler = '-'
+        self.doc_header = 'Commands'
+        self.misc_header  = 'Help Topics (help <topic>)'
+        self.undoc_header = 'Misc Commands'
+        self.__hidden_methods = ('do_shell', 'do_EOF', 'do_help')
+
         self.g2_module = G2Engine()
         self.g2_hasher_module = G2Hasher()
-        self.g2_audit_module = G2Audit()
         self.g2_product_module = G2Product()
         self.g2_diagnostic_module = G2Diagnostic()
         self.g2_config_module = G2Config()
         self.g2_configmgr_module = G2ConfigMgr()
         self.initialized = False
-        self.__hidden_methods = ('do_shell', 'do_EOF')
+
         if ini_file == '':
             self.iniFileName = G2Paths.get_G2Module_ini_path()
         else:
             self.iniFileName = ini_file
+
+        G2Paths.check_file_exists_and_readable(self.iniFileName)
+        
+        # Readline and history 
+        self.readlineAvail = True if 'readline' in sys.modules else False
+        self.histDisable = hist_disable
+        self.histCheck()
 
         self.parser = argparse.ArgumentParser(prog='G2Command ->', add_help=False)
         subparsers = self.parser.add_subparsers()
@@ -95,24 +121,18 @@ class G2CmdShell(cmd.Cmd, object):
         exportEntityCsvV2_parser.add_argument('-f', '--flags', required=True, default=0, type=int)
         exportEntityCsvV2_parser.add_argument('-o', '--outputFile', required=False)
 
-        getAuditReport_parser = subparsers.add_parser('getAuditReport', usage=argparse.SUPPRESS)
-        getAuditReport_parser.add_argument('-m', '--matchLevel', type=int)
-        getAuditReport_parser.add_argument('-f', '--fromDataSource')
-        getAuditReport_parser.add_argument('-t', '--toDataSource')
-        getAuditReport_parser.add_argument('-o', '--outputFile', required=False)
-
         recordModify_parser = subparsers.add_parser('recordModify', usage=argparse.SUPPRESS)
         recordModify_parser.add_argument('dataSourceCode')
         recordModify_parser.add_argument('recordID')
         recordModify_parser.add_argument('jsonData')
         recordModify_parser.add_argument('-l', '--loadID', required=False)
 
-        recordModify_parser = subparsers.add_parser('recordModifyWithInfo', usage=argparse.SUPPRESS)
-        recordModify_parser.add_argument('dataSourceCode')
-        recordModify_parser.add_argument('recordID')
-        recordModify_parser.add_argument('jsonData')
-        recordModify_parser.add_argument('-l', '--loadID', required=False)
-        recordModify_parser.add_argument('-f', '--flags', required=False, type=int)
+        recordModifyWithInfo_parser = subparsers.add_parser('recordModifyWithInfo', usage=argparse.SUPPRESS)
+        recordModifyWithInfo_parser.add_argument('dataSourceCode')
+        recordModifyWithInfo_parser.add_argument('recordID')
+        recordModifyWithInfo_parser.add_argument('jsonData')
+        recordModifyWithInfo_parser.add_argument('-l', '--loadID', required=False)
+        recordModifyWithInfo_parser.add_argument('-f', '--flags', required=False, type=int)
 
         addRecordWithReturnedRecordID_parser = subparsers.add_parser('addRecordWithReturnedRecordID', usage=argparse.SUPPRESS)
         addRecordWithReturnedRecordID_parser.add_argument('dataSourceCode')
@@ -178,14 +198,17 @@ class G2CmdShell(cmd.Cmd, object):
 
         getEntityDetails_parser = subparsers.add_parser('getEntityDetails', usage=argparse.SUPPRESS)
         getEntityDetails_parser.add_argument('-e', '--entityID', required=True, type=int, default=0)
-        getEntityDetails_parser.add_argument('-d', '--includeDerivedFeatures', action='store_true', required=False, default=False)
+        getEntityDetails_parser.add_argument('-d', '--includeInternalFeatures', action='store_true', required=False, default=False)
 
         getRelationshipDetails_parser = subparsers.add_parser('getRelationshipDetails', usage=argparse.SUPPRESS)
         getRelationshipDetails_parser.add_argument('-r', '--relationshipID', required=True, type=int, default=0)
-        getRelationshipDetails_parser.add_argument('-d', '--includeDerivedFeatures', action='store_true', required=False, default=False)
+        getRelationshipDetails_parser.add_argument('-d', '--includeInternalFeatures', action='store_true', required=False, default=False)
 
         getMappingStatistics_parser = subparsers.add_parser('getMappingStatistics', usage=argparse.SUPPRESS)
-        getMappingStatistics_parser.add_argument('-d', '--includeDerivedFeatures', action='store_true', required=False, default=False)
+        getMappingStatistics_parser.add_argument('-d', '--includeInternalFeatures', action='store_true', required=False, default=False)
+
+        checkDBPerf_parser = subparsers.add_parser('checkDBPerf', usage=argparse.SUPPRESS)
+        checkDBPerf_parser.add_argument('-s', '--secondsToRun', required=True, type=int)
 
         getGenericFeatures_parser = subparsers.add_parser('getGenericFeatures', usage=argparse.SUPPRESS)
         getGenericFeatures_parser.add_argument('-t', '--featureType', required=True)
@@ -193,7 +216,7 @@ class G2CmdShell(cmd.Cmd, object):
 
         getEntitySizeBreakdown_parser = subparsers.add_parser('getEntitySizeBreakdown', usage=argparse.SUPPRESS)
         getEntitySizeBreakdown_parser.add_argument('-m', '--minimumEntitySize', required=True, type=int)
-        getEntitySizeBreakdown_parser.add_argument('-d', '--includeDerivedFeatures', action='store_true', required=False, default=False)
+        getEntitySizeBreakdown_parser.add_argument('-d', '--includeInternalFeatures', action='store_true', required=False, default=False)
 
         getEntityResume_parser = subparsers.add_parser('getEntityResume', usage=argparse.SUPPRESS)
         getEntityResume_parser.add_argument('entityID', type=int)
@@ -201,16 +224,6 @@ class G2CmdShell(cmd.Cmd, object):
         getEntityListBySize_parser = subparsers.add_parser('getEntityListBySize', usage=argparse.SUPPRESS)
         getEntityListBySize_parser.add_argument('-s', '--entitySize', type=int)
         getEntityListBySize_parser.add_argument('-o', '--outputFile', required=False)
-
-        getUsedMatchKeys_parser = subparsers.add_parser('getUsedMatchKeys', usage=argparse.SUPPRESS)
-        getUsedMatchKeys_parser.add_argument('fromDataSource')
-        getUsedMatchKeys_parser.add_argument('toDataSource')
-        getUsedMatchKeys_parser.add_argument('matchLevel', type=int)
-
-        getUsedPrinciples_parser = subparsers.add_parser('getUsedPrinciples', usage=argparse.SUPPRESS)
-        getUsedPrinciples_parser.add_argument('fromDataSource')
-        getUsedPrinciples_parser.add_argument('toDataSource')
-        getUsedPrinciples_parser.add_argument('matchLevel', type=int)
 
         getEntityByRecordID_parser = subparsers.add_parser('getEntityByRecordID', usage=argparse.SUPPRESS)
         getEntityByRecordID_parser.add_argument('dataSourceCode')
@@ -311,6 +324,15 @@ class G2CmdShell(cmd.Cmd, object):
         whyEntityByEntityIDV2_parser.add_argument('entityID', type=int)
         whyEntityByEntityIDV2_parser.add_argument('flags', type=int)
 
+        whyEntities_parser = subparsers.add_parser('whyEntities', usage=argparse.SUPPRESS)
+        whyEntities_parser.add_argument('entityID1', type=int)
+        whyEntities_parser.add_argument('entityID2', type=int)
+
+        whyEntitiesV2_parser = subparsers.add_parser('whyEntitiesV2', usage=argparse.SUPPRESS)
+        whyEntitiesV2_parser.add_argument('entityID1', type=int)
+        whyEntitiesV2_parser.add_argument('entityID2', type=int)
+        whyEntitiesV2_parser.add_argument('flags', type=int)
+
         whyRecords_parser = subparsers.add_parser('whyRecords', usage=argparse.SUPPRESS)
         whyRecords_parser.add_argument('dataSourceCode1')
         whyRecords_parser.add_argument('recordID1')
@@ -351,7 +373,6 @@ class G2CmdShell(cmd.Cmd, object):
         print("Initializing engine...")
 
         self.g2_module.initV2('pyG2E', iniParams, False)
-        self.g2_audit_module.initV2('pyG2Audit', iniParams, False)
         self.g2_product_module.initV2('pyG2Product', iniParams, False)
         self.g2_diagnostic_module.initV2('pyG2Diagnostic', iniParams, False)
         self.g2_config_module.initV2('pyG2Config', iniParams, False)
@@ -368,7 +389,6 @@ class G2CmdShell(cmd.Cmd, object):
     def postloop(self):
         if (self.initialized):
             self.g2_module.destroy()
-            self.g2_audit_module.destroy()
             self.g2_product_module.destroy()
             self.g2_diagnostic_module.destroy()
             self.g2_config_module.destroy()
@@ -380,21 +400,28 @@ class G2CmdShell(cmd.Cmd, object):
 
     # ----- terminal operations -----
 
-    def do_exit(self, arg):
-        'Close the G2 window, and exit:  exit\n'
-        printWithNewLine('Ending Terminal.')
+    def do_quit(self, arg):
         return True
 
-    def do_quit(self, arg):
-        'Close the G2 window, and exit:  quit\n'
-        printWithNewLine('Ending Terminal.')
+
+    def do_exit(self, arg):
+        self.do_quit(self)
+
         return True
+
+
+    def do_EOF(self, line):
+        return True
+
 
     def emptyline(self):
         return
 
-    def do_EOF(self, line):
-        return True
+
+    def default(self, line):
+        printWithNewLines(f'ERROR: Unknown command, type help to list available commands.', 'B')
+        return
+
 
     def cmdloop(self, intro=None):
         print(self.intro)
@@ -447,36 +474,152 @@ class G2CmdShell(cmd.Cmd, object):
     # ----- Misc Help -----
 
     def help_Arguments(self):
-        print (
-            '\nOptional arguments are surrounded with [ ] \n' \
-            'Argument values to specify are surrounded with < >\n\n' \
-            '\t[-o <output_file>]\n' \
-            '\t\t-o = is an optional argument\n' \
-            '\t\t<output_file> = replace with the path and/or filename to output to\n'
-            )
+        printWithNewLines(textwrap.dedent('''\
+            - Optional arguments are surrounded with [ ]
 
-    ###
+            - Argument values to specify are surrounded with < >, replace with your value 
+            
+            - Example:
+            
+                [-o <output_file>]
+
+                - -o = an optional argument
+                - <output_file> = replace with path and/or filename to output to
+            '''), 'S')
+
+
     def help_InterfaceName(self):
-        print (
-              '\nThe name of a G2 interface (engine, audit, product, diagnostic, hasher).\n\n' \
-              )
+        printWithNewLines(textwrap.dedent('''\
+            - The name of a G2 interface (engine, product, diagnostic, hasher, config, configmgr).
+            '''), 'S')
 
     def help_KnowledgeCenter(self):
-        print('\nSenzing Knowledge Center: https://senzing.zendesk.com/hc/en-us\n')
+        printWithNewLines(textwrap.dedent('''\
+            - Senzing Knowledge Center: https://senzing.zendesk.com/hc/en-us
+            '''), 'S')
+
 
     def help_Support(self):
-        print('\nSenzing Support Request: https://senzing.zendesk.com/hc/en-us/requests/new\n')
+        printWithNewLines(textwrap.dedent('''\
+            - Senzing Support Request: https://senzing.zendesk.com/hc/en-us/requests/new
+            '''), 'S')
 
     def help_Shell(self):
-        print('\nRun OS shell commands: ! <command>\n')
+        printWithNewLines(textwrap.dedent('''\
+            - Run basic OS shell commands: ! <command>
+            '''), 'S')
 
-     # ----- basic shell access ----- 
+    def help_History(self):
+        printWithNewLines(textwrap.dedent(f'''\
+            - Use shell like history, requires Python readline module.
+
+            - Tries to create a history file in the users home directory for use across instances of G2ConfigTool. 
+
+            - If a history file can't be created in the users home, /tmp is tried for temporary session history. 
+
+            - Ctrl-r can be used to search history when history is available
+
+            - Commands to manage history
+
+                - histClear = Clears the current working session history and the history file. This deletes all history, be careful!
+                - histDedupe = The history can accumulate duplicate entries over time, use this to remove them
+                - histShow = Display all history
+
+            - History Status: 
+                - Readline available: {self.readlineAvail}
+                - History available: {self.histAvail}
+                - History file: {self.histFileName}
+                - History file error: {self.histFileError}
+            '''), 'S')
+
 
     def do_shell(self,line):
         '\nRun OS shell commands: !<command>\n'
         output = os.popen(line).read()
         print(output)
-        
+
+    def histCheck(self):
+        '''  '''
+    
+        self.histFileName = None
+        self.histFileError = None
+        self.histAvail = False
+    
+        if not self.histDisable:
+    
+            if readline:
+                tmpHist = '.' + os.path.basename(sys.argv[0].lower().replace('.py','_history'))
+                self.histFileName = os.path.join(os.path.expanduser('~'), tmpHist)
+    
+                #Try and open history in users home first for longevity 
+                try:
+                    open(self.histFileName, 'a').close()
+                except IOError as e:
+                    self.histFileError = f'{e} - Couldn\'t use home, trying /tmp/...'
+    
+                #Can't use users home, try using /tmp/ for history useful at least in the session
+                if self.histFileError:
+    
+                    self.histFileName = f'/tmp/{tmpHist}'
+                    try:
+                        open(self.histFileName, 'a').close()
+                    except IOError as e:
+                        self.histFileError = f'{e} - User home dir and /tmp/ failed!'
+                        return
+    
+                hist_size = 2000
+                readline.read_history_file(self.histFileName)
+                readline.set_history_length(hist_size)
+                atexit.register(readline.set_history_length, hist_size)
+                atexit.register(readline.write_history_file, self.histFileName)
+                
+                self.histFileName = self.histFileName
+                self.histFileError = None
+                self.histAvail = True 
+
+    def do_histDedupe(self, arg):
+
+        if self.histAvail:
+            if input('\nThis will de-duplicate both this session history and the history file, are you sure? (y/n)  ') in ['y','Y', 'yes', 'YES']:
+    
+                with open(self.histFileName) as hf:
+                    linesIn = (line.rstrip() for line in hf)
+                    uniqLines = OrderedDict.fromkeys( line for line in linesIn if line )
+    
+                    readline.clear_history()
+                    for ul in uniqLines:
+                        readline.add_history(ul)
+    
+                printWithNewLines('Session history and history file both deduplicated.', 'B')
+            else:
+                print()
+        else:
+            printWithNewLines('History isn\'t available in this session.', 'B')
+
+
+    def do_histClear(self, arg):
+
+        if self.histAvail:
+            if input('\nThis will clear both this session history and the history file, are you sure? (y/n)  ') in ['y','Y', 'yes', 'YES']:
+                readline.clear_history()
+                readline.write_history_file(self.histFileName)
+                printWithNewLines('Session history and history file both cleared.', 'B')
+            else:
+                print()
+        else:
+            printWithNewLines('History isn\'t available in this session.', 'B')
+
+
+    def do_histShow(self, arg):
+
+        if self.histAvail:
+            print()
+            for i in range(readline.get_current_history_length()):
+                printWithNewLines(readline.get_history_item(i + 1))
+            print()
+        else:
+            printWithNewLines('History isn\'t available in this session.', 'B')
+
     # ----- exception commands -----
 
     def do_clearLastException(self,arg):
@@ -491,8 +634,6 @@ class G2CmdShell(cmd.Cmd, object):
                 self.g2_module.clearLastException()
             elif args.interfaceName == 'hasher':
                 self.g2_hasher_module.clearLastException()
-            elif args.interfaceName == 'audit':
-                self.g2_audit_module.clearLastException()
             elif args.interfaceName == 'product':
                 self.g2_product_module.clearLastException()
             elif args.interfaceName == 'diagnostic':
@@ -519,8 +660,6 @@ class G2CmdShell(cmd.Cmd, object):
                 resultString = self.g2_module.getLastException()
             elif args.interfaceName == 'hasher':
                 resultString = self.g2_hasher_module.getLastException()
-            elif args.interfaceName == 'audit':
-                resultString = self.g2_audit_module.getLastException()
             elif args.interfaceName == 'product':
                 resultString = self.g2_product_module.getLastException()
             elif args.interfaceName == 'diagnostic':
@@ -548,8 +687,6 @@ class G2CmdShell(cmd.Cmd, object):
                 resultInt = self.g2_module.getLastExceptionCode()
             elif args.interfaceName == 'hasher':
                 resultInt = self.g2_hasher_module.getLastExceptionCode()
-            elif args.interfaceName == 'audit':
-                resultInt = self.g2_audit_module.getLastExceptionCode()
             elif args.interfaceName == 'product':
                 resultInt = self.g2_product_module.getLastExceptionCode()
             elif args.interfaceName == 'diagnostic':
@@ -582,7 +719,7 @@ class G2CmdShell(cmd.Cmd, object):
             return
         try: 
             self.g2_module.process(args.jsonData)
-            printWithNewLine('')
+            print()
         except G2Exception.G2Exception as err:
             print(err)
 
@@ -649,7 +786,7 @@ class G2CmdShell(cmd.Cmd, object):
                         print('%s rows processed' % cnt)
                 print('%s rows processed, done!' % cnt)
                         
-                printWithNewLine('')
+                print()
         except G2Exception.G2Exception as err:
             print(err)
     
@@ -667,7 +804,7 @@ class G2CmdShell(cmd.Cmd, object):
                     self.g2_module.processWithResponse(args.jsonData,processedData)
                     data_out.write(processedData.decode())
                     data_out.write('\n')
-                printWithNewLine('')
+                print()
             else:
                     processedData = bytearray()
                     self.g2_module.processWithResponse(args.jsonData,processedData)
@@ -691,7 +828,7 @@ class G2CmdShell(cmd.Cmd, object):
                             self.g2_module.processWithResponse(line.strip(),processedData)
                             data_out.write(processedData.decode())
                             data_out.write('\n')
-                printWithNewLine('')
+                print()
             else:
                 with open(args.inputFile.split("?")[0]) as data_in :
                     for line in data_in:
@@ -701,37 +838,6 @@ class G2CmdShell(cmd.Cmd, object):
         except G2Exception.G2Exception as err:
             print(err)
 
-
-    def do_exportCSVEntityReport(self, arg):
-        '\nExport repository contents as CSV:  exportCSVEntityReport -f <flags> [-o <output_file>]\n' 
-
-        try:
-            args = self.parser.parse_args(['exportEntityReport'] + parse(arg))
-        except SystemExit:
-            print(self.do_exportCSVEntityReport.__doc__)
-            return
-        try: 
-            exportHandle = self.g2_module.exportCSVEntityReport(args.flags)
-            response = bytearray() 
-            rowData = self.g2_module.fetchNext(exportHandle,response)
-            recCnt = 0
-            resultString = b""
-            while rowData:
-                resultString += response
-                recCnt = recCnt + 1
-                response = bytearray()
-                rowData = self.g2_module.fetchNext(exportHandle,response)
-            self.g2_module.closeExport(exportHandle)
-            if args.outputFile:
-                with open(args.outputFile, 'w') as data_out:
-                    data_out.write(resultString.decode())
-            else:
-                print('{}'.format(resultString.decode()))
-        except G2Exception.G2Exception as err:
-            print(err)
-        else:
-            #Remove 1 for the header on CSV
-            print('Number of exported records = %s\n' % (recCnt-1) )
 
     def do_exportCSVEntityReportV2(self, arg):
         '\nExport repository contents as CSV:  exportCSVEntityReportV2 -t <csvColumnList> -f <flags> [-o <output_file>]\n' 
@@ -1467,6 +1573,40 @@ class G2CmdShell(cmd.Cmd, object):
         except G2Exception.G2Exception as err:
             print(err)
 
+    def do_whyEntities(self, arg):
+        '\nDetermine how entities relate to each other:  whyEntities <entityID1> <entityID2>\n'
+        try:
+            args = self.parser.parse_args(['whyEntities'] + parse(arg))
+        except SystemExit:
+            print(self.do_whyEntities.__doc__)
+            return
+        try: 
+            response = bytearray() 
+            self.g2_module.whyEntities(args.entityID1,args.entityID2,response)
+            if response:
+                print('{}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_whyEntitiesV2(self, arg):
+        '\nDetermine how entities relate to each other:  whyEntitiesV2 <entityID1> <entityID2> <flags>\n'
+        try:
+            args = self.parser.parse_args(['whyEntitiesV2'] + parse(arg))
+        except SystemExit:
+            print(self.do_whyEntitiesV2.__doc__)
+            return
+        try: 
+            response = bytearray() 
+            self.g2_module.whyEntitiesV2(args.entityID1,args.entityID2,args.flags,response)
+            if response:
+                print('{}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
+        except G2Exception.G2Exception as err:
+            print(err)
+
     def do_whyRecords(self, arg):
         '\nDetermine how two records relate to each other:  whyRecords <dataSourceCode1> <recordID1> <dataSourceCode2> <recordID2>\n'
         try:
@@ -1629,7 +1769,7 @@ class G2CmdShell(cmd.Cmd, object):
             return
         try: 
             response = bytearray() 
-            self.g2_diagnostic_module.getEntityDetails(args.entityID,args.includeDerivedFeatures,response)
+            self.g2_diagnostic_module.getEntityDetails(args.entityID,args.includeInternalFeatures,response)
             if response:
                 print('{}'.format(response.decode()))
             else:
@@ -1646,7 +1786,7 @@ class G2CmdShell(cmd.Cmd, object):
             return
         try: 
             response = bytearray() 
-            self.g2_diagnostic_module.getRelationshipDetails(args.relationshipID,args.includeDerivedFeatures,response)
+            self.g2_diagnostic_module.getRelationshipDetails(args.relationshipID,args.includeInternalFeatures,response)
             if response:
                 print('{}'.format(response.decode()))
             else:
@@ -1697,6 +1837,20 @@ class G2CmdShell(cmd.Cmd, object):
             print(err)
 
 
+    def do_checkDBPerf(self,arg):
+        '\nRun a check on the DB performance:  checkDBPerf\n'
+        try:
+            args = self.parser.parse_args(['checkDBPerf'] + parse(arg))
+        except SystemExit:
+            print(self.do_checkDBPerf.__doc__)
+            return
+        try: 
+            response = bytearray() 
+            self.g2_diagnostic_module.checkDBPerf(args.secondsToRun,response)
+            print('{}'.format(response.decode()))
+        except G2Exception.G2Exception as err:
+            print(err)
+
     def do_getDataSourceCounts(self,arg):
         '\nGet record counts by data source and entity type:  getDataSourceCounts\n'
         try: 
@@ -1715,7 +1869,7 @@ class G2CmdShell(cmd.Cmd, object):
             return
         try: 
             response = bytearray() 
-            self.g2_diagnostic_module.getMappingStatistics(args.includeDerivedFeatures,response)
+            self.g2_diagnostic_module.getMappingStatistics(args.includeInternalFeatures,response)
             print('{}'.format(response.decode()))
         except G2Exception.G2Exception as err:
             print(err)
@@ -1743,7 +1897,7 @@ class G2CmdShell(cmd.Cmd, object):
             return
         try: 
             response = bytearray() 
-            self.g2_diagnostic_module.getEntitySizeBreakdown(args.minimumEntitySize,args.includeDerivedFeatures,response)
+            self.g2_diagnostic_module.getEntitySizeBreakdown(args.minimumEntitySize,args.includeInternalFeatures,response)
             print('{}'.format(response.decode()))
         except G2Exception.G2Exception as err:
             print(err)
@@ -1782,98 +1936,6 @@ class G2CmdShell(cmd.Cmd, object):
             print('{}'.format(response.decode()))
         except G2Exception.G2Exception as err:
             print(err)
-
-    def do_getSummaryData(self,arg):
-        '\nGet summary data:  getSummaryData\n'
-        try: 
-            sessionHandle = self.g2_audit_module.openSession()
-            response = bytearray() 
-            self.g2_audit_module.getSummaryData(sessionHandle,response)
-            self.g2_audit_module.closeSession(sessionHandle)
-            if response:
-                print('{}'.format(response.decode()))
-            else:
-                print('\nNo response!\n')
-        except G2Exception.G2Exception as err:
-            print(err)
-
-    def do_getSummaryDataDirect(self,arg):
-        '\nGet summary data with optimized speed:  getSummaryDataDirect\n'
-        try: 
-            response = bytearray() 
-            self.g2_audit_module.getSummaryDataDirect(response)
-            if response:
-                print('{}'.format(response.decode()))
-            else:
-                print('\nNo response!\n')
-        except G2Exception.G2Exception as err:
-            print(err)
-
-    def do_getUsedMatchKeys(self,arg):
-        '\nGet usage statistics of match keys:  getUsedMatchKeys <fromDataSource> <toDataSource> <match_level>\n'
-        try:
-            args = self.parser.parse_args(['getUsedMatchKeys'] + parse(arg))
-        except SystemExit:
-            print(self.do_getUsedMatchKeys.__doc__)
-            return
-        try: 
-            sessionHandle = self.g2_audit_module.openSession()
-            response = bytearray() 
-            self.g2_audit_module.getUsedMatchKeys(sessionHandle,args.fromDataSource,args.toDataSource,args.matchLevel,response)
-            self.g2_audit_module.closeSession(sessionHandle)
-            if response:
-                print('{}'.format(response.decode()))
-            else:
-                print('\nNo response!\n')
-        except G2Exception.G2Exception as err:
-            print(err)
-
-    def do_getUsedPrinciples(self,arg):
-        '\nGet usage statistics of principles:  getUsedPrinciples <fromDataSource> <toDataSource> <match_level>\n'
-        try:
-            args = self.parser.parse_args(['getUsedPrinciples'] + parse(arg))
-        except SystemExit:
-            print(self.do_getUsedPrinciples.__doc__)
-            return
-        try: 
-            sessionHandle = self.g2_audit_module.openSession()
-            response = bytearray() 
-            self.g2_audit_module.getUsedPrinciples(sessionHandle,args.fromDataSource,args.toDataSource,args.matchLevel,response)
-            self.g2_audit_module.closeSession(sessionHandle)
-            if response:
-                print('{}'.format(response.decode()))
-            else:
-                print('\nNo response!\n')
-        except G2Exception.G2Exception as err:
-            print(err)
-
-    def do_getAuditReport(self, arg):
-        '\nGet an audit report:  getAuditReport -f <from_data_source> -t <to_data_source> -m <match_level> [-o <output_file>]\n'
-        try:
-            args = self.parser.parse_args(['getAuditReport'] + parse(arg))
-        except SystemExit:
-            print(self.do_getAuditReport.__doc__)
-            return
-        try: 
-            sessionHandle = self.g2_audit_module.openSession()
-            reportHandle = self.g2_audit_module.getAuditReport(sessionHandle,args.fromDataSource,args.toDataSource,args.matchLevel)
-            response = bytearray() 
-            rowData = self.g2_audit_module.fetchNext(reportHandle,response)
-            resultString = b""
-            while rowData:
-                resultString += response
-                response = bytearray()
-                rowData = self.g2_audit_module.fetchNext(reportHandle,response)
-            self.g2_audit_module.closeReport(reportHandle)
-            self.g2_audit_module.closeSession(sessionHandle)
-            if args.outputFile:
-                with open(args.outputFile, 'w') as data_out:
-                    data_out.write(resultString.decode())
-            else:
-                print('{}'.format(resultString.decode()))
-        except G2Exception.G2Exception as err:
-            print(err)
-
 
     def do_exportConfig(self,arg):
         '\nExport the config:  exportConfig [-o <output_file>]\n'    
@@ -1980,7 +2042,7 @@ class G2CmdShell(cmd.Cmd, object):
             print(self.do_hashFile.__doc__)
             return
         try: 
-            printWithNewLine('')
+            print()
             if args.outputFile:
                 with open(args.outputFile, 'w') as data_out:
                     with open(args.inputFile.split("?")[0]) as data_in:
@@ -2077,6 +2139,19 @@ def parse(argumentString):
 def printWithNewLine(arg):
     print(arg + '\n')
 
+def printWithNewLines(ln, pos=''):
+
+    pos = pos.upper()
+    if pos == 'S' or pos == 'START' :
+        print(f'\n{ln}')
+    elif pos == 'E' or pos == 'END' :
+        print(f'{ln}\n')
+    elif pos == 'B' or pos == 'BOTH' :
+        print(f'\n{ln}\n')
+    else:
+        print(f'{ln}') 
+
+
 def printResponse(response):
     print('\n' + response + '\n')
 
@@ -2087,7 +2162,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("fileToProcess", nargs='?')
     parser.add_argument('-c', '--iniFile', dest='iniFile', default='', help='the name of a G2Module.ini file to use', nargs='?')
+    parser.add_argument('-H', '--histDisable', dest='histDisable', action='store_true', default=False, help='disable history file usage')
     args = parser.parse_args()
+
+    hist_disable = args.histDisable
+
     file_to_process = ''
     ini_file_name = ''
 
@@ -2110,4 +2189,3 @@ if __name__ == '__main__':
         G2CmdShell(ini_file_name).cmdloop()
 
     sys.exit()
-

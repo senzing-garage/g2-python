@@ -1,20 +1,5 @@
 #! /usr/bin/env python3
 
-####
-# - Removed olf V2 check
-# - Switched to better arg parsing module = optparse -> argparse
-# - Use default in arg parsing and don't then try and calc
-# - Improved help messaging
-# - Cleaned up messages
-# - Removed unused functions
-# - Removed use of G2Project.ini, reporting frequency is now hard coded
-# - Removed use of configparser
-# - Added adjustments to csv field size to not abbend on larger fields with csv formats
-# - Added new output
-# - Cleaned up imported modules
-# - Fixed bug counting number of written records for CSV format
-# - Improved help output
-
 import argparse
 import csv
 import json

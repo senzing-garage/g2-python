@@ -232,7 +232,7 @@ class G2CmdShell(cmd.Cmd, object):
         getEntityResume_parser.add_argument('entityID', type=int)
 
         getEntityListBySize_parser = self.subparsers.add_parser('getEntityListBySize', usage=argparse.SUPPRESS)
-        getEntityListBySize_parser.add_argument('-s', '--entitySize', type=int)
+        getEntityListBySize_parser.add_argument('-s', '--entitySize', required=True, type=int)
         getEntityListBySize_parser.add_argument('-o', '--outputFile', required=False)
 
         getEntityByRecordID_parser = self.subparsers.add_parser('getEntityByRecordID', usage=argparse.SUPPRESS)

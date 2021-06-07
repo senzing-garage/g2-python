@@ -257,6 +257,7 @@ class G2Diagnostic(object):
             entitySize: The size of the resolved entity (observed entity count)
         """
         self._lib_handle.G2Diagnostic_getEntityListBySize.restype = c_void_p
+        self._lib_handle.G2Diagnostic_getEntityListBySize.argtypes = [c_ulonglong]
         sizedEntityHandle = self._lib_handle.G2Diagnostic_getEntityListBySize(entitySize)
         if sizedEntityHandle == None:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
@@ -264,13 +265,15 @@ class G2Diagnostic(object):
         return sizedEntityHandle
 
     def fetchNextEntityBySize(self, sizedEntityHandle,response):
+        response[::]=b''
+        self._lib_handle.G2Diagnostic_fetchNextEntityBySize.restype = c_longlong
         self._lib_handle.G2Diagnostic_fetchNextEntityBySize.argtypes = [c_void_p, c_char_p, c_size_t]
-        rowData = self._lib_handle.G2Diagnostic_fetchNextEntityBySize(c_void_p(sizedEntityHandle),tls_var.buf,sizeof(tls_var.buf))
-        while rowData:
+        resultValue = self._lib_handle.G2Diagnostic_fetchNextEntityBySize(c_void_p(sizedEntityHandle),tls_var.buf,sizeof(tls_var.buf))
+        while resultValue != 0:
 
-            if rowData == -1:
+            if resultValue == -1:
                 raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
-            elif rowData < 0:
+            elif resultValue < 0:
                 self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
                 raise TranslateG2ModuleException(tls_var.buf.value)
 
@@ -278,10 +281,12 @@ class G2Diagnostic(object):
             if (response.decode())[-1] == '\n':
                 break
             else:
-                rowData = self._lib_handle.G2Diagnostic_fetchNextEntityBySize(c_void_p(sizedEntityHandle),tls_var.buf,sizeof(tls_var.buf))
+                resultValue = self._lib_handle.G2Diagnostic_fetchNextEntityBySize(c_void_p(sizedEntityHandle),tls_var.buf,sizeof(tls_var.buf))
         return response
 
     def closeEntityListBySize(self, sizedEntityHandle):
+        self._lib_handle.G2Diagnostic_closeEntityListBySize.restype = None
+        self._lib_handle.G2Diagnostic_closeEntityListBySize.argtypes = [c_void_p]
         self._lib_handle.G2Diagnostic_closeEntityListBySize(c_void_p(sizedEntityHandle))
 
 

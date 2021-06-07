@@ -62,6 +62,8 @@ class Governor:
         # wait_time = Period in seconds to pause processing for between each check of XID age once triggered
         # resume_age = XID age to resume processing at (low water mark lower than xid_age)
         # govern_debug = To call debug functions (if used)
+        # use_logging = Future use
+        # pre_post_msgs = Show pre and post messages? 
 
         self.type = kwargs.get('type', '-- Unspecified --')
         self.frequency = kwargs.get('frequency', None)
@@ -72,6 +74,7 @@ class Governor:
         self.resume_age = kwargs.get('resume_age', 200000000)
         self.govern_debug = kwargs.get('govern_debug', False)
         self.use_logging = kwargs.get('use_logging', False)
+        self.pre_post_msgs = kwargs.get('pre_post_msgs', True)
 
         # Required parms
         self.g2module_params = kwargs.get('g2module_params', None)
@@ -190,10 +193,12 @@ class Governor:
     def govern_pre(self, *args, **kwargs):
         ''' Tasks to perform before creating governor '''
 
-        self.print_or_log(textwrap.dedent(f'''\
-            Governor Details
-            -------------------
-        '''))
+        if self.pre_post_msgs:
+
+            self.print_or_log(textwrap.dedent(f'''\
+                Governor Details
+                -------------------
+            '''))
 
         return
 
@@ -201,18 +206,20 @@ class Governor:
     def govern_post(self, *args, **kwargs):
         '''  Tasks to perform after creating governor '''
 
-        self.print_or_log(textwrap.indent(textwrap.dedent(f'''\
-              Successfully created:
+        if self.pre_post_msgs:
 
-                Type:               {self.type}
-                Frequency:          {self.frequency}
-                Interval:           {self.interval if self.frequency == 'record' else 'None - Only used for frequency type of record'}
-                Check n seconds:    {self.check_time_interval if self.frequency == 'record' else 'None - Only used for frequency type of record'}
-                XID trigger age:    {self.xid_age}
-                XID resume age:     {self.resume_age}
-                Wait Time(s):       {self.wait_time}
-                Database(s):        {self.db_names}
-            '''), '  '))
+            self.print_or_log(textwrap.indent(textwrap.dedent(f'''\
+                  Successfully created:
+    
+                    Type:               {self.type}
+                    Frequency:          {self.frequency}
+                    Interval:           {self.interval if self.frequency == 'record' else 'None - Only used for frequency type of record'}
+                    Check n seconds:    {self.check_time_interval if self.frequency == 'record' else 'None - Only used for frequency type of record'}
+                    XID trigger age:    {self.xid_age}
+                    XID resume age:     {self.resume_age}
+                    Wait Time(s):       {self.wait_time}
+                    Database(s):        {self.db_names}
+                '''), '  '))
 
         return
 
@@ -233,12 +240,12 @@ class Governor:
 
         # Serialize threads to perform expensive work and check if a pause and vacuum is needed
         with self.threads_lock:
-            
+
             # Check each database connection, in hybrid mode will be > 1
             for db_objs in self.connect_dict.values():
-    
+
                 try:
-                    db_objs[1].execute(self.sql_stmt, [db_objs[2]])
+                    db_objs[1].execute(self.sql_stmt, (db_objs[2], )) 
                     current_age = db_objs[1].fetchone()[0]
                 except self.psycopg2.DatabaseError as ex:
                     raise ex

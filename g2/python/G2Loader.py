@@ -87,6 +87,7 @@ def init_engine(name, config_parms, debug_trace, add_start_time=False):
 def processRedo(q):
     ''' Called in normal and redo only mode (-R) to process redo records that need re-evaluation '''
 
+
     #-- This may look weird but ctypes/ffi have problems with the native code and fork.
     setupProcess = Process(target=redoFeed, args=(q, args.debugTrace, args.redoMode, args.redoModeInterval))
 
@@ -97,14 +98,11 @@ def processRedo(q):
 
     time_redo.value += (time.perf_counter() - redo_start_time)
 
-    if setupProcess.exitcode != 0:
-        exitCode = 1
-        return
+    return setupProcess.exitcode
 
 #---------------------------------------
 def redoFeed(q, debugTrace, redoMode, redoModeInterval):
     ''' Process records in the redo queue '''
-
 
     try:
         redo_engine = init_engine('pyG2Redo', g2module_params, debugTrace, True)
@@ -113,6 +111,13 @@ def redoFeed(q, debugTrace, redoMode, redoModeInterval):
         print(f'ERROR: Could not start the G2 engine for redoFeed()')
         print(f'       {ex}')
         exit(1)
+
+    # Init redo governor in this process, trying to use DB connection in forked process created outside will cause errors when using
+    # PostgreSQL governor such as: psycopg2.OperationalError: SSL error: decryption failed or bad record mac
+    if import_governor:
+        redo_governor = governor.Governor(type=redo_args['type'], g2module_params=redo_args['g2module_params'], frequency=redo_args['frequency'], pre_post_msgs=False)
+    else:
+        redo_governor = Governor()
 
     exitCode = passNum = cntRows = 0
     passStartTime = time.time()
@@ -124,17 +129,24 @@ def redoFeed(q, debugTrace, redoMode, redoModeInterval):
         print('\n  Pausing loading to process redo records...')
 
     while True:
+
         if threadStop.value != 0:
            break
 
-        redo_engine.getRedoRecord(recBytes)
-        rec = recBytes.decode()
+        try:
+            redo_engine.getRedoRecord(recBytes)
+            rec = recBytes.decode()
+        except G2ModuleException as ex:
+            print(f'ERROR: Could not get redo record for redoFeed()')
+            print(f'       {ex}')
+            exit(1)
+
         
         if not rec:
             passNum += 1
             if (passNum > 10):
                 if args.redoMode:
-                    print(f'  No redo records, waiting {args.redoModeInterval} seconds for next cycle at {time_now(True)}...')
+                    print(f'  Redo record queue empty, {cntRows} total records processed. Waiting {args.redoModeInterval} seconds for next cycle at {time_now(True)}...')
                     # Sleep in 1 second increments to respond to user input
                     for x in range (1, args.redoModeInterval):
                         if threadStop.value == 9:
@@ -165,7 +177,7 @@ def redoFeed(q, debugTrace, redoMode, redoModeInterval):
         # Governor called for each redo record
         # Calling the redo governor here is ok for redo because redo is single threaded
         try: 
-            redo_gov_start = time.perf_counter() 
+            redo_gov_start = time.perf_counter()
             redo_governor.govern()
             redo_gov_stop = time.perf_counter() 
             time_governing.value += (redo_gov_stop - redo_gov_start)
@@ -173,14 +185,17 @@ def redoFeed(q, debugTrace, redoMode, redoModeInterval):
         except Exception as err: 
             shutdown(f'\nERROR: Calling per redo governor: {err}')
 
+
     if cntRows > 0:
         print(f'\t{cntRows} reevaluations completed\n')
 
     redo_engine.destroy()
     del redo_engine
 
+    redo_governor.govern_cleanup()
+
     if not args.redoMode and redo_count > 0:
-        print('  Redo processing complete resuming loading...')
+        print('  Redo processing complete resuming loading...\n')
 
     return
 
@@ -261,7 +276,7 @@ def check_resources():
                 - Monitor system resources during ingestion to determine if additional resources are available.
                   Use the -nt command line argument to increase (or decrease) the number of threads. 
 
-                Estimated safe number of threads:  {possible_num_threads}
+                Estimated safe number of threads:  {thread_count}
 
                 {calc_thread_msg}
         '''))
@@ -509,7 +524,7 @@ def perform_load():
                 print(f'\n{"-"*30}  Loading  {"-"*30}\n')
         else:
             if not args.createJsonOnly:
-                print(f'\nTesting {filePath}, ctrl-c to end test at any time...\n')
+                print(f'\nTesting {filePath}, CTRL-C to end test at any time...\n')
             else:
                 file_path_json = f'{filePath}.json'
                 print(f'\nCreating {file_path_json}...\n')
@@ -654,9 +669,9 @@ def perform_load():
                 print(f'  {cntRows} rows processed at {time_now()}, {batchSpeed} records per second')
 
                 # Process redo
-                if cntRows % redo_interrupt_frequency == 0:
-                    if not args.testMode and not args.noRedo:
-                        redoError = processRedo(workQueue)
+                if cntRows % redo_interrupt_frequency == 0 and not args.testMode and not args.noRedo:
+                        if processRedo(workQueue):
+                            print(f'\nERROR: Could not process redo record!\n')
 
                 batchStartTime = time.perf_counter()
                 batch_time_governing = 0
@@ -689,12 +704,13 @@ def perform_load():
 
             # Break this file if stop on record value
             if not args.redoMode and args.stopOnRecord and cntRows == args.stopOnRecord:
-                print(f'\nStopping at record {cntRows}, --stopOnRecord (-sr) argument was set')
+                print(f'\nINFO: Stopping at record {cntRows}, --stopOnRecord (-sr) argument was set')
                 break
 
         # Process redo at end of processing a source
         if threadStop.value == 0 and not args.testMode and not args.noRedo:
-            redoError = processRedo(workQueue)
+            if processRedo(workQueue):
+                print(f'\nERROR: Could not process redo record!\n')
 
         end_time = time_now(True)
 
@@ -715,6 +731,9 @@ def perform_load():
                 os.remove(shufFilePath)
             except:
                 pass
+
+        # Stop processes and threads
+        stopLoaderProcessAndThreads(threadList, workQueue)
 
         #- Print load stats if not error or no ctrl-c
         if exitCode in (0, 9):
@@ -755,9 +774,6 @@ def perform_load():
             except Exception as err: 
                 shutdown(f'\nERROR: Calling per source governor: {err}')
 
-        # Stop processes and threads
-        stopLoaderProcessAndThreads(threadList, workQueue)
-        
         # Don't process next source file if errors
         if exitCode:
             break
@@ -785,7 +801,7 @@ def loadRedoQueueAndProcess():
     fileStartTime = time.time()
 
     if threadStop.value == 0 and not args.testMode and not args.noRedo:
-        redoError = processRedo(workQueue)
+        exitCode = processRedo(workQueue)
     
     stopLoaderProcessAndThreads(threadList, workQueue)
 
@@ -1027,7 +1043,8 @@ def sendToG2(threadId_, workQueue_, numThreads_, debugTrace, threadStop, workloa
         else:
             g2Thread(str(threadId_), workQueue_, g2_engine, threadStop, workloadStats, dsrcAction)
 
-    except: pass
+    except: 
+        pass
 
     if workloadStats and numProcessed > 0:
         dump_workload_stats(g2_engine)
@@ -1109,7 +1126,6 @@ def g2Thread(threadId_, workQueue_, g2Engine_, threadStop, workloadStats, dsrcAc
             except Exception as err:
                 print(f'ERROR: {err}')
                 print(f'       {row}')
-
     return
 
 
@@ -1181,9 +1197,18 @@ def governor_setup():
     global source_governor
     global redo_governor
     global governor_cleaned
+    global governor
+    global import_governor
+    global redo_args
 
     import_governor = True
-    record_governor = source_governor = redo_governor = governor_cleaned= False
+    record_governor = source_governor = redo_governor = governor_cleaned = False
+
+    redo_args = {
+        'type': 'Redo per redo record', 
+        'g2module_params': g2module_params,
+        'frequency': 'record'
+    }
 
     # When Postgres always import the Postgres overnor - unless requested off (e.g., getting started and no native driver) 
     if not args.governor and db_type == 'POSTGRESQL' and not args.governorDisable:
@@ -1205,38 +1230,39 @@ def governor_setup():
             print(f'       {err}')
             sys.exit(1)
         else:
+
             # If not in redo mode create all governors we may call upon
             if not args.redoMode:
+            
                 # Init governors for each record, each source and redo. Governor creation sets defaults, can override. See sample governor-postgresXID.py
                 # Minimum keyword args: g2module_params, frequency
                 record_governor = governor.Governor(type='Ingest per source record', g2module_params=g2module_params, frequency='record')
                 # Example of overriding governor init parms
                 # record_governor = governor.Governor(type='Ingest per source record', g2module_params=g2module_params, frequency='record', wait_time=20, resume_age=5000, xid_age=1500000)
                 source_governor = governor.Governor(type='Ingest per source', g2module_params=g2module_params, frequency='source')
-                
+            
+                # Redo governor created and destroyed here to produce startup output, redo governor is created in redo process when used
                 if not args.noRedo:
-                    redo_governor =   governor.Governor(type='Redo per redo record', g2module_params=g2module_params, frequency='record')
+                    redo_governor = governor.Governor(type=redo_args['type'], g2module_params=redo_args['g2module_params'], frequency=redo_args['frequency'])
+                    redo_governor.govern_cleanup()
             
             # If in redo mode only create a redo governor
             else:
-                redo_governor = governor.Governor(type='Redo per redo record', g2module_params=g2module_params, frequency='record')
+                # Redo governor created and destroyed here to produce startup output, redo governor is created in redo process when used
+                redo_governor = governor.Governor(type=redo_args['type'], g2module_params=redo_args['g2module_params'], frequency=redo_args['frequency'])
+                redo_governor.govern_cleanup()
     # For dummy governor class            
     else:
         record_governor = Governor()
         source_governor = Governor()
-        redo_governor = Governor()
 
 
 def governor_cleanup():
-    ''' Perform any actions defined in governor -> govern_cleanup function '''
+    ''' Perform any actions defined in governor cleanup function '''
 
     if not args.redoMode:
         record_governor.govern_cleanup()
         source_governor.govern_cleanup()
-        if not args.noRedo:
-            redo_governor.govern_cleanup()
-    else:
-        redo_governor.govern_cleanup()
 
 
 #----------------------------------------
@@ -1260,24 +1286,24 @@ if __name__ == '__main__':
 
     g2load_parser = argparse.ArgumentParser()
     g2load_parser.add_argument('-c', '--iniFile', dest='iniFile', default=None, help='the name of a G2Module.ini file to use', nargs=1)
-    g2load_parser.add_argument('-T', '--testMode', dest='testMode', action='store_true', default=False, help='run in test mode to get stats without loading, ctrl-c anytime')
+    g2load_parser.add_argument('-T', '--testMode', dest='testMode', action='store_true', default=False, help='run in test mode to collect stats without loading, CTRL-C anytime')
     g2load_parser.add_argument('-X', '--reprocess', dest='reprocessMode', action='store_true', default=False, help='force reprocessing of previously loaded file')
     g2load_parser.add_argument('-t', '--debugTrace', dest='debugTrace', action='store_true', default=False, help='output debug trace information')
     g2load_parser.add_argument('-w', '--workloadStats', dest='workloadStats', action='store_false', default=False, help='DEPRECATED workload statistics on by default, -nw to disable')
     g2load_parser.add_argument('-nw', '--noWorkloadStats', dest='noWorkloadStats', action='store_false', default=True, help='disable workload statistics information')
     g2load_parser.add_argument('-n', '--noRedo', dest='noRedo', action='store_true', default=False, help='disable redo processing')
     g2load_parser.add_argument('-i', '--redoModeInterval', dest='redoModeInterval', type=int, default=60, help='time in secs to wait between redo processing checks, only used in redo mode')
-    g2load_parser.add_argument('-k', '--knownDatasourcesOnly', dest='configuredDatasourcesOnly', action='store_true', default=False, help='only accepts configured & known data sources')
-    g2load_parser.add_argument('-j', '--createJsonOnly', dest='createJsonOnly', action='store_true', default=False, help='only create json files from mapped csv files')
+    g2load_parser.add_argument('-k', '--knownDatasourcesOnly', dest='configuredDatasourcesOnly', action='store_true', default=False, help='only accepts configured and known data sources')
+    g2load_parser.add_argument('-j', '--createJsonOnly', dest='createJsonOnly', action='store_true', default=False, help='only create JSON files from mapped CSV files')
     g2load_parser.add_argument('-nt', '--threadCount', dest='thread_count', type=int, default=0, help='total number of threads to start, default is calculated')
     g2load_parser.add_argument('-mtp', '--maxThreadsPerProcess', dest='max_threads_per_process', default=16, type=int, help='maximum threads per process, default=%(default)s')
-    g2load_parser.add_argument('-g', '--governor', dest='governor', default=None, help='user supplied governor to load and called during processing', nargs=1)
+    g2load_parser.add_argument('-g', '--governor', dest='governor', default=None, help='user supplied governor to load and call during processing', nargs=1)
     g2load_parser.add_argument('-gpd', '--governorDisable', dest='governorDisable', action='store_true', default=False, help='disable default Postgres governor, when repository is Postgres')
     g2load_parser.add_argument('-tmp', '--tmpPath', default=tmp_path, help=f'use this path instead of {tmp_path} (For S3 files)', nargs='?')
     # Both -p and -f shouldn't be used together
     file_project_group = g2load_parser.add_mutually_exclusive_group()
-    file_project_group.add_argument('-p', '--projectFile', dest='projectFileName', default=None, help='the name of a project csv or json file')
-    file_project_group.add_argument('-f', '--fileSpec', dest='projectFileSpec', default=None, help='the name of a file to load such as /data/mydata.json/?data_source=?,file_format=?', nargs='+')
+    file_project_group.add_argument('-p', '--projectFile', dest='projectFileName', default=None, help='the name of a project CSV or JSON file')
+    file_project_group.add_argument('-f', '--fileSpec', dest='projectFileSpec', default=None, help='the name of a file and parameters to load such as /data/mydata.json/?data_source=?,file_format=?', nargs='+')
     # Both -ns and -nsd shouldn't be used together
     no_shuf_no_shuf_del = g2load_parser.add_mutually_exclusive_group()
     no_shuf_no_shuf_del.add_argument('-ns', '--noShuffle', dest='noShuffle', action='store_true', default=False, help='don\'t shuffle input file(s), shuffling improves performance')
@@ -1288,10 +1314,10 @@ if __name__ == '__main__':
     stop_row_redo_node.add_argument('-sr', '--stopOnRecord', dest='stopOnRecord', default=0, type=int, help='stop processing after n recods (for testing large files)')
     # Both -P and -D shouldn't be used together
     purge_dsrc_delete = g2load_parser.add_mutually_exclusive_group()
-    purge_dsrc_delete.add_argument('-P', '--purgeFirst', dest='purgeFirst', action='store_true', default=False, help='purge the Senzing repository before loading')
     ##purge_dsrc_delete.add_argument('-FORCEPURGE', '--FORCEPURGE', dest='forcePurge', action='store_true', default=False, help='same as -P but without confirmation prompt')
     purge_dsrc_delete.add_argument('-D', '--delete', dest='deleteMode', action='store_true', default=False, help='force deletion of a previously loaded file')
-    g2load_parser.add_argument('-FORCEPURGE', '--FORCEPURGE', dest='forcePurge', action='store_true', default=False, help='use with -P to prevent confirmation prompt')
+    purge_dsrc_delete.add_argument('-P', '--purgeFirst', dest='purgeFirst', action='store_true', default=False, help='purge the Senzing repository before loading, confirmation prompt before purging')
+    g2load_parser.add_argument('-FORCEPURGE', '--FORCEPURGE', dest='forcePurge', action='store_true', default=False, help='purge the Senzing repository before loading, no confirmation prompt before purging')
 
     args = g2load_parser.parse_args()
     
@@ -1334,7 +1360,7 @@ if __name__ == '__main__':
     if not args.projectFileName and not args.projectFileSpec and not args.redoMode :
         print(f'\nNo source file or project file was specified, loading sample data')
         # Convert the path to a string, G2Project needs updating to accomodate pathlib objects
-        args.projectFileName = str(pathlib.Path(os.environ.get('SENZING_ROOT')).joinpath('python', 'demo', 'sample', 'project.csv'))
+        args.projectFileName = str(pathlib.Path(os.environ.get('SENZING_ROOT', '/opt/senzing/g2/')).joinpath('python', 'demo', 'sample', 'project.csv'))
 
     # Are you really sure you want to purge!
     if args.purgeFirst and not args.forcePurge:
@@ -1370,7 +1396,7 @@ if __name__ == '__main__':
     if args.redoMode:
         exitCode = runSetupProcess(False) 
         while threadStop.value != 9 and exitCode == 0:
-            print('\nStarting in redo only mode, processing redo queue (ctrl-c to quit)\n')
+            print('\nStarting in redo only mode, processing redo queue (CTRL-C to quit)\n')
             exitCode = loadRedoQueueAndProcess()
             if threadStop.value == 9 or exitCode != 0:
                     break

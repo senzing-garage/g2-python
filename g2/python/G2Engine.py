@@ -441,13 +441,14 @@ class G2Engine(object):
             str: Record fetched, empty if there is no more data
         """
         response[::]=b''
+        self._lib_handle.G2_fetchNext.restype = c_longlong
         self._lib_handle.G2_fetchNext.argtypes = [c_void_p, c_char_p, c_size_t]
-        rowData = self._lib_handle.G2_fetchNext(c_void_p(exportHandle),tls_var.buf,sizeof(tls_var.buf))
-        while rowData:
+        resultValue = self._lib_handle.G2_fetchNext(c_void_p(exportHandle),tls_var.buf,sizeof(tls_var.buf))
+        while resultValue != 0:
 
-            if rowData == -1:
+            if resultValue == -1:
                 raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
-            elif rowData < 0:
+            elif resultValue < 0:
                 self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
                 raise TranslateG2ModuleException(tls_var.buf.value)
 
@@ -455,10 +456,12 @@ class G2Engine(object):
             if (response)[-1] == 0x0a:
                 break
             else:
-                rowData = self._lib_handle.G2_fetchNext(c_void_p(exportHandle),tls_var.buf,sizeof(tls_var.buf))
+                resultValue = self._lib_handle.G2_fetchNext(c_void_p(exportHandle),tls_var.buf,sizeof(tls_var.buf))
         return response
 		
     def closeExport(self, exportHandle):
+        self._lib_handle.G2_closeExport.restype = None
+        self._lib_handle.G2_closeExport.argtypes = [c_void_p]
         self._lib_handle.G2_closeExport(c_void_p(exportHandle))
 
     def prepareStringArgument(self, stringToPrepare):

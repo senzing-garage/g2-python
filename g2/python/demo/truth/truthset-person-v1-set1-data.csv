@@ -6,7 +6,7 @@ RECORD_ID,PRIMARY_NAME_LAST,PRIMARY_NAME_FIRST,PRIMARY_NAME_MIDDLE,GENDER,DATE_O
 1005,Smith,Rob,E,,,,,112233,NV,,,,,123 E Main St,Henderson,NV,89132,,,,,7/16/2019,Active,500
 1009,Kusha,Edward,,,3/1/70,,,,,294-66-9999,,,,1304 Poppy Hills Dr,Blacklick,OH,43004,,,,Kusha123@hmail.com,1/7/2018,Active,600
 1010,Kusha,Eddie,,,Mar 1 1970,,,,,,,,,1304 Poppy Hills Dr,Blacklick,OHIO,,,,,,1/8/2016,Inactive,700
-1011,Knight,Jed,,,3/1/70,,,,,,,,,1602 Brenville Pl,San Francisco,CA,94105,,,,,10/9/2015,Terminated,800
+1011,Knight,Ed,,,3/1/70,,,,,,,,,1602 Brenville Pl,San Francisco,CA,94105,,,,,10/9/2015,Terminated,800
 1015,Kusha,Mary ,,,10/27/76,,,,,293-90-9090,,,,1304 Poppy Hills Dr,Blacklick,OH,43004,,512-353-8633,,Kusha123@hmail.com,1/10/2018,Active,900
 1016,Kusha,Marie,,,10/27/76,,,,,,,,,1304 Poppy Hills Dr,,,43004,,,,,1/11/2018,Active,100
 1017,Kusha,Mary ,,,,,,,,293-90-9090,,,,,,,,,,,,1/12/2018,Active,200

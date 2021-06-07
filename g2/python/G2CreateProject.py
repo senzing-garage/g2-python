@@ -1,73 +1,106 @@
 #! /usr/bin/env python3
 
-import sys
-import os
 import argparse
 import errno
+import json
+import os
 import shutil
+import sys
+import textwrap
 
-senzing_path = '/opt/senzing/g2'
 
 def find_replace_in_file(filename, old_string, new_string):
-    # Safely read the input filename using 'with'
-    with open(filename) as f:
-        s = f.read()
+    ''' Replace strings in new project files  '''
 
-    # Safely write the changed content, if found in the file
-    with open(filename, 'w') as f:
-        s = s.replace(old_string, new_string)
-        f.write(s)
+    try:
+        with open(filename) as f:
+            s = f.read()
+    except IOError as ex:
+        raise ex 
+
+    try:
+        with open(filename, 'w') as f:
+            s = s.replace(old_string, new_string)
+            f.write(s)
+    except IOError as ex:
+        raise ex
+
+
+def get_version():
+    ''' Return version of currently installed Senzing  '''
+
+    version = build_version = None
+
+    try:
+        with open(os.path.join(senzing_path, 'g2BuildVersion.json')) as file_version:
+            version_details = json.load(file_version)
+    except Exception as ex:
+        pass
+    else:
+        version = version_details.get('VERSION', None)
+        build_version = version_details.get('BUILD_VERSION', None)
+
+    return f'{version} - ({build_version})' if version and build_version else 'Unknown, error reading build details!'
+
+
+def get_ignored(path, filenames):
+    '''  Return list of paths/files to ignore for copying '''
+
+    ret = []
+    for filename in filenames:
+        if os.path.join(path, filename) in paths_to_exclude:
+            ret.append(filename)
+        elif filename in files_to_exclude:
+            ret.append(filename)
+    return ret
+
 
 if __name__ == '__main__':
+
+    senzing_path = '/opt/senzing/g2'
+    senz_install_path = '/opt/senzing'
+    paths_to_exclude = []
+    files_to_exclude = ['G2CreateProject.py', 'G2UpdateProject.py']
+
     parser = argparse.ArgumentParser(description='Create a per-user instance of Senzing in a new folder with the specified name.')
-    parser.add_argument('folder', metavar='F', nargs='?', default='~/senzing', help='the name of the folder to create (default is "~/senzing"). It must not already exist')
+    parser.add_argument('folder', metavar='F', nargs='?', default='~/senzing', help='the name of the folder to create, it must not already exist (Default: %(default)s)')
     args = parser.parse_args()
 
     target_path = os.path.normpath(os.path.join(os.getcwd(), os.path.expanduser(args.folder)))
     
-    
-    # check if folder exists. It shouldn't
     if os.path.exists(target_path) or os.path.isfile(target_path):
-        print('"' + target_path + '" already exists or is a path to a file. Please specify a folder that does not already exist.')
+        print(f'\n{target_path} already exists or is a file. Please specify a folder that does not already exist.')
         sys.exit(1)
 
-    if target_path.startswith('/opt/senzing'):
-        print('Project cannot be created at "' + target_path + '". Projects cannot be created in /opt/senzing ')
+    if target_path.startswith(senz_install_path):
+        print(f'\nProject cannot be created in {senz_install_path}. Please specify a different folder.')
         sys.exit(1)
 
-    print("Creating Senzing instance at " + target_path )
+    print(textwrap.dedent(f'''\n\
+        Creating Senzing instance at: {target_path}
+        Senzing version: {get_version()}
+    '''))
     
-    # copy opt
-    paths_to_exclude = []
-    files_to_exclude = ['G2CreateProject.py', 'G2UpdateProject.py']
-    def get_ignored(path, filenames):        
-        ret = []
-        for filename in filenames:
-            if os.path.join(path, filename) in paths_to_exclude:
-                ret.append(filename)
-            elif filename in files_to_exclude:
-                ret.append(filename)
-        return ret
-
+    # Copy senzing_path to new project path
     shutil.copytree(senzing_path, target_path, ignore=get_ignored)
     
-    # copy resources/templates to etc
+    # Copy resources/templates to etc
     files_to_ignore = shutil.ignore_patterns('G2C.db', 'setupEnv', '*.template')
     shutil.copytree(os.path.join(senzing_path,'resources', 'templates'), os.path.join(target_path, 'etc'), ignore=files_to_ignore)
 
-    project_etc_path = os.path.join(target_path, 'etc')
+    ##project_etc_path = os.path.join(target_path, 'etc')
 
-    # copy setupEnv
+    # Copy setupEnv
     shutil.copyfile(os.path.join(senzing_path, 'resources', 'templates', 'setupEnv'), os.path.join(target_path, 'setupEnv'))
 
-    # copy G2C.db to runtime location
+    # Copy G2C.db to runtime location
     os.makedirs(os.path.join(target_path, 'var', 'sqlite'))
     shutil.copyfile(os.path.join(senzing_path, 'resources', 'templates', 'G2C.db'), os.path.join(target_path, 'var', 'sqlite','G2C.db'))
     
-    # soft link in data
+    # Soft link in data
     os.symlink('/opt/senzing/data/1.0.0', os.path.join(target_path, 'data'))
 
-    # files to update
+    # Files to modify in new project
     files_to_update = [
         'setupEnv',
         'etc/G2Module.ini',
@@ -86,3 +119,4 @@ if __name__ == '__main__':
         for p in senzing_path_subs:
             find_replace_in_file(os.path.join(target_path, f), p[0], p[1])
 
+    print('Succesfully created.')

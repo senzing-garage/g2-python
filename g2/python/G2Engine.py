@@ -10,6 +10,7 @@ class MyBuffer(threading.local):
     #print("Created new Buffer {} of type {}".format(self.buf,type(self.buf)))
 
 tls_var = MyBuffer()
+tls_var3 = MyBuffer()
 
 class MyBuffer2(threading.local):
   def __init__(self, g2_engine, size = 65535):
@@ -44,6 +45,29 @@ def resize_return_buffer(buf_, size_):
       #print("Created new Buffer {}".format(tls_var.buf))
       tls_var.bufSize = size_
   return addressof(tls_var.buf)
+
+def resize_return_buffer3(buf_, size_):
+  """  callback function that resizes return buffer when it is too small
+  Args:
+  size_: size the return buffer needs to be
+  """
+  try:
+    if not tls_var3.buf:
+      #print("New RESIZE_RETURN_BUF {}:{}".format(buf_,size_))
+      tls_var3.buf = create_string_buffer(size_)
+      tls_var3.bufSize = size_
+    elif (tls_var3.bufSize < size_):
+      #print("RESIZE_RETURN_BUF {}:{}/{}".format(buf_,size_,tls_var3.bufSize))
+      foo = tls_var3.buf
+      tls_var3.buf = create_string_buffer(size_)
+      tls_var3.bufSize = size_
+      memmove(tls_var3.buf, foo, sizeof(foo))
+  except AttributeError:
+      #print("AttributeError RESIZE_RETURN_BUF {}:{}".format(buf_,size_))
+      tls_var3.buf = create_string_buffer(size_)
+      #print("Created new Buffer {}".format(tls_var3.buf))
+      tls_var3.bufSize = size_
+  return addressof(tls_var3.buf)
 
 
 class G2Engine(object):
@@ -196,6 +220,8 @@ class G2Engine(object):
 
         self._resize_func_def = CFUNCTYPE(c_char_p, c_char_p, c_size_t)
         self._resize_func = self._resize_func_def(resize_return_buffer)
+        self._resize_func_def3 = CFUNCTYPE(c_char_p, c_char_p, c_size_t)
+        self._resize_func3 = self._resize_func_def(resize_return_buffer3)
         self._resize_func_def2 = CFUNCTYPE(c_void_p, c_void_p, c_size_t)
         self._resize_func2 = self._resize_func_def2(self._lib_handle.G2_realloc)
 
@@ -553,6 +579,43 @@ class G2Engine(object):
 
         #Add the bytes to the response bytearray from calling function
         response += tls_var.buf.value
+
+
+    def addRecordWithInfoWithReturnedRecordID(self,dataSourceCode,jsonData,flags,recordID,info,loadId=None):
+        """ Loads the JSON record
+        Args:
+            dataSourceCode: The data source for the observation.
+            recordID: A memory buffer for returning the recordID
+            jsonData: A JSON document containing the attribute information
+                   for the observation.
+            info: Json document with info about the modified resolved entities
+            loadID: The observation load ID for the record, can be null and will default to dataSourceCode
+            flags: reserved for future use
+        """
+   
+        _dataSourceCode = self.prepareStringArgument(dataSourceCode)
+        _jsonData = self.prepareStringArgument(jsonData)
+        _loadId = self.prepareStringArgument(loadId)
+
+        recordID[::]=b''
+
+        info[::]=b''
+        infoBuf = c_char_p(addressof(tls_var3.buf))
+        infoBufSize = c_size_t(tls_var3.bufSize)
+
+        self._lib_handle.G2_addRecordWithInfoWithReturnedRecordID.restype = c_int
+        self._lib_handle.G2_addRecordWithInfoWithReturnedRecordID.argtypes = [c_char_p, c_char_p, c_char_p, c_int, c_char_p, c_size_t, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def3]
+        ret_code = self._lib_handle.G2_addRecordWithInfoWithReturnedRecordID(_dataSourceCode,_jsonData,_loadId,flags,tls_var.buf,sizeof(tls_var.buf),pointer(infoBuf),pointer(infoBufSize),self._resize_func3)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Engine has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+        recordID += tls_var.buf.value
+        info += tls_var3.buf.value
+
 
     def replaceRecord(self,dataSourceCode,recordId,jsonData,loadId=None):
         # type: (str,str,str,str) -> int

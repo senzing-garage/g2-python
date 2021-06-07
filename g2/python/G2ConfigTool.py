@@ -3401,25 +3401,22 @@ class G2CmdShell(cmd.Cmd, object):
             efcallDict['function'] = efuncRecord['EFUNC_CODE']
             efcallDict['is_virtual'] = efcallRecord['IS_VIRTUAL']
             if ftypeRecord2:
-                efcallDict['new_feature'] = ftypeRecord2['FTYPE_CODE']
+                efcallDict['expressionFeature'] = ftypeRecord2['FTYPE_CODE']
 
             efbomList = []
             for efbomRecord in [record for record in self.cfgData['G2_CONFIG']['CFG_EFBOM'] if record['EFCALL_ID'] == efcallRecord['EFCALL_ID']]:
                 ftypeRecord3 = self.getRecord('CFG_FTYPE', 'FTYPE_ID', efbomRecord['FTYPE_ID'])
                 felemRecord3 = self.getRecord('CFG_FELEM', 'FELEM_ID', efbomRecord['FELEM_ID'])
 
-                if efbomRecord['FTYPE_ID'] == 0:
-                    fromFeature = 'parent'
-                elif efbomRecord['FTYPE_ID'] == -1:
-                    fromFeature = '*'
-                elif ftypeRecord3:
-                    fromFeature = ftypeRecord3['FTYPE_CODE']
-                else:
-                    fromFeature = '!error!'
-
                 efbomDict = {}
-                efbomDict['feature'] = fromFeature
-                efbomDict['element'] = felemRecord3['FELEM_CODE'] if felemRecord3 else str(efbomRecord['FELEM_ID'])
+                if efbomRecord['FTYPE_ID'] == 0:
+                    efbomDict['featureLink'] = 'parent'
+                elif ftypeRecord3:
+                    efbomDict['feature'] = ftypeRecord3['FTYPE_CODE']
+                if felemRecord3:
+                    efbomDict['element'] = felemRecord3['FELEM_CODE']
+                else:
+                    efbomDict['element'] = str(efbomRecord['FELEM_ID'])
                 efbomDict['required'] = efbomRecord['FELEM_REQ']
                 efbomList.append(efbomDict)
             efcallDict['elementList'] = efbomList
@@ -4110,7 +4107,8 @@ class G2CmdShell(cmd.Cmd, object):
         '\n\tInternal Senzing use!\n'
 
         if not self.g2Dbo:
-            printWithNewLines('ERROR: Database connectivity isn\'t available.', 'B')
+            printWithNewLines('ERROR: Database connectivity isn\'t available.', 'S')
+            printWithNewLines(f'       Error from G2Database: {dbErr}', 'E')
             return
 
         if self.configUpdated and not self.forceMode:
@@ -4119,380 +4117,422 @@ class G2CmdShell(cmd.Cmd, object):
 
         print(f'\nUpdating attributes...')
 
-        cols = ['ATTR_ID', 'ATTR_CODE', 'ATTR_CLASS', 'FTYPE_CODE', 'FELEM_CODE', 'FELEM_REQ', 'DEFAULT_VALUE', 'ADVANCED', 'INTERNAL']
-        insertSql = f'insert into CFG_ATTR ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_ATTR'), key = lambda k: k['ATTR_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-
-        try:
-            g2Dbo.sqlExec('delete from CFG_ATTR')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            cols = ['ATTR_ID', 'ATTR_CODE', 'ATTR_CLASS', 'FTYPE_CODE', 'FELEM_CODE', 'FELEM_REQ', 'DEFAULT_VALUE', 'ADVANCED']
-            insertSql = f'insert into CFG_ATTR ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?, ?, ?)'
+        if self.getRecordList('CFG_ATTR'):
+            cols = ['ATTR_ID', 'ATTR_CODE', 'ATTR_CLASS', 'FTYPE_CODE', 'FELEM_CODE', 'FELEM_REQ', 'DEFAULT_VALUE', 'ADVANCED', 'INTERNAL']
+            insertSql = f'insert into CFG_ATTR ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?, ?, ?, ?)'
             insertRecords = []
             for jsonRecord in sorted(self.getRecordList('CFG_ATTR'), key = lambda k: k['ATTR_ID']):
                 [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+    
             try:
                 g2Dbo.sqlExec('delete from CFG_ATTR')
                 g2Dbo.execMany(insertSql, insertRecords)
             except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_ATTR hasn\'t been updated: {err}', 'B')
+                cols = ['ATTR_ID', 'ATTR_CODE', 'ATTR_CLASS', 'FTYPE_CODE', 'FELEM_CODE', 'FELEM_REQ', 'DEFAULT_VALUE', 'ADVANCED']
+                insertSql = f'insert into CFG_ATTR ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?, ?, ?)'
+                insertRecords = []
+                for jsonRecord in sorted(self.getRecordList('CFG_ATTR'), key = lambda k: k['ATTR_ID']):
+                    [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+                try:
+                    g2Dbo.sqlExec('delete from CFG_ATTR')
+                    g2Dbo.execMany(insertSql, insertRecords)
+                except G2Exception.G2DBException as err:
+                    printWithNewLines(f'ERROR: CFG_ATTR hasn\'t been updated: {err}', 'B')
 
 
         print('Updating data sources...')
-        cols = ['DSRC_ID', 'DSRC_CODE', 'DSRC_DESC', 'DSRC_RELY', 'RETENTION_LEVEL', 'CONVERSATIONAL']
-        insertSql = f'insert into CFG_DSRC ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_DSRC'), key = lambda k: k['DSRC_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_DSRC')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_DSRC hasn\'t been updated: {err}', 'B')
 
-        cols = ['DSRC_ID', 'MAX_DEGREE', 'INTEREST_FLAG']
-        insertSql = f'insert into CFG_DSRC_INTEREST ({", ".join(map(str, cols))}) values (?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_DSRC_INTEREST'), key = lambda k: k['DSRC_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_DSRC_INTEREST')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_DSRC_INTEREST hasn\'t been updated: {err}', 'B')
+        if self.getRecordList('CFG_DSRC_INTEREST'):
+            cols = ['DSRC_ID', 'DSRC_CODE', 'DSRC_DESC', 'DSRC_RELY', 'RETENTION_LEVEL', 'CONVERSATIONAL']
+            insertSql = f'insert into CFG_DSRC ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_DSRC'), key = lambda k: k['DSRC_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_DSRC')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_DSRC hasn\'t been updated: {err}', 'B')
+
+        if self.getRecordList('CFG_DSRC_INTEREST'):
+            cols = ['DSRC_ID', 'MAX_DEGREE', 'INTEREST_FLAG']
+            insertSql = f'insert into CFG_DSRC_INTEREST ({", ".join(map(str, cols))}) values (?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_DSRC_INTEREST'), key = lambda k: k['DSRC_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_DSRC_INTEREST')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_DSRC_INTEREST hasn\'t been updated: {err}', 'B')
 
 
         print('Updating entity classes...')
-        cols = ['ECLASS_ID', 'ECLASS_CODE', 'ECLASS_DESC', 'RESOLVE']
-        insertSql = f'insert into CFG_ECLASS ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_ECLASS'), key = lambda k: k['ECLASS_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_ECLASS')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_ECLASS hasn\'t been updated: {err}', 'B')
+
+        if self.getRecordList('CFG_ECLASS'):
+            cols = ['ECLASS_ID', 'ECLASS_CODE', 'ECLASS_DESC', 'RESOLVE']
+            insertSql = f'insert into CFG_ECLASS ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_ECLASS'), key = lambda k: k['ECLASS_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_ECLASS')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_ECLASS hasn\'t been updated: {err}', 'B')
 
 
         print('Updating entity types...')
-        cols = ['ETYPE_ID', 'ETYPE_CODE', 'ETYPE_DESC', 'ECLASS_ID']
-        insertSql = f'insert into CFG_ETYPE ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_ETYPE'), key = lambda k: k['ETYPE_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_ETYPE')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_ETYPE hasn\'t been updated: {err}', 'B')
 
-        cols = ['ETYPE_ID', 'EXEC_ORDER', 'FTYPE_ID', 'UTYPE_CODE']
-        insertSql = f'insert into CFG_EBOM ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_EBOM'), key = lambda k: k['ETYPE_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_EBOM')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_EBOM hasn\'t been updated: {err}', 'B')
+        if self.getRecordList('CFG_ETYPE'):
+            cols = ['ETYPE_ID', 'ETYPE_CODE', 'ETYPE_DESC', 'ECLASS_ID']
+            insertSql = f'insert into CFG_ETYPE ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_ETYPE'), key = lambda k: k['ETYPE_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_ETYPE')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_ETYPE hasn\'t been updated: {err}', 'B')
+
+        if self.getRecordList('CFG_EBOM'):
+            cols = ['ETYPE_ID', 'EXEC_ORDER', 'FTYPE_ID', 'UTYPE_CODE']
+            insertSql = f'insert into CFG_EBOM ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_EBOM'), key = lambda k: k['ETYPE_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_EBOM')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_EBOM hasn\'t been updated: {err}', 'B')
 
 
         print('Updating features...')
-        cols = ['FTYPE_ID', 'FTYPE_CODE', 'FTYPE_DESC', 'FCLASS_ID', 'FTYPE_FREQ', 'FTYPE_STAB', 'FTYPE_EXCL', 'ANONYMIZE', 'DERIVED', 'USED_FOR_CAND', 'PERSIST_HISTORY', 'RTYPE_ID', 'VERSION']
-        insertSql = f'insert into CFG_FTYPE ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_FTYPE'), key = lambda k: k['FTYPE_ID']):
-            if not 'FTYPE_DESC' in jsonRecord:
-                jsonRecord['FTYPE_DESC'] = jsonRecord['FTYPE_CODE']
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_FTYPE')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_FTYPE hasn\'t been updated: {err}', 'B')
 
-        cols = ['FTYPE_ID', 'FELEM_ID', 'EXEC_ORDER', 'DISPLAY_DELIM', 'DISPLAY_LEVEL', 'DERIVED']
-        insertSql = f'insert into CFG_FBOM ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_FBOM'), key = lambda k: k['FTYPE_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_FBOM')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_FBOM hasn\'t been updated: {err}', 'B')
+        if self.getRecordList('CFG_FTYPE'):
+            cols = ['FTYPE_ID', 'FTYPE_CODE', 'FTYPE_DESC', 'FCLASS_ID', 'FTYPE_FREQ', 'FTYPE_STAB', 'FTYPE_EXCL', 'ANONYMIZE', 'DERIVED', 'USED_FOR_CAND', 'PERSIST_HISTORY', 'RTYPE_ID', 'VERSION']
+            insertSql = f'insert into CFG_FTYPE ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_FTYPE'), key = lambda k: k['FTYPE_ID']):
+                if not 'FTYPE_DESC' in jsonRecord:
+                    jsonRecord['FTYPE_DESC'] = jsonRecord['FTYPE_CODE']
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_FTYPE')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_FTYPE hasn\'t been updated: {err}', 'B')
 
-        cols = ['FELEM_ID', 'FELEM_CODE', 'TOKENIZE', 'DATA_TYPE']
-        insertSql = f'insert into CFG_FELEM ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_FELEM'), key = lambda k: k['FELEM_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_FELEM')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_FELEM hasn\'t been updated: {err}', 'B')
+        if self.getRecordList('CFG_FBOM'):
+            cols = ['FTYPE_ID', 'FELEM_ID', 'EXEC_ORDER', 'DISPLAY_DELIM', 'DISPLAY_LEVEL', 'DERIVED']
+            insertSql = f'insert into CFG_FBOM ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_FBOM'), key = lambda k: k['FTYPE_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_FBOM')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_FBOM hasn\'t been updated: {err}', 'B')
 
-        cols = ['SFCALL_ID', 'SFUNC_ID', 'EXEC_ORDER', 'FTYPE_ID', 'FELEM_ID']
-        insertSql = f'insert into CFG_SFCALL ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_SFCALL'), key = lambda k: k['SFCALL_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_SFCALL')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_SFCALL hasn\'t been updated: {err}', 'B')
+        if self.getRecordList('CFG_FELEM'):
+            cols = ['FELEM_ID', 'FELEM_CODE', 'TOKENIZE', 'DATA_TYPE']
+            insertSql = f'insert into CFG_FELEM ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_FELEM'), key = lambda k: k['FELEM_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_FELEM')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_FELEM hasn\'t been updated: {err}', 'B')
 
-        cols = ['SFUNC_ID', 'SFUNC_CODE', 'SFUNC_DESC', 'FUNC_LIB', 'FUNC_VER', 'CONNECT_STR']
-        insertSql = f'insert into CFG_SFUNC ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_SFUNC'), key = lambda k: k['SFUNC_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_SFUNC')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_SFUNC hasn\'t been updated: {err}', 'B')
+        if self.getRecordList('CFG_SFCALL'):
+            cols = ['SFCALL_ID', 'SFUNC_ID', 'EXEC_ORDER', 'FTYPE_ID', 'FELEM_ID']
+            insertSql = f'insert into CFG_SFCALL ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_SFCALL'), key = lambda k: k['SFCALL_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_SFCALL')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_SFCALL hasn\'t been updated: {err}', 'B')
 
-        cols = ['EFCALL_ID', 'EFUNC_ID', 'EXEC_ORDER', 'FTYPE_ID', 'FELEM_ID', 'EFEAT_FTYPE_ID', 'IS_VIRTUAL']
-        insertSql = f'insert into CFG_EFCALL ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_EFCALL'), key = lambda k: k['EFCALL_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_EFCALL')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_EFCALL hasn\'t been updated: {err}', 'B')
+        if self.getRecordList('CFG_SFUNC'):
+            cols = ['SFUNC_ID', 'SFUNC_CODE', 'SFUNC_DESC', 'FUNC_LIB', 'FUNC_VER', 'CONNECT_STR']
+            insertSql = f'insert into CFG_SFUNC ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_SFUNC'), key = lambda k: k['SFUNC_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_SFUNC')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_SFUNC hasn\'t been updated: {err}', 'B')
 
-        cols = ['EFUNC_ID', 'EFUNC_CODE', 'EFUNC_DESC', 'FUNC_LIB', 'FUNC_VER', 'CONNECT_STR']
-        insertSql = f'insert into CFG_EFUNC ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_EFUNC'), key = lambda k: k['EFUNC_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_EFUNC')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_EFUNC hasn\'t been updated: {err}', 'B')
+        if self.getRecordList('CFG_EFCALL'):
+            cols = ['EFCALL_ID', 'EFUNC_ID', 'EXEC_ORDER', 'FTYPE_ID', 'FELEM_ID', 'EFEAT_FTYPE_ID', 'IS_VIRTUAL']
+            insertSql = f'insert into CFG_EFCALL ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_EFCALL'), key = lambda k: k['EFCALL_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_EFCALL')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_EFCALL hasn\'t been updated: {err}', 'B')
 
+        if self.getRecordList('CFG_EFUNC'):
+            cols = ['EFUNC_ID', 'EFUNC_CODE', 'EFUNC_DESC', 'FUNC_LIB', 'FUNC_VER', 'CONNECT_STR']
+            insertSql = f'insert into CFG_EFUNC ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_EFUNC'), key = lambda k: k['EFUNC_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_EFUNC')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_EFUNC hasn\'t been updated: {err}', 'B')
 
-        cols = ['EFCALL_ID', 'EXEC_ORDER', 'FTYPE_ID', 'FELEM_ID', 'FELEM_REQ']
-        insertSql = f'insert into CFG_EFBOM ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_EFBOM'), key = lambda k: k['EFCALL_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_EFBOM')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_EFBOM hasn\'t been updated: {err}', 'B')
+        if self.getRecordList('CFG_EFBOM'):
+            cols = ['EFCALL_ID', 'EXEC_ORDER', 'FTYPE_ID', 'FELEM_ID', 'FELEM_REQ']
+            insertSql = f'insert into CFG_EFBOM ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_EFBOM'), key = lambda k: k['EFCALL_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_EFBOM')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_EFBOM hasn\'t been updated: {err}', 'B')
 
-        cols = ['CFCALL_ID', 'CFUNC_ID', 'EXEC_ORDER', 'FTYPE_ID']
-        insertSql = f'insert into CFG_CFCALL ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_CFCALL'), key = lambda k: k['CFCALL_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_CFCALL')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_CFCALL hasn\'t been updated: {err}', 'B')
+        if self.getRecordList('CFG_CFCALL'):
+            cols = ['CFCALL_ID', 'CFUNC_ID', 'EXEC_ORDER', 'FTYPE_ID']
+            insertSql = f'insert into CFG_CFCALL ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_CFCALL'), key = lambda k: k['CFCALL_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_CFCALL')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_CFCALL hasn\'t been updated: {err}', 'B')
 
-        cols = ['CFCALL_ID', 'EXEC_ORDER', 'FTYPE_ID', 'FELEM_ID']
-        insertSql = f'insert into CFG_CFBOM ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_CFBOM'), key = lambda k: k['CFCALL_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_CFBOM')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_CFBOM hasn\'t been updated: {err}', 'B')
+        if self.getRecordList('CFG_CFBOM'):
+            cols = ['CFCALL_ID', 'EXEC_ORDER', 'FTYPE_ID', 'FELEM_ID']
+            insertSql = f'insert into CFG_CFBOM ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_CFBOM'), key = lambda k: k['CFCALL_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_CFBOM')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_CFBOM hasn\'t been updated: {err}', 'B')
 
-        cols = ['FTYPE_ID', 'ECLASS_ID', 'UTYPE_CODE', 'FTYPE_FREQ', 'FTYPE_EXCL', 'FTYPE_STAB']
-        insertSql = f'insert into CFG_FBOVR ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_FBOVR'), key = lambda k: k['FTYPE_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_FBOVR')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_FBOVR hasn\'t been updated: {err}', 'B')
+        if self.getRecordList('CFG_FBOVR'):
+            cols = ['FTYPE_ID', 'ECLASS_ID', 'UTYPE_CODE', 'FTYPE_FREQ', 'FTYPE_EXCL', 'FTYPE_STAB']
+            insertSql = f'insert into CFG_FBOVR ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_FBOVR'), key = lambda k: k['FTYPE_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_FBOVR')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_FBOVR hasn\'t been updated: {err}', 'B')
 
 
         print('Updating feature classes...')
-        cols = ['FCLASS_ID', 'FCLASS_CODE', 'FCLASS_DESC']
-        insertSql = f'insert into CFG_FCLASS ({", ".join(map(str, cols))}) values (?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_FCLASS'), key = lambda k: k['FCLASS_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_FCLASS')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_FCLASS hasn\'t been updated: {err}', 'B')
+
+        if self.getRecordList('CFG_FCLASS'):
+            cols = ['FCLASS_ID', 'FCLASS_CODE', 'FCLASS_DESC']
+            insertSql = f'insert into CFG_FCLASS ({", ".join(map(str, cols))}) values (?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_FCLASS'), key = lambda k: k['FCLASS_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_FCLASS')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_FCLASS hasn\'t been updated: {err}', 'B')
 
 
         print('Updating relationships...')
-        cols = ['RTYPE_ID', 'RTYPE_CODE', 'RCLASS_ID', 'REL_STRENGTH', 'BREAK_RES']
-        insertSql = f'insert into CFG_RTYPE ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_RTYPE'), key = lambda k: k['RTYPE_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_RTYPE')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_RTYPE hasn\'t been updated: {err}', 'B')
 
-        cols = ['RCLASS_ID', 'RCLASS_CODE', 'RCLASS_DESC', 'IS_DISCLOSED']
-        insertSql = f'insert into CFG_RCLASS ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_RCLASS'), key = lambda k: k['RCLASS_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_RCLASS')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_RCLASS hasn\'t been updated: {err}', 'B')
+        if self.getRecordList('CFG_RTYPE'):
+            cols = ['RTYPE_ID', 'RTYPE_CODE', 'RCLASS_ID', 'REL_STRENGTH', 'BREAK_RES']
+            insertSql = f'insert into CFG_RTYPE ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_RTYPE'), key = lambda k: k['RTYPE_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_RTYPE')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_RTYPE hasn\'t been updated: {err}', 'B')
+
+        if self.getRecordList('CFG_RCLASS'):
+            cols = ['RCLASS_ID', 'RCLASS_CODE', 'RCLASS_DESC', 'IS_DISCLOSED']
+            insertSql = f'insert into CFG_RCLASS ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_RCLASS'), key = lambda k: k['RCLASS_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_RCLASS')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_RCLASS hasn\'t been updated: {err}', 'B')
 
 
         print('Updating resolution rules...')
-        cols = ['ERFRAG_ID', 'ERFRAG_CODE', 'ERFRAG_DESC', 'ERFRAG_SOURCE', 'ERFRAG_DEPENDS']
-        insertSql = f'insert into CFG_ERFRAG ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_ERFRAG'), key = lambda k: k['ERFRAG_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_ERFRAG')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_ERFRAG hasn\'t been updated: {err}', 'B')
 
-        cols = ['ERRULE_ID', 'ERRULE_CODE', 'ERRULE_DESC', 'RESOLVE', 'RELATE', 'REF_SCORE', 'RTYPE_ID', 'QUAL_ERFRAG_CODE', 'DISQ_ERFRAG_CODE', 'ERRULE_TIER']
-        insertSql = f'insert into CFG_ERRULE ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_ERRULE'), key = lambda k: k['ERRULE_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_ERRULE')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_ERRULE hasn\'t been updated: {err}', 'B')
+        if self.getRecordList('CFG_ERFRAG'):
+            cols = ['ERFRAG_ID', 'ERFRAG_CODE', 'ERFRAG_DESC', 'ERFRAG_SOURCE', 'ERFRAG_DEPENDS']
+            insertSql = f'insert into CFG_ERFRAG ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_ERFRAG'), key = lambda k: k['ERFRAG_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_ERFRAG')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_ERFRAG hasn\'t been updated: {err}', 'B')
+
+        if self.getRecordList('CFG_ERRULE'):
+            cols = ['ERRULE_ID', 'ERRULE_CODE', 'ERRULE_DESC', 'RESOLVE', 'RELATE', 'REF_SCORE', 'RTYPE_ID', 'QUAL_ERFRAG_CODE', 'DISQ_ERFRAG_CODE', 'ERRULE_TIER']
+            insertSql = f'insert into CFG_ERRULE ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_ERRULE'), key = lambda k: k['ERRULE_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_ERRULE')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_ERRULE hasn\'t been updated: {err}', 'B')
+
 
         print('Updating comps...')
-        cols = ['ANON_SUPPORT', 'CFUNC_CODE', 'CFUNC_DESC', 'CFUNC_ID', 'CONNECT_STR', 'FUNC_LIB', 'FUNC_VER']
-        insertSql = f'insert into CFG_CFUNC ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_CFUNC'), key = lambda k: k['CFUNC_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_CFUNC')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_CFUNC hasn\'t been updated: {err}', 'B')
 
-        cols = ['CFRTN_ID', 'CFUNC_ID', 'CFUNC_RTNVAL', 'EXEC_ORDER', 'SAME_SCORE', 'CLOSE_SCORE', 'LIKELY_SCORE', 'PLAUSIBLE_SCORE', 'UN_LIKELY_SCORE']
-        insertSql = f'insert into CFG_CFRTN ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_CFRTN'), key = lambda k: k['CFRTN_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_CFRTN')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_CFRTN hasn\'t been updated: {err}', 'B')
+        if self.getRecordList('CFG_CFUNC'):
+            cols = ['ANON_SUPPORT', 'CFUNC_CODE', 'CFUNC_DESC', 'CFUNC_ID', 'CONNECT_STR', 'FUNC_LIB', 'FUNC_VER']
+            insertSql = f'insert into CFG_CFUNC ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_CFUNC'), key = lambda k: k['CFUNC_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_CFUNC')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_CFUNC hasn\'t been updated: {err}', 'B')
+
+        if self.getRecordList('CFG_CFRTN'):
+            cols = ['CFRTN_ID', 'CFUNC_ID', 'CFUNC_RTNVAL', 'EXEC_ORDER', 'SAME_SCORE', 'CLOSE_SCORE', 'LIKELY_SCORE', 'PLAUSIBLE_SCORE', 'UN_LIKELY_SCORE']
+            insertSql = f'insert into CFG_CFRTN ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_CFRTN'), key = lambda k: k['CFRTN_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_CFRTN')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_CFRTN hasn\'t been updated: {err}', 'B')
 
 
         print('Updating distict...')
-        cols = ['DFCALL_ID', 'FTYPE_ID', 'DFUNC_ID', 'EXEC_ORDER']
-        insertSql = f'insert into CFG_DFCALL ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_DFCALL'), key = lambda k: k['DFCALL_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_DFCALL')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_DFCALL hasn\'t been updated: {err}', 'B')
 
-        cols = ['DFUNC_ID', 'DFUNC_CODE', 'DFUNC_DESC', 'FUNC_LIB', 'FUNC_VER', 'CONNECT_STR','ANON_SUPPORT']
-        insertSql = f'insert into CFG_DFUNC ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_DFUNC'), key = lambda k: k['DFUNC_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_DFUNC')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_DFUNC hasn\'t been updated: {err}', 'B')
+        if self.getRecordList('CFG_DFCALL'):
+            cols = ['DFCALL_ID', 'FTYPE_ID', 'DFUNC_ID', 'EXEC_ORDER']
+            insertSql = f'insert into CFG_DFCALL ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_DFCALL'), key = lambda k: k['DFCALL_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_DFCALL')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_DFCALL hasn\'t been updated: {err}', 'B')
 
-        cols = ['DFCALL_ID', 'FTYPE_ID', 'FELEM_ID', 'EXEC_ORDER']
-        insertSql = f'insert into CFG_DFBOM ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_DFBOM'), key = lambda k: k['DFCALL_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_DFBOM')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_DFBOM hasn\'t been updated: {err}', 'B')
+        if self.getRecordList('CFG_DFUNC'):
+            cols = ['DFUNC_ID', 'DFUNC_CODE', 'DFUNC_DESC', 'FUNC_LIB', 'FUNC_VER', 'CONNECT_STR','ANON_SUPPORT']
+            insertSql = f'insert into CFG_DFUNC ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_DFUNC'), key = lambda k: k['DFUNC_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_DFUNC')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_DFUNC hasn\'t been updated: {err}', 'B')
+
+        if self.getRecordList('CFG_DFBOM'):
+            cols = ['DFCALL_ID', 'FTYPE_ID', 'FELEM_ID', 'EXEC_ORDER']
+            insertSql = f'insert into CFG_DFBOM ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_DFBOM'), key = lambda k: k['DFCALL_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_DFBOM')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_DFBOM hasn\'t been updated: {err}', 'B')
 
 
         print('Updating generics...')
-        cols = ['GPLAN_ID', 'BEHAVIOR', 'FTYPE_ID', 'CANDIDATE_CAP', 'SCORING_CAP', 'SEND_TO_REDO']
-        insertSql = f'insert into CFG_GENERIC_THRESHOLD ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_GENERIC_THRESHOLD'), key = lambda k: k['GPLAN_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_GENERIC_THRESHOLD')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_GENERIC_THRESHOLD hasn\'t been updated: {err}', 'B')
 
-        cols = ['GPLAN_ID', 'GPLAN_CODE', 'GPLAN_DESC']
-        insertSql = f'insert into CFG_GPLAN ({", ".join(map(str, cols))}) values (?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_GPLAN'), key = lambda k: k['GPLAN_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_GPLAN')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_GPLAN hasn\'t been updated: {err}', 'B')
+        if self.getRecordList('CFG_GENERIC_THRESHOLD'):
+            cols = ['GPLAN_ID', 'BEHAVIOR', 'FTYPE_ID', 'CANDIDATE_CAP', 'SCORING_CAP', 'SEND_TO_REDO']
+            insertSql = f'insert into CFG_GENERIC_THRESHOLD ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_GENERIC_THRESHOLD'), key = lambda k: k['GPLAN_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_GENERIC_THRESHOLD')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_GENERIC_THRESHOLD hasn\'t been updated: {err}', 'B')
+    
+        if self.getRecordList('CFG_GPLAN'):
+            cols = ['GPLAN_ID', 'GPLAN_CODE', 'GPLAN_DESC']
+            insertSql = f'insert into CFG_GPLAN ({", ".join(map(str, cols))}) values (?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_GPLAN'), key = lambda k: k['GPLAN_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_GPLAN')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_GPLAN hasn\'t been updated: {err}', 'B')
 
 
         print('Updating lens...')
-        cols = ['LENS_ID', 'LENS_CODE', 'LENS_DESC']
-        insertSql = f'insert into CFG_LENS ({", ".join(map(str, cols))}) values (?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_LENS'), key = lambda k: k['LENS_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_LENS')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_LENS hasn\'t been updated: {err}', 'B')
 
-        cols = ['LENS_ID', 'ERRULE_ID', 'EXEC_ORDER']
-        insertSql = f'insert into CFG_LENSRL ({", ".join(map(str, cols))}) values (?, ?, ?)'
-        insertRecords = []
-        for jsonRecord in sorted(self.getRecordList('CFG_LENSRL'), key = lambda k: k['LENS_ID']):
-            [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-        try:
-            g2Dbo.sqlExec('delete from CFG_LENSRL')
-            g2Dbo.execMany(insertSql, insertRecords)
-        except G2Exception.G2DBException as err:
-            printWithNewLines(f'ERROR: CFG_LENSRL hasn\'t been updated: {err}', 'B')
+        if self.getRecordList('CFG_LENS'):
+            cols = ['LENS_ID', 'LENS_CODE', 'LENS_DESC']
+            insertSql = f'insert into CFG_LENS ({", ".join(map(str, cols))}) values (?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_LENS'), key = lambda k: k['LENS_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_LENS')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_LENS hasn\'t been updated: {err}', 'B')
+
+        if self.getRecordList('CFG_DSRC_INTEREST'):
+            cols = ['LENS_ID', 'ERRULE_ID', 'EXEC_ORDER']
+            insertSql = f'insert into CFG_LENSRL ({", ".join(map(str, cols))}) values (?, ?, ?)'
+            insertRecords = []
+            for jsonRecord in sorted(self.getRecordList('CFG_LENSRL'), key = lambda k: k['LENS_ID']):
+                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
+            try:
+                g2Dbo.sqlExec('delete from CFG_LENSRL')
+                g2Dbo.execMany(insertSql, insertRecords)
+            except G2Exception.G2DBException as err:
+                printWithNewLines(f'ERROR: CFG_LENSRL hasn\'t been updated: {err}', 'B')
 
         print()
 
@@ -4620,15 +4660,16 @@ if __name__ == '__main__':
 
     # Is there database support?
     g2dbUri = iniParamCreator.getINIParam(iniFileName,'SQL','CONNECTION')
+
     if not g2dbUri:
         printWithNewLines(f'CONNECTION parameter not found in [SQL] section of {iniFileName} file')
         sys.exit(1)
     else:
         try:
             g2Dbo = G2Database(g2dbUri)
-        except:
+        except Exception as err: 
             g2Dbo = False
-
+            dbErr = err
 
     cmd_obj = G2CmdShell(g2ConfigFile, args.histDisable, args.forceMode, args.fileToProcess, iniFileName, g2Dbo)
     if args.fileToProcess:

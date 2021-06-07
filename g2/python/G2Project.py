@@ -1,19 +1,18 @@
 #! /usr/bin/env python3
 
-#--python imports
-import optparse
-import sys
-import os
-import json
 import csv
-import glob
 import fnmatch
+import glob
+import json
+import optparse
+import os
+import sys
+import textwrap
 from operator import itemgetter
 
-#--project classes
-from G2Exception import G2UnsupportedFileTypeException
-from G2Exception import G2InvalidFileTypeContentsException
-from CompressedFile import openPossiblyCompressedFile, fileRowParser
+from CompressedFile import fileRowParser, openPossiblyCompressedFile
+from G2Exception import (G2InvalidFileTypeContentsException,
+                         G2UnsupportedFileTypeException)
 from G2S3 import G2S3
 
 try: from dateutil.parser import parse as dateParser
@@ -142,6 +141,33 @@ class G2Project:
             attrMapping = None
 
         return attrMapping
+
+
+    def listHasLowerCaseKeys(self,listCollection):
+        hasLowerCaseKeys = False
+        for item in listCollection:
+            if type(item) is dict:
+                hasLowerCaseKeys = hasLowerCaseKeys or self.dictHasLowerCaseKeys(item)
+            elif type(item) is list:
+                hasLowerCaseKeys = hasLowerCaseKeys or self.listHasLowerCaseKeys(item)
+        return hasLowerCaseKeys
+
+
+    def dictHasLowerCaseKeys(self,dictCollection):
+        hasLowerCaseKeys = False
+        for dictKey, dictValue in dictCollection.items():
+            for c in dictKey:
+                if c.islower():
+                    hasLowerCaseKeys = True
+            if type(dictValue) is dict:
+                hasLowerCaseKeys = hasLowerCaseKeys or self.dictHasLowerCaseKeys(dictValue)
+            elif type(dictValue) is list:
+                hasLowerCaseKeys = hasLowerCaseKeys or self.listHasLowerCaseKeys(dictValue)
+        return hasLowerCaseKeys
+
+
+    def recordHasLowerCaseKeys(self,jsonRecord):
+        return self.dictHasLowerCaseKeys(jsonRecord)
 
     #----------------------------------------
     def mapJsonRecord(self, jsonDict):
@@ -380,52 +406,79 @@ class G2Project:
     #----------------------------------------
     def loadProjectUri(self, fileSpec):
         ''' creates a project dictionary from a file spec '''
-        parmDict = {}
-        if '/?' in fileSpec:
-            parmString = fileSpec.split('/?')[1]
-            fileSpec = fileSpec.split('/?')[0]
-            parmList = parmString.split(',')
-            for parm in parmList:
-                if '=' in parm:
-                    parmType = parm.split('=')[0].strip().upper()
-                    parmValue = parm.split('=')[1].strip().replace('"','').replace("'",'').upper()
-                    parmDict[parmType] = parmValue
 
-        #--try to determine file_format
-        if 'FILE_FORMAT' not in parmDict:
-            if 'FILE_TYPE' in parmDict:
-                parmDict['FILE_FORMAT'] = parmDict['FILE_TYPE']
-            else:
-                dummy, fileExtension = os.path.splitext(fileSpec)
-                parmDict['FILE_FORMAT'] = fileExtension.replace('.','').upper()
+        for file in fileSpec:
 
-        if parmDict['FILE_FORMAT'] not in ('JSON', 'CSV', 'UMF', 'TAB', 'TSV', 'PIPE'):
-            print('ERROR: File format must be either JSON, CSV UMF, TAB, TSV or PIPE to use the file specification!')
-            self.success = False
-        else:
-            if G2S3.isS3Uri(fileSpec):
-                s3list = G2S3.ListOfS3UrisOfFilesInBucket(fileSpec, os.path.dirname(G2S3.getFilePathFromUri(fileSpec)))
-                fileList = fnmatch.filter(s3list, fileSpec)
+            parmDict = {}
+            parmString = ''
+            parmList = []
+            # Have additional parameters been specified?
+            if '/?' in file:
+                # Split what we are expecting and anything else discard
+                fileSpec, parmString, *_ = file.split('/?')
+                parmList = parmString.split(',')
+
+                for parm in parmList:
+                    if '=' in parm:
+                        parmType = parm.split('=')[0].strip().upper()
+                        parmValue = parm.split('=')[1].strip().replace('"','').replace("'",'').upper()
+                        parmDict[parmType] = parmValue
+            # If not additional parameters use file to enable easy file globbing where fileSpec would otherwise be a list and file isn't 
+            # fileSpec is a str when /? is present but a list when it isn't present this addresses that
             else:
-                if fileSpec.upper().startswith('FILE://'):
-                    fileSpec = fileSpec[7:]
-                try: fileList = glob.glob(fileSpec)
-                except: fileList = []
-            if not fileList:
-                print('ERROR: file specification did not return any files!')
+                fileSpec = file
+    
+            #--try to determine file_format
+            if 'FILE_FORMAT' not in parmDict:
+                if 'FILE_TYPE' in parmDict:
+                    parmDict['FILE_FORMAT'] = parmDict['FILE_TYPE']
+                else:
+                    _, fileExtension = os.path.splitext(fileSpec)
+                    parmDict['FILE_FORMAT'] = fileExtension.replace('.','').upper()
+    
+            if parmDict['FILE_FORMAT'] not in ('JSON', 'CSV', 'UMF', 'TAB', 'TSV', 'PIPE'):
+                print(textwrap.dedent(f'''\n
+                    ERROR: File format must be one of JSON, CSV, UMF, TAB, TSV, PIPE or specify file_format with the -f argument.
+
+                               - ./G2Loader.py -f my_file.csv/?data_source=EXAMPLE
+                               - ./G2Loader.py -f my_file.txt/?data_source=EXAMPLE,file_format=CSV
+
+                           - If using a wildcard such as -f files_to_load* all files must have the same extension or use file_format=<format>
+
+                               - ./G2Loader.py -f my_file*.csv/?data_source=EXAMPLE
+                               - ./G2Loader.py -f my_file*/?data_source=EXAMPLE,file_format=CSV
+
+                           - File format detected: {parmDict['FILE_FORMAT'] if parmDict['FILE_FORMAT'] else 'None'}
+                '''))                 
                 self.success = False
             else:
-                self.projectFileName = 'n/a'
-                self.projectFilePath = os.path.dirname(os.path.abspath(fileList[0]))
-                for fileName in fileList:
-                    sourceDict = {} 
-                    sourceDict['FILE_NAME'] = fileName
-                    sourceDict['FILE_FORMAT'] = parmDict['FILE_FORMAT']
-                    if 'DATA_SOURCE' in parmDict:
-                        sourceDict['DATA_SOURCE'] = parmDict['DATA_SOURCE'] 
-                    self.projectSourceList.append(sourceDict)
+                if G2S3.isS3Uri(fileSpec):
+                    s3list = G2S3.ListOfS3UrisOfFilesInBucket(fileSpec, os.path.dirname(G2S3.getFilePathFromUri(fileSpec)))
+                    fileList = fnmatch.filter(s3list, fileSpec)
+                else:
+                    if fileSpec.upper().startswith('FILE://'):
+                        fileSpec = fileSpec[7:]
+                    try: 
+                        fileList = glob.glob(fileSpec)
+                    except: 
+                        fileList = []
 
-                self.prepareSourceFiles()
+                if not fileList:
+                    print('ERROR: File specification did not return any files!')
+                    self.success = False
+                else:
+                    self.projectFileName = 'n/a'
+                    self.projectFilePath = os.path.dirname(os.path.abspath(fileList[0]))
+                    for fileName in fileList:
+                        sourceDict = {} 
+                        sourceDict['FILE_NAME'] = fileName
+                        sourceDict['FILE_FORMAT'] = parmDict['FILE_FORMAT']
+                        if 'DATA_SOURCE' in parmDict:
+                            sourceDict['DATA_SOURCE'] = parmDict['DATA_SOURCE'] 
+                        self.projectSourceList.append(sourceDict)
+    
+        if self.success:
+            self.prepareSourceFiles()
 
         return
 
@@ -505,19 +558,24 @@ class G2Project:
 
     #----------------------------------------
     def loadCsvProject(self):
-        fileData = {}
-        fileData['FILE_NAME'] = self.projectFileName
-        fileData['FILE_FORMAT'] = self.projectFileFormat
+
+        fileData = {
+            'FILE_NAME': self.projectFileName,
+            'FILE_FORMAT': self.projectFileFormat
+        }
+
         if self.projectFileFormat == 'CSV':
             fileData['DELIMITER'] = ','
         elif self.projectFileFormat in ('TSV', 'TAB'):
             fileData['DELIMITER'] = '\t'
         elif self.projectFileFormat == 'PIPE':
             fileData['DELIMITER'] = '|'
+
         fileData['MULTICHAR_DELIMITER'] = False
 
         csvFile = openPossiblyCompressedFile(self.projectFileName, 'r')
         fileData['HEADER_ROW'] = [x.strip().upper() for x in fileRowParser(next(csvFile), fileData)]
+
         if not(fileData['HEADER_ROW']):
             print('ERROR: project file does not contain a header row!')
             self.success = False
@@ -525,11 +583,11 @@ class G2Project:
             print('ERROR: project file does not contain a column for FILE_NAME!')
             self.success = False
         else:
-
             for line in csvFile:
                 rowData = fileRowParser(line, fileData) 
                 if rowData: #--skip blank lines
                     self.projectSourceList.append(rowData)
+
         csvFile.close()
 
         return
@@ -537,9 +595,11 @@ class G2Project:
     #----------------------------------------
     def prepareSourceFiles(self):
         ''' ensure project files referenced exist and are valid '''
-        print('')
+
+        print()
         self.sourceList = []
         sourceRow = 0
+
         for sourceDict in self.projectSourceList:
             sourceRow += 1
 
@@ -571,6 +631,7 @@ class G2Project:
             #--csv stuff
             sourceDict['ENCODING'] = sourceDict['ENCODING'] if 'ENCODING' in sourceDict else 'utf-8-sig'
             sourceDict['DELIMITER'] = sourceDict['DELIMITER'] if 'DELIMITER' in sourceDict else None
+            
             if not sourceDict['DELIMITER']:
                 if sourceDict['FILE_FORMAT'] == 'CSV':
                     sourceDict['DELIMITER'] = ','
@@ -693,7 +754,9 @@ class G2Project:
 
                     fileReader.close()
 
-            self.sourceList.append(sourceDict)
+            if self.success:
+                self.sourceList.append(sourceDict)
+
         return
 
     #----------------------------------------
@@ -838,4 +901,3 @@ if __name__ == "__main__":
     del myProject
 
     sys.exit()
-

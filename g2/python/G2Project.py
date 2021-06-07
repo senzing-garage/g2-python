@@ -1,6 +1,6 @@
 #! /usr/bin/env python3
 
-import csv
+#### import csv
 import fnmatch
 import glob
 import json
@@ -10,16 +10,20 @@ import sys
 import textwrap
 from operator import itemgetter
 
-from CompressedFile import fileRowParser, openPossiblyCompressedFile
-from G2Exception import (G2InvalidFileTypeContentsException,
-                         G2UnsupportedFileTypeException)
+from CompressedFile import (fileRowParser, isCompressedFile,
+                            openPossiblyCompressedFile)
+#### from G2Exception import (G2InvalidFileTypeContentsException, G2UnsupportedFileTypeException)
 from G2S3 import G2S3
 
-try: from dateutil.parser import parse as dateParser
-except: pass
+#### try:
+####     from dateutil.parser import parse as dateParser
+#### except Exception:
+####     pass
 
-try: from nameparser import HumanName as nameParser
-except: pass
+try:
+    from nameparser import HumanName as nameParser
+except Exception:
+    pass
 
 #======================
 class G2Project:
@@ -29,14 +33,14 @@ class G2Project:
     def __init__(self, g2ConfigTables, projectFileName = None, projectFileUri = None, tempFolderPath = None):
         """ open and validate a g2 generic configuration and project file """
 
-        self.projectSourceList = []             
+        self.projectSourceList = []
         self.mappingFiles = {}
 
         self.attributeDict = g2ConfigTables.loadConfig('CFG_ATTR')
         self.dataSourceDict = g2ConfigTables.loadConfig('CFG_DSRC')
         self.entityTypeDict = g2ConfigTables.loadConfig('CFG_ETYPE')
 
-        self.success = True 
+        self.success = True
         self.mappingCache = {}
         self.tempFolderPath = tempFolderPath
 
@@ -91,7 +95,8 @@ class G2Project:
                 tryColumn = attrName[attrName.find('_') + 1:]
                 if tryColumn in self.attributeDict:
                     configMapping = self.attributeDict[tryColumn]
-                else:  
+                else:
+
                    usageType = attrName[attrName.rfind('_') + 1:]
                    tryColumn = attrName[0:attrName.rfind('_')]
                    if tryColumn in self.attributeDict:
@@ -116,7 +121,7 @@ class G2Project:
                 attrMapping['FELEM_REQ'] = None
 
             self.mappingCache[attrName] = attrMapping
-                
+
         return attrMapping
 
     #---------------------------------------
@@ -142,7 +147,6 @@ class G2Project:
 
         return attrMapping
 
-
     def listHasLowerCaseKeys(self,listCollection):
         hasLowerCaseKeys = False
         for item in listCollection:
@@ -151,7 +155,6 @@ class G2Project:
             elif type(item) is list:
                 hasLowerCaseKeys = hasLowerCaseKeys or self.listHasLowerCaseKeys(item)
         return hasLowerCaseKeys
-
 
     def dictHasLowerCaseKeys(self,dictCollection):
         hasLowerCaseKeys = False
@@ -164,7 +167,6 @@ class G2Project:
             elif type(dictValue) is list:
                 hasLowerCaseKeys = hasLowerCaseKeys or self.listHasLowerCaseKeys(dictValue)
         return hasLowerCaseKeys
-
 
     def recordHasLowerCaseKeys(self,jsonRecord):
         return self.dictHasLowerCaseKeys(jsonRecord)
@@ -180,7 +182,7 @@ class G2Project:
 
         #--parse the json
         for columnName in jsonDict:
-            if type(jsonDict[columnName]) == list: 
+            if type(jsonDict[columnName]) == list:
                 childRowNum = -1
                 for childRow in jsonDict[columnName]:
                     childRowNum += 1
@@ -231,7 +233,7 @@ class G2Project:
             #--validate and count the features
             featureCount = 0
             mappedAttributeList = sorted(mappedAttributeList, key=itemgetter('FEATURE_KEY', 'ATTR_ID'))
-            mappedAttributeListLength = len(mappedAttributeList) 
+            mappedAttributeListLength = len(mappedAttributeList)
             i = 0
             while i < mappedAttributeListLength:
                 if mappedAttributeList[i]['FEATURE_KEY']:
@@ -259,7 +261,7 @@ class G2Project:
                             self.featureStats[statCode] += 1
                         else:
                             self.featureStats[statCode] = 1
-                        
+
                         #--yse first name encountered as the entity description
                         if ftypeCode == 'NAME' and not entityName:
                             entityName = featureDesc
@@ -273,7 +275,7 @@ class G2Project:
                             valuesByClass[ftypeClass] += '\n' + featureDesc
                         else:
                             valuesByClass[ftypeClass] = featureDesc
-                        
+
                 else:
                     #--this is an unmapped attribute
                     if mappedAttributeList[i]['ATTR_CLASS'] == 'OTHER':
@@ -284,7 +286,7 @@ class G2Project:
                             self.unmappedStats[statCode] += 1
                         else:
                             self.unmappedStats[statCode] = 1
-                        
+
                         #--update values by class
                         attrClass = mappedAttributeList[i]['ATTR_CLASS']
                         attrDesc = mappedAttributeList[i]['ATTR_NAME'] +': ' + mappedAttributeList[i]['ATTR_VALUE']
@@ -310,7 +312,7 @@ class G2Project:
         jsonMappings = {}
         if type(msg) == dict:
             jsonDict = msg
-        else: 
+        else:
             try: jsonDict = json.loads(msg, encoding="utf-8")
             except:
                 jsonErrors.append('ERROR: could not parse as json')
@@ -341,7 +343,7 @@ class G2Project:
                 elif columnName not in jsonMappings:
                     jsonMappings[columnName] = self.lookupAttribute(columnName)
 
-        return jsonErrors, jsonDict, jsonMappings 
+        return jsonErrors, jsonDict, jsonMappings
 
     #---------------------------------------
     def clearStatPack(self):
@@ -350,7 +352,7 @@ class G2Project:
         self.featureStats = {}
         self.unmappedStats = {}
         return
-    
+
     #---------------------------------------
     def getStatPack(self):
 
@@ -363,10 +365,10 @@ class G2Project:
             featureStat['FEATURE'] = feature
             if '-' in feature:
                 featureSplit = feature.split('-')
-                featureStat['FTYPE_CODE'] = featureSplit[0] 
+                featureStat['FTYPE_CODE'] = featureSplit[0]
                 featureStat['UTYPE_CODE'] = featureSplit[1]
             else:
-                featureStat['FTYPE_CODE'] = feature 
+                featureStat['FTYPE_CODE'] = feature
                 featureStat['UTYPE_CODE'] = ''
             featureStat['FEATURE_ORDER'] = self.featureDict[featureStat['FTYPE_CODE']]['FEATURE_ORDER']
             featureStat['COUNT'] = self.featureStats[feature]
@@ -376,7 +378,7 @@ class G2Project:
                 featureStat['PERCENT'] = round((float(featureStat['COUNT']) / self.recordCount) * 100,2)
             featureStats.append(featureStat)
         statPack['FEATURES'] = sorted(featureStats, key=itemgetter('FEATURE_ORDER', 'UTYPE_CODE'))
- 
+
         unmappedStats = []
         for attribute in self.unmappedStats:
             unmappedStat = {}
@@ -388,7 +390,7 @@ class G2Project:
                 unmappedStat['PERCENT'] = round((float(unmappedStat['COUNT']) / self.recordCount) * 100,2)
             unmappedStats.append(unmappedStat)
         statPack['UNMAPPED'] = sorted(unmappedStats, key=itemgetter('ATTRIBUTE'))
- 
+
         return statPack
 
     #---------------------------------------
@@ -398,12 +400,10 @@ class G2Project:
 
         return jsonString
 
-
     #-----------------------------
     #--project functions
     #-----------------------------
 
-    #----------------------------------------
     def loadProjectUri(self, fileSpec):
         ''' creates a project dictionary from a file spec '''
 
@@ -423,20 +423,34 @@ class G2Project:
                         parmType = parm.split('=')[0].strip().upper()
                         parmValue = parm.split('=')[1].strip().replace('"','').replace("'",'').upper()
                         parmDict[parmType] = parmValue
-            # If not additional parameters use file to enable easy file globbing where fileSpec would otherwise be a list and file isn't 
+            # If not additional parameters use file to enable easy file globbing where fileSpec would otherwise be a list and file isn't
             # fileSpec is a str when /? is present but a list when it isn't present this addresses that
             else:
                 fileSpec = file
-    
+
             #--try to determine file_format
             if 'FILE_FORMAT' not in parmDict:
                 if 'FILE_TYPE' in parmDict:
                     parmDict['FILE_FORMAT'] = parmDict['FILE_TYPE']
                 else:
                     _, fileExtension = os.path.splitext(fileSpec)
-                    parmDict['FILE_FORMAT'] = fileExtension.replace('.','').upper()
-    
-            if parmDict['FILE_FORMAT'] not in ('JSON', 'CSV', 'UMF', 'TAB', 'TSV', 'PIPE'):
+
+                    # G2Loader appends _-_SzShuf*_-_ to shuf files and _-_SzShufNoDel_-_<timestamp> to non-delete shuf files
+                    # Strip these off to locate file extension to allow for loading of shuf files
+                    if '_-_SzShuf' in fileSpec:
+                        try:
+                            fileExtension = fileExtension[:fileExtension.index('_-_SzShuf')]
+                        except ValueError:
+                            pass
+
+                    #If looks like a compressed file, strip off the first extension (.gz, .gzip, zip) to locate the real extension (.json, .csv)
+                    if isCompressedFile(fileSpec):
+                        remain_fileSpec, _ = os.path.splitext(fileSpec)
+                        _, fileExtension = os.path.splitext(remain_fileSpec)
+
+                    parmDict['FILE_FORMAT'] = fileExtension.replace('.', '').upper()
+
+            if parmDict['FILE_FORMAT'] not in ('JSON', 'CSV', 'UMF', 'TAB', 'TSV', 'PIPE', 'GZ', 'GZIP'):
                 print(textwrap.dedent(f'''\n
                     ERROR: File format must be one of JSON, CSV, UMF, TAB, TSV, PIPE or specify file_format with the -f argument.
 
@@ -449,7 +463,7 @@ class G2Project:
                                - ./G2Loader.py -f my_file*/?data_source=EXAMPLE,file_format=CSV
 
                            - File format detected: {parmDict['FILE_FORMAT'] if parmDict['FILE_FORMAT'] else 'None'}
-                '''))                 
+                '''))
                 self.success = False
             else:
                 if G2S3.isS3Uri(fileSpec):
@@ -458,9 +472,9 @@ class G2Project:
                 else:
                     if fileSpec.upper().startswith('FILE://'):
                         fileSpec = fileSpec[7:]
-                    try: 
+                    try:
                         fileList = glob.glob(fileSpec)
-                    except: 
+                    except:
                         fileList = []
 
                 if not fileList:
@@ -470,13 +484,13 @@ class G2Project:
                     self.projectFileName = 'n/a'
                     self.projectFilePath = os.path.dirname(os.path.abspath(fileList[0]))
                     for fileName in fileList:
-                        sourceDict = {} 
+                        sourceDict = {}
                         sourceDict['FILE_NAME'] = fileName
                         sourceDict['FILE_FORMAT'] = parmDict['FILE_FORMAT']
                         if 'DATA_SOURCE' in parmDict:
-                            sourceDict['DATA_SOURCE'] = parmDict['DATA_SOURCE'] 
+                            sourceDict['DATA_SOURCE'] = parmDict['DATA_SOURCE']
                         self.projectSourceList.append(sourceDict)
-    
+
         if self.success:
             self.prepareSourceFiles()
 
@@ -498,7 +512,7 @@ class G2Project:
             else:
                 print('ERROR: Invalid project file extension [%s]' % fileExtension)
                 print(' Supported project file extensions include: .json, .csv, .tsv, .tab, and .pipe')
-                self.success = False 
+                self.success = False
                 return
 
             #--load a json project file
@@ -513,7 +527,7 @@ class G2Project:
                 self.prepareSourceFiles()
         else:
             print('ERROR: project file ' + projectFileName + ' not found!')
-            self.success = False 
+            self.success = False
 
         return
 
@@ -532,10 +546,11 @@ class G2Project:
     #----------------------------------------
     def loadJsonProject(self):
         ''' validates and loads a json project file into memory '''
-        try: projectData = json.load(open(self.projectFileName), encoding="utf-8")
+        try:
+            projectData = json.load(open(self.projectFileName), encoding="utf-8")
         except Exception as err:
             print('ERROR: project file ' + repr(err))
-            self.success = False 
+            self.success = False
         else:
             projectData = self.dictKeysUpper(projectData)
             if type(projectData) == list:
@@ -549,7 +564,7 @@ class G2Project:
                         print('ERROR: project file entry ' + str(sourceRow) + ' does not contain an entry for FILE_NAME!')
                         self.success = False
                         break
-                    self.projectSourceList.append(sourceDict)             
+                    self.projectSourceList.append(sourceDict)
 
         if len(self.projectSourceList) == 0:
             print('ERROR: project file does not contain any data sources!')
@@ -584,7 +599,7 @@ class G2Project:
             self.success = False
         else:
             for line in csvFile:
-                rowData = fileRowParser(line, fileData) 
+                rowData = fileRowParser(line, fileData)
                 if rowData: #--skip blank lines
                     self.projectSourceList.append(rowData)
 
@@ -631,7 +646,7 @@ class G2Project:
             #--csv stuff
             sourceDict['ENCODING'] = sourceDict['ENCODING'] if 'ENCODING' in sourceDict else 'utf-8-sig'
             sourceDict['DELIMITER'] = sourceDict['DELIMITER'] if 'DELIMITER' in sourceDict else None
-            
+
             if not sourceDict['DELIMITER']:
                 if sourceDict['FILE_FORMAT'] == 'CSV':
                     sourceDict['DELIMITER'] = ','
@@ -656,7 +671,7 @@ class G2Project:
                         self.success = False
                     else:
                         try: mappingFileDict = json.load(open(sourceDict['MAPPING_FILE']))
-                        except ValueError as err: 
+                        except ValueError as err:
                             print('ERROR: Invalid json in mapping file  %s' % (sourceDict['MAPPING_FILE']))
                             print(err)
                             self.success = False
@@ -768,7 +783,8 @@ class G2Project:
             try:
                 if rowData[key].upper() in ('NULL', 'NONE', 'N/A', '\\N'):
                     rowData[key] = ''
-            except: pass
+            except Exception:
+                pass
 
         mappingErrors = 0
         csvMap = self.mappingFiles[rowData['_MAPPING_FILE']]
@@ -778,15 +794,15 @@ class G2Project:
             if type(csvMap['CALCULATIONS']) == dict:
                 for newField in csvMap['CALCULATIONS']:
                     try: rowData[newField] = eval(csvMap['CALCULATIONS'][newField])
-                    except Exception as e: 
-                        print('  error: %s [%s]' % (newField, e)) 
+                    except Exception as e:
+                        print('  error: %s [%s]' % (newField, e))
                         mappingErrors += 1
 
             elif type(csvMap['CALCULATIONS']) == list:
                 for calcDict in csvMap['CALCULATIONS']:
                     try: rowData[calcDict['NAME']] = eval(calcDict['EXPRESSION'])
-                    except Exception as e: 
-                        print('  error: %s [%s]' % (calcDict['NAME'], e)) 
+                    except Exception as e:
+                        print('  error: %s [%s]' % (calcDict['NAME'], e))
                         mappingErrors += 1
 
         #--for each mapping (output record)
@@ -796,8 +812,8 @@ class G2Project:
 
                 #--perform the mapping
                 try: columnValue = mappingData[columnName] % rowData
-                except: 
-                    print('  error: could not map %s' % mappingData[columnName]) 
+                except:
+                    print('  error: could not map %s' % mappingData[columnName])
                     mappingErrors += 1
                     columnValue = ''
 
@@ -806,7 +822,7 @@ class G2Project:
                     columnValue = ''
 
                 #--dont write empty tags
-                if columnValue: 
+                if columnValue:
                     mappedData[columnName] = columnValue
 
             outputRows.append(mappedData)
@@ -842,7 +858,7 @@ def calcNameKey(fullNameStr, keyType):
                 newStr += (' ' + namePart)
         fullNameStr = newStr.strip()
 
-    try: 
+    try:
         values = []
         parsedName = nameParser(fullNameStr)
         if keyType.upper() == 'FULL':
@@ -891,7 +907,7 @@ if __name__ == "__main__":
         (options, args) = optParser.parse_args()
         mappingFileName = options.mappingFileName
         projectFileName = options.projectFileName
-  
+
     #--create an instance
     myProject = g2Mapper('self', mappingFileName, projectFileName)
     if myProject.success:

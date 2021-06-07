@@ -337,7 +337,7 @@ def processEntities():
         if relationCount > maxRelationCount:
             maxRelationCount = relationCount
 
-        if statPack['TOTAL_ENTITY_COUNT'] % progressInterval == 0 or not rowData:
+        if statPack['TOTAL_ENTITY_COUNT'] % progressInterval == 0 or not exportRecord:
             entityCount = statPack['TOTAL_ENTITY_COUNT']
             now = datetime.now().strftime('%I:%M%p').lower()
             elapsedMins = round((time.time() - procStartTime) / 60, 1)
@@ -345,10 +345,11 @@ def processEntities():
             avgEntitySize = round(batchEntitySizeSum / progressInterval)
             avgRelationCount = round(batchRelationCountSum / progressInterval)
 
-            if rowData:
+            if exportRecord:
                 print(' %s entities processed at %s, %s per second | avg/max entity size = %s/%s | avg/max relationship count %s/%s' % (entityCount, now, eps, avgEntitySize, maxEntitySize, avgRelationCount, maxRelationCount))
             else:
-                print(' %s entities completed at %s after %s minutes' % (entityCount, now, elapsedMins))
+                eps = int(float(entityCount) / (float(time.time() - procStartTime if time.time() - procStartTime != 0 else 1)))
+                print(' %s entities completed at %s after %s minutes, at %s per second' % (entityCount, now, elapsedMins, eps))
 
             batchStartTime = time.time()
             batchEntitySizeSum = 0
@@ -371,6 +372,8 @@ def processEntities():
 
     #--add feature stats to the entity size break down
     print('\nReviewing %s entities ...' % entitySizeReviewCount)
+    reviewStartTime = time.time()
+    batchStartTime = time.time()
     reviewCount = 0
     getFlags = g2Engine.G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES
     entitySizeBreakdown = {}
@@ -401,10 +404,16 @@ def processEntities():
                     retcode = g2Engine.getEntityByEntityIDV2(int(entityID), getFlags, response)
                     response = response.decode() if response else ''
                 except G2Exception as err:
-                    printWithNewLines(str(err), 'B')
-                    shutDown = True
-                    return 1
-                jsonData = json.loads(response)
+                    print(str(err))
+                    #shutDown = True
+                    #return 1
+                    continue
+                try: 
+                    jsonData = json.loads(response)
+                except:
+                    response = 'None' if not response else response
+                    print('warning: entity %s response %s' % (entityID, response))
+                    continue
 
                 for ftypeCode in jsonData['RESOLVED_ENTITY']['FEATURES']:
 
@@ -488,6 +497,7 @@ def processEntities():
                 if rowData:
                     print(' %s entities reviewed at %s, %s per second' % (entityCount, now, eps))
                 else:
+                    eps = int(float(entitySizeReviewCount) / (float(time.time() - reviewStartTime if time.time() - reviewStartTime != 0 else 1)))
                     print(' %s entities reviewed at %s after %s minutes' % (entityCount, now, elapsedMins))
 
     statPack['ENTITY_SIZE_BREAKDOWN'] = []
@@ -535,18 +545,17 @@ if __name__ == '__main__':
     argParser.add_argument('-o', '--output_file_root', dest='output_file_root', default=outputFileRoot, help='root name for files created such as "/project/snapshots/snapshot1"')
     argParser.add_argument('-s', '--sample_size', dest='sample_size', type=int, default=sampleSize, help='defaults to %s' % sampleSize)
     argParser.add_argument('-f', '--relationship_filter', dest='relationship_filter', type=int, default=relationshipFilter, help='filter options 1=No Relationships, 2=Include possible matches, 3=Include possibly related and disclosed. Defaults to %s' % relationshipFilter)
-    argParser.add_argument('-n', '--no_csv_export', dest='no_csv_export', action='store_true', default=False, help='compute json stats only, do not export csv file')
+    argParser.add_argument('-x', '--export_csv', dest='export_csv', action='store_true', default=False, help='also export the full csv')
     argParser.add_argument('-D', '--debug', dest='debug', action='store_true', default=False, help='print debug statements')
-    argParser.add_argument('-x', '--export_type', dest='export_type', default='CSV', help='Choose either CSV or JSON, default is csv which is currently faster.')
 
     args = argParser.parse_args()
     iniFileName = args.ini_file_name
     outputFileRoot = args.output_file_root
     sampleSize = args.sample_size
     relationshipFilter = args.relationship_filter
-    noCsvExport = args.no_csv_export
+    noCsvExport = not args.export_csv
     debugOn = args.debug
-    exportType = args.export_type.upper()
+    exportType = 'CSV'
 
     #--try to initialize the g2engine
     try:
@@ -619,6 +628,8 @@ if __name__ == '__main__':
     #--get entities and relationships
     statPack = {}
     statPack['SOURCE'] = 'G2Snapshot'
+    statPack['API_VERSION'] = apiVersion['BUILD_VERSION']
+    statPack['RUN_DATE'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     returnCode = processEntities()
 
     #--wrap ups

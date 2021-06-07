@@ -1806,6 +1806,11 @@ class G2CmdShell(cmd.Cmd, object):
                     if self.doDebug:
                         debug(newRecord, 'CFBOM build')
 
+                #--standardize display_level to just display while maintainin backwards compatibility
+                #-- also note that display_delem has been deprecated and does nothing
+                if 'DISPLAY' in elementRecord:
+                    elementRecord['DISPLAY_LEVEL'] = 1 if elementRecord['DISPLAY'].upper() == 'YES' else 0
+
                 #--add to feature bom always
                 newRecord = {}
                 newRecord['FTYPE_ID'] = ftypeID
@@ -1814,6 +1819,7 @@ class G2CmdShell(cmd.Cmd, object):
                 newRecord['DISPLAY_LEVEL'] = elementRecord['DISPLAY_LEVEL'] if 'DISPLAY_LEVEL' in elementRecord else 1
                 newRecord['DISPLAY_DELIM'] = elementRecord['DISPLAY_DELIM'] if 'DISPLAY_DELIM' in elementRecord else ''
                 newRecord['DERIVED'] = elementRecord['DERIVED'] if 'DERIVED' in elementRecord else 'No'
+
                 self.cfgData['G2_CONFIG']['CFG_FBOM'].append(newRecord)
                 if self.doDebug:
                     debug(newRecord, 'FBOM build')
@@ -1857,6 +1863,7 @@ class G2CmdShell(cmd.Cmd, object):
                     elementRecord['element'] = felemRecord['FELEM_CODE']
                     elementRecord['expressed'] = 'No' if not efcallRecord or not self.getRecord('CFG_EFBOM', ['EFCALL_ID', 'FTYPE_ID', 'FELEM_ID'],  [efcallRecord['EFCALL_ID'], fbomRecord['FTYPE_ID'], fbomRecord['FELEM_ID']]) else 'Yes'
                     elementRecord['compared'] = 'No' if not cfcallRecord or not self.getRecord('CFG_CFBOM', ['CFCALL_ID', 'FTYPE_ID', 'FELEM_ID'],  [cfcallRecord['CFCALL_ID'], fbomRecord['FTYPE_ID'], fbomRecord['FELEM_ID']]) else 'Yes'
+                    elementRecord['display'] = 'No' if fbomRecord['DISPLAY_LEVEL'] == 0 else 'Yes' 
                     elementList.append(elementRecord)
                 else:
                     elementList.append(felemRecord['FELEM_CODE'])
@@ -3494,8 +3501,8 @@ class G2CmdShell(cmd.Cmd, object):
         print()
 
     def do_setGenericThreshold(self, arg):
-        '\n\tsetFeature {"plan": "load", "behavior": "<behavior_type>", "scoringCap": 99}' \
-        '\n\tsetFeature {"plan": "search", "behavior": "<behavior_type>", "candidateCap": 99}\n'
+        '\n\tsetGenericThreshold {"plan": "load", "behavior": "<behavior_type>", "scoringCap": 99}' \
+        '\n\tsetGenericThreshold {"plan": "search", "behavior": "<behavior_type>", "candidateCap": 99}\n'
 
         if not argCheck('setGenericThreshold', arg, self.do_setGenericThreshold.__doc__):
             return
@@ -3534,11 +3541,66 @@ class G2CmdShell(cmd.Cmd, object):
 # ===== template commands =====
 
     def do_templateAdd(self, arg):
-        '\n\ttemplateAdd {"basic_identifier": "<attribute_name>"}' \
-        '\n\ttemplateAdd {"exclusive_identifier": "<attribute_name>"}' \
-        '\n\ttemplateAdd {"stable_identifier": "<attribute_name>"}\n'
+        '\nFull syntax:' \
+        '\n\ttemplateAdd {"feature": "<name>", "template": "<template>", "behavior": "<optional-overide>", "comparison": "<optional-overide>}' \
+        '\n\nTypical use: (behavior and comparison are optional)' \
+        '\n\ttemplateAdd {"feature": "customer_number", "template": "global_id"}' \
+        '\n\ttemplateAdd {"feature": "customer_number", "template": "global_id", "behavior": "F1E"}' \
+        '\n\ttemplateAdd {"feature": "customer_number", "template": "global_id", "behavior": "F1E", "comparison": "exact_comp"}' \
+        '\n\nType "templateAdd List" to get a list of valid templates.\n'
 
-        validTemplates = ('IDENTIFIER', 'BASIC_IDENTIFIER', 'EXCLUSIVE_IDENTIFIER', 'STABLE_IDENTIFIER')
+
+        validTemplates = {}
+
+        validTemplates['GLOBAL_ID'] = {'DESCRIPTION': 'globally unique identifer (like an ssn, a credit card, or a medicare_id)', 
+                                       'BEHAVIOR': ['F1', 'F1E', 'F1ES'], 
+                                       'CANDIDATES': ['No'],
+                                       'STANDARDIZE': ['PARSE_ID'],
+                                       'EXPRESSION': ['EXPRESS_ID'],
+                                       'COMPARISON': ['ID_COMP', 'EXACT_COMP'], 
+                                       'FEATURE_CLASS': 'ISSUED_ID',
+                                       'ATTRIBUTE_CLASS': 'IDENTIFIER',
+                                       'ELEMENTS': [{'element': 'ID_NUM', 'expressed': 'No', 'compared': 'no', 'display': 'Yes'}, 
+                                                    {'element': 'ID_NUM_STD', 'expressed': 'Yes', 'compared': 'yes', 'display': 'No'}], 
+                                       'ATTRIBUTES': [{'attribute': '<feature>', 'element': 'ID_NUM', 'required': 'Yes'}]}
+
+        validTemplates['STATE_ID'] = {'DESCRIPTION': 'state issued identifier (like a drivers license)',
+                                      'BEHAVIOR': ['F1', 'F1E', 'F1ES'], 
+                                      'CANDIDATES': ['No'],
+                                      'STANDARDIZE': ['PARSE_ID'],
+                                      'EXPRESSION': ['EXPRESS_ID'],
+                                      'COMPARISON': ['ID_COMP'], 
+                                      'FEATURE_CLASS': 'ISSUED_ID',
+                                      'ATTRIBUTE_CLASS': 'IDENTIFIER',
+                                      'ELEMENTS': [{'element': 'ID_NUM', 'expressed': 'No', 'compared': 'no', 'display': 'Yes'}, 
+                                                   {'element': 'STATE', 'expressed': 'No', 'compared': 'yes', 'display': 'Yes'}, 
+                                                   {'element': 'ID_NUM_STD', 'expressed': 'Yes', 'compared': 'yes', 'display': 'No'}], 
+                                      'ATTRIBUTES': [{'attribute': '<feature>_NUMBER', 'element': 'ID_NUM', 'required': 'Yes'},
+                                                     {'attribute': '<feature>_STATE', 'element': 'STATE', 'required': 'No'}]}
+
+        validTemplates['COUNTRY_ID'] = {'DESCRIPTION': 'country issued identifier (like a passport)',
+                                        'BEHAVIOR': ['F1', 'F1E', 'F1ES'], 
+                                        'CANDIDATES': ['No'],
+                                        'STANDARDIZE': ['PARSE_ID'],
+                                        'EXPRESSION': ['EXPRESS_ID'],
+                                        'COMPARISON': ['ID_COMP'], 
+                                        'FEATURE_CLASS': 'ISSUED_ID',
+                                        'ATTRIBUTE_CLASS': 'IDENTIFIER',
+                                        'ELEMENTS': [{'element': 'ID_NUM', 'expressed': 'No', 'compared': 'no', 'display': 'Yes'}, 
+                                                     {'element': 'COUNTRY', 'expressed': 'No', 'compared': 'yes', 'display': 'Yes'}, 
+                                                     {'element': 'ID_NUM_STD', 'expressed': 'Yes', 'compared': 'yes', 'display': 'No'}], 
+                                        'ATTRIBUTES': [{'attribute': '<feature>_NUMBER', 'element': 'ID_NUM', 'required': 'Yes'},
+                                                       {'attribute': '<feature>_COUNTRY', 'element': 'COUNTRY', 'required': 'No'}]}
+
+
+        if arg and arg.upper() == 'LIST':
+            print()
+            for template in validTemplates:
+                print('\t', template, '-', validTemplates[template]['DESCRIPTION'])
+                print('\t\tbehaviors:', validTemplates[template]['BEHAVIOR'])
+                print('\t\tcomparisons:', validTemplates[template]['COMPARISON'])
+                print()
+            return    
 
         if not argCheck('templateAdd', arg, self.do_templateAdd.__doc__):
             return
@@ -3548,30 +3610,107 @@ class G2CmdShell(cmd.Cmd, object):
             argError(arg, e)
             return
 
-        #--not really expecting a list here, just getting the dictionary key they used
-        for templateName in parmData:
-            attrName = parmData[templateName].upper()
+        feature = parmData['FEATURE'].upper() if 'FEATURE' in parmData else None
+        template = parmData['TEMPLATE'].upper() if 'TEMPLATE' in parmData else None
+        behavior = parmData['BEHAVIOR'].upper() if 'BEHAVIOR' in parmData else None
+        comparison = parmData['COMPARISON'].upper() if 'COMPARISON' in parmData else None
 
-            if templateName not in validTemplates:
-                printWithNewLines( '%s is not a valid template', 'B')
+        standardize = parmData['STANDARDIZE'].upper() if 'STANDARDIZE' in parmData else None
+        expression = parmData['EXPRESSION'].upper() if 'EXPRESSION' in parmData else None
+        candidates = parmData['CANDIDATES'].upper() if 'Candidates' in parmData else None
 
-            #--creates a standard identifier feature and attribute
-            elif 'IDENTIFIER' in templateName:
-                if templateName == 'BASIC_IDENTIFIER':
-                    behavior = 'F1'
-                elif templateName == 'STABLE_IDENTIFIER':
-                    behavior = 'F1ES'
-                else:  #--supports exclusive identifier and the legacy identifier
-                    behavior = 'F1E'
+        if not feature:
+            printWithNewLines('A new feature name is required', 'B')
+            return
+        if self.getRecord('CFG_FTYPE', 'FTYPE_CODE', feature):
+            printWithNewLines('Feature already exists!', 'B')
+            return
 
-                featureParm = '{"feature": "%s", "behavior": "%s", "comparison": "EXACT_COMP", "elementList": [{"compared": "Yes", "element": "ID_NUM"}]}' % (attrName, behavior)
-                attributeParm = '{"attribute": "%s", "class": "IDENTIFIER", "feature": "%s", "element": "ID_NUM", "required": "Yes"}' % (attrName, attrName)
+        if not template:
+            printWithNewLines('A valid template name is required', 'B')
+            return
+        if template not in validTemplates:
+            printWithNewLines('template name supplied is not valid', 'B')
+            return
 
-                printWithNewLines('addFeature %s' % featureParm, 'S')
-                self.do_addFeature(featureParm)
+        if not behavior:
+            behavior = validTemplates[template]['BEHAVIOR'][0]
+        if behavior not in validTemplates[template]['BEHAVIOR']:
+            printWithNewLines('behavior code supplied is not valid for template', 'B')
+            return
 
-                printWithNewLines('addAttribute %s' % attributeParm, 'S')
-                self.do_addAttribute(attributeParm)
+        if not comparison:
+            comparison = validTemplates[template]['COMPARISON'][0]
+        if comparison not in validTemplates[template]['COMPARISON']:
+            printWithNewLines('comparison code supplied is not valid for template', 'B')
+            return
+
+        if not standardize:
+            standardize = validTemplates[template]['STANDARDIZE'][0]
+        if standardize not in validTemplates[template]['STANDARDIZE']:
+            printWithNewLines('standarize code supplied is not valid for template', 'B')
+            return
+
+        if not expression:
+            expression = validTemplates[template]['EXPRESSION'][0]
+        if expression not in validTemplates[template]['EXPRESSION']:
+            printWithNewLines('expression code supplied is not valid for template', 'B')
+            return
+
+        if not candidates:
+            candidates = validTemplates[template]['CANDIDATES'][0]
+        if candidates not in validTemplates[template]['CANDIDATES']:
+            printWithNewLines('candidates setting supplied is not valid for template', 'B')
+            return
+
+        #--values that can't be overridden
+        featureClass = validTemplates[template]['FEATURE_CLASS']
+        attributeClass = validTemplates[template]['ATTRIBUTE_CLASS']
+
+        #--exact comp corrections
+        if comparison == 'EXACT_COMP':
+            standardize = ''
+            expression = ''
+            candidates = 'Yes'
+
+        #--build the feature
+        featureData = {'feature': feature,
+                       'behavior': behavior,
+                       'class': featureClass,
+                       'candidates': candidates,
+                       'standardize': standardize,
+                       'expression': expression,
+                       'comparison': comparison,
+                       'elementList': []}
+        for elementDict in validTemplates[template]['ELEMENTS']:
+            if not expression:
+                elementDict['expressed'] = 'No'
+            if not standardize:
+                if elementDict['display'] == 'Yes':
+                    elementDict['compared'] = 'Yes'
+                else:
+                    elementDict['compared'] = 'No'
+            featureData['elementList'].append(elementDict)
+
+        featureParm = json.dumps(featureData)
+        printWithNewLines('addFeature %s' % featureParm, 'S')
+        self.do_addFeature(featureParm)
+
+        #--build the attributes
+        for attributeDict in validTemplates[template]['ATTRIBUTES']:
+            attributeDict['attribute'] = attributeDict['attribute'].replace('<feature>', feature)
+
+            attributeData = {'attribute': attributeDict['attribute'].upper(),
+                             'class': attributeClass,
+                             'feature': feature, 
+                             'element': attributeDict['element'].upper(), 
+                             'required': attributeDict['required']} 
+
+            attributeParm = json.dumps(attributeData)
+            printWithNewLines('addAttribute %s' % attributeParm, 'S')
+            self.do_addAttribute(attributeParm)
+
+        return
 
 
 # ===== fragment commands =====
@@ -4595,8 +4734,13 @@ def printWithNewLines(ln, pos=''):
         print(f'{ln}')
 
 
-def dictKeysUpper(dict):
-    return {k.upper():v for k,v in dict.items()}
+def dictKeysUpper(dictionary):
+    if isinstance(dictionary, list):
+        return [v.upper() for v in dictionary]
+    elif isinstance(dictionary, dict):
+        return {k.upper():v for k,v in dictionary.items()}
+    else:
+        return dictionary
 
 
 def showNullableJsonString(val):

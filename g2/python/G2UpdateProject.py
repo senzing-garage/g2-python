@@ -128,7 +128,8 @@ if __name__ == '__main__':
     else:
         answer = input("Update Senzing instance at '%s' from version %s to %s? (y/n) " % (target_path, start_version_info['VERSION'], end_version_info['VERSION']))
         answer = answer.strip()
-        if answer != 'y' and answer != 'Y':
+        if answer != 'y' and answer != 'Y' and answer.lower() != 'yes':
+            print("Update declined")
             sys.exit(0)
 
     print("Updating...")
@@ -143,8 +144,8 @@ if __name__ == '__main__':
     for f in files_to_remove:
         try:
             os.remove(os.path.join(target_path, f))
-        except FileNotFoundError:
-            # ok if file doesn't exist
+        except (FileNotFoundError, OSError):
+            # ok if file doesn't exist, or can't be removed for some other reason (permissions, etc)
             pass
 
     for p in paths_to_remove:

@@ -556,7 +556,7 @@ class G2Project:
             if 'DATA_SOURCE' in sourceDict:
                 sourceDict['DATA_SOURCE'] = sourceDict['DATA_SOURCE'].strip().upper()
                 if 'ENTITY_TYPE' not in sourceDict:
-                    sourceDict['ENTITY_TYPE'] = sourceDict['DATA_SOURCE']
+                    sourceDict['ENTITY_TYPE'] = 'GENERIC'
 
             if 'FILE_FORMAT' not in sourceDict:
                 fileName, fileExtension = os.path.splitext(sourceDict['FILE_NAME'])
@@ -670,10 +670,10 @@ class G2Project:
                                 if 'DATA_SOURCE' not in rowData and 'DATA_SOURCE' not in sourceDict:
                                     print(' WARNING: data source missing in row %s and not specified at the file level' % rowCnt)
                                     badCnt += 1
-                                elif 'DATA_SOURCE' in rowData and rowData['DATA_SOURCE'] not in self.dataSourceDict:
+                                elif 'DATA_SOURCE' in rowData and rowData['DATA_SOURCE'].upper() not in self.dataSourceDict:
                                     print(' WARNING: invalid data_source in row %s (%s)' % (rowCnt, rowData['DATA_SOURCE']))
                                     badCnt += 1
-                                elif 'ENTITY_TYPE' in rowData and rowData['ENTITY_TYPE'] not in self.entityTypeDict:
+                                elif 'ENTITY_TYPE' in rowData and rowData['ENTITY_TYPE'].upper() not in self.entityTypeDict:
                                     print(' WARNING: invalid entity_type in row %s (%s)' % (rowCnt, rowData['ENTITY_TYPE']))
                                     badCnt += 1
                                 elif 'DSRC_ACTION' in rowData and rowData['DSRC_ACTION'].upper() == 'X':

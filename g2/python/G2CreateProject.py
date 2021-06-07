@@ -91,7 +91,7 @@ if __name__ == '__main__':
     '''))
 
     # Copy senzing_path to new project path
-    shutil.copytree(senzing_path, target_path, ignore=get_ignored)
+    shutil.copytree(senzing_path, target_path, ignore=get_ignored, symlinks=True)
 
     # Copy resources/templates to etc
     files_to_ignore = shutil.ignore_patterns('G2C.db', 'setupEnv', '*.template')
@@ -105,7 +105,7 @@ if __name__ == '__main__':
     shutil.copyfile(senzing_path.joinpath('resources', 'templates', 'G2C.db'), target_path.joinpath('var', 'sqlite', 'G2C.db'))
 
     # Soft link data
-    target_path.joinpath('data').symlink_to(senz_install_root.joinpath('data', '1.0.0'))
+    target_path.joinpath('data').symlink_to(senz_install_root.joinpath('data', '2.0.0'))
 
     # Files & strings to modify in new project
     files_to_update = [

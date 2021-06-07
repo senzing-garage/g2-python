@@ -1,12 +1,12 @@
 #! /usr/bin/env python3
 
 import argparse
-# import csv
 import importlib
 import json
 import math
 import os
 import pathlib
+import select
 import signal
 # <-ExampleQ-> import pika
 import subprocess
@@ -15,6 +15,8 @@ import tempfile
 import textwrap
 import threading
 import time
+# import csv
+from contextlib import suppress
 from datetime import datetime
 from glob import glob
 from multiprocessing import Process, Queue, Value
@@ -30,8 +32,7 @@ from G2ConfigMgr import G2ConfigMgr
 from G2ConfigTables import G2ConfigTables
 from G2Diagnostic import G2Diagnostic
 from G2Engine import G2Engine
-from G2Exception import (G2ModuleException, G2ModuleLicenseException,
-                         G2ModuleNotInitialized, G2ModuleResolveMissingResEnt)
+from G2Exception import G2ModuleException, G2ModuleLicenseException
 from G2Health import G2Health
 from G2IniParams import G2IniParams
 from G2Product import G2Product
@@ -115,15 +116,37 @@ def processRedo(q, empty_q_wait=False, empty_q_msg='', empty_q_wait_time=None):
 def redoFeed(q, debugTrace, redoMode, redoModeInterval):
     ''' Process records in the redo queue '''
 
+    passNum = cntRows = batch_time_governing = 0
+    batchStartTime = time.time()
+    recBytes = bytearray()
+    rec = None
+    test_get_redo = False
+
     try:
         redo_engine = init_engine('pyG2Redo', g2module_params, debugTrace, True)
-        redo_count = redo_engine.countRedoRecords()
+
+        # Only do initial count if in redo mode, counting large redo can be expensive
+        if args.redoMode:
+            redo_count = redo_engine.countRedoRecords()
+            print(f'Redo records: {redo_count}')
+        # Test if there is anything on redo queue
+        else:
+            try:
+                redo_engine.getRedoRecord(recBytes)
+                rec = recBytes.decode()
+                test_get_redo = True
+            except G2ModuleException as ex:
+                print('ERROR: Could not get redo record for redoFeed()')
+                print(f'       {ex}')
+                exit(1)
+
     except G2ModuleException as ex:
         print('ERROR: Could not start the G2 engine for redoFeed()')
         print(f'       {ex}')
         exit(1)
 
-    if redo_count == 0 and not args.redoMode:
+    # If test didn't return a redo record, exit early
+    if not rec and not args.redoMode:
         print('\n  No redo to perform, resuming loading...\n')
         return
 
@@ -134,10 +157,6 @@ def redoFeed(q, debugTrace, redoMode, redoModeInterval):
     else:
         redo_governor = Governor()
 
-    passNum = cntRows = batch_time_governing = 0
-    batchStartTime = time.time()
-    recBytes = bytearray()
-
     if not args.redoMode:
         print('\n  Pausing loading to process redo records...')
 
@@ -146,13 +165,17 @@ def redoFeed(q, debugTrace, redoMode, redoModeInterval):
         if threadStop.value != 0:
             break
 
-        try:
-            redo_engine.getRedoRecord(recBytes)
-            rec = recBytes.decode()
-        except G2ModuleException as ex:
-            print('ERROR: Could not get redo record for redoFeed()')
-            print(f'       {ex}')
-            exit(1)
+        # Don't get another redo record if fetched one during test of redo queue
+        if not test_get_redo:
+            try:
+                redo_engine.getRedoRecord(recBytes)
+                rec = recBytes.decode()
+            except G2ModuleException as ex:
+                print('ERROR: Could not get redo record for redoFeed()')
+                print(f'       {ex}')
+                exit(1)
+
+        test_get_redo = False
 
         if not rec:
             passNum += 1
@@ -181,13 +204,7 @@ def redoFeed(q, debugTrace, redoMode, redoModeInterval):
 
         if cntRows % args.loadOutputFrequency == 0:
             redoSpeed = int(args.loadOutputFrequency / (time.time() - batchStartTime - batch_time_governing)) if time.time() - batchStartTime != 0 else 1
-            try:
-                remain_redo_count = redo_engine.countRedoRecords()
-            except G2ModuleException as ex:
-                shutdown(f'\nERROR: Could not fetch remaining redo record count: {ex}')
-
-            print(f'  {cntRows} redo records processed at {time_now()}, {redoSpeed} records per second, {remain_redo_count} remaining.')
-
+            print(f'  {cntRows} redo records processed at {time_now()}, {redoSpeed} records per second')
             batchStartTime = time.time()
             batch_time_governing = 0
 
@@ -209,7 +226,7 @@ def redoFeed(q, debugTrace, redoMode, redoModeInterval):
 
     redo_governor.govern_cleanup()
 
-    if not args.redoMode and redo_count > 0:
+    if not args.redoMode:
         print('  Redo processing complete resuming loading...\n')
 
     return
@@ -356,18 +373,18 @@ def check_resources_and_startup(thread_count, doPurge, doLicense=True):
         mem_msg = 'available' if not args.threadCountMem else 'requested (-ntm)'
         calc_thread_msg = calc_thread_msg if not args.threadCountMem else ''
 
-        print(textwrap.dedent(f'''\n\
+        # Don't reformat and move end ''')), it's neater to do this than try and move cursor for next optional calc_thread_msg
+        print(textwrap.dedent(f'''
             Number of Threads
             -----------------
 
                 - Number of threads arg (-nt) not specified. Calculating number of threads using {mem_percent}% of {mem_msg} memory.
-
-                - Monitor system resources. Use command line argument -nt to increase (or decrease) the number of threads.
-        '''))
+                - Monitor system resources. Use command line argument -nt to increase (or decrease) the number of threads on subsequent use.'''))
 
         # Add extra message if args.threadCountMem wasn't specified
         if calc_thread_msg:
-            print(f'    {calc_thread_msg}\n')
+            print(f'    {calc_thread_msg}')
+        print()
 
     # Limit number of threads when sqlite, unless -nt arg specified
     if db_type == 'SQLITE3':
@@ -401,7 +418,7 @@ def check_resources_and_startup(thread_count, doPurge, doLicense=True):
         print(pause_msg, flush=True)
         time.sleep(10)
 
-    if not args.disableDBPerf:
+    if not args.disableDBPerf and not env_var_skip_dbperf:
         print(textwrap.dedent('''\n\
             Database Performance
             --------------------
@@ -439,12 +456,9 @@ def check_resources_and_startup(thread_count, doPurge, doLicense=True):
         critical_error = True
         print(f'!!!!! CRITICAL WARNING: SYSTEM HAS LESS MEMORY AVAILABLE ({available_mem:.1f} GB) THAN THE MINIMUM RECOMMENDED ({min_recommend_mem:.1f} GB) !!!!!\n')
 
-    if critical_error:
+    if critical_error or warning_issued:
         print(pause_msg, flush=True)
-        time.sleep(10)
-    if warning_issued:
-        print(pause_msg, flush=True)
-        time.sleep(3)
+        time.sleep({10 if critical_error else 3})
 
     # Purge repository
     if doPurge:
@@ -468,6 +482,7 @@ def check_resources_and_startup(thread_count, doPurge, doLicense=True):
 
 
 def perform_load():
+    ''' Main processing when not in redo only mode '''
 
     exitCode = 0
     DumpStack.listen()
@@ -488,16 +503,16 @@ def perform_load():
     if not enhanceG2Config(g2Project, g2module_params, g2ConfigJson, args.configuredDatasourcesOnly):
         return 1
 
-    #### No longer required?
     # Purge log files created by g2 from prior runs
-    for filename in glob('pyG2*'):
-        os.remove(filename)
+    # for filename in glob('pyG2*'):
+    #    os.remove(filename)
 
     # Start loading
     for sourceDict in g2Project.sourceList:
 
         filePath = sourceDict['FILE_PATH']
         orig_filePath = filePath
+        shuf_detected = False
 
         cntRows = cntBadParse = cntBadUmf = cntGoodUmf = 0
         g2Project.clearStatPack()
@@ -529,24 +544,91 @@ def perform_load():
         else:
             transportThreadCount = defaultThreadCount
 
-        # Shuffle unless directed not to or in test mode or single threaded
-        if (not args.noShuffle) and (not args.testMode) and transportThreadCount > 1:
+        # Shuffle the source file for performance, unless directed not to or in test mode or single threaded
+        if not args.noShuffle and not args.testMode and transportThreadCount > 1:
 
-            shufFilePath = filePath + '.shuf'
-            print(f'\nShuffling file into {shufFilePath}...\n')
+            if isCompressedFile(filePath):
+                print('INFO: Not shuffling compressed file. Please ensure the data was shuffled before compressing!\n')
 
-            cmd = f'shuf {filePath} > {shufFilePath}'
-            if sourceDict['FILE_FORMAT'] not in ('JSON', 'UMF'):
-                cmd = f'head -n1 {filePath} > {shufFilePath} && tail -n+2 {filePath} | shuf >> {shufFilePath}'
+            # If it looks like source file was previously shuffled by G2Loader don't do it again
+            elif SHUF_NO_DEL_TAG in filePath or SHUF_TAG in filePath:
 
-            try:
-                process = subprocess.run(cmd, shell=True, check=True)
-            except subprocess.CalledProcessError as err: 
-                print(f'\nERROR: Shuffle command failed: {err}')
-                exitCode = 1
-                return
+                shuf_detected = True
+                print(f'INFO: Not shuffling source file, previously shuffled. {SHUF_TAG} or {SHUF_NO_DEL_TAG} in file name\n')
+                if SHUF_NO_DEL_TAG in filePath and args.shuffleNoDelete:
+                    print(f'INFO: Source files with {SHUF_NO_DEL_TAG} in the name are not deleted by G2Loader. Argument -snd (--shuffleNoDelete) used\n')
+                time.sleep(10)
 
-            filePath = shufFilePath
+            else:
+
+                # Add timestamp to no delete shuffled files
+                shuf_file_suffix = SHUF_NO_DEL_TAG + datetime.now().strftime("%Y%m%d_%H-%M-%S") if args.shuffleNoDelete else SHUF_TAG
+                plib_file_path = pathlib.Path(filePath).resolve()
+                shuf_file_path = pathlib.Path(str(plib_file_path) + shuf_file_suffix)
+
+                # Look for previously shuffled files in orginal path...
+                if not args.shuffFilesIgnore:
+
+                    prior_shuf_files = [str(pathlib.Path(p).resolve()) for p in glob(filePath + SHUF_TAG_GLOB)]
+
+                    # ...and  shuffle redirect path if specified
+                    if args.shuffFileRedirect:
+                        redirect_glob = str(shuf_path_redirect.joinpath(plib_file_path.name)) + SHUF_TAG_GLOB
+                        prior_shuf_files.extend([str(pathlib.Path(p).resolve()) for p in glob(redirect_glob)])
+
+                    if prior_shuf_files:
+                        print(f'\nFound previously shuffled files matching {plib_file_path.name}...\n')
+
+                        prior_shuf_files.sort()
+                        for psf in prior_shuf_files:
+                            print(f'  {psf}')
+
+                        print(textwrap.dedent(f'''
+                            Pausing for {SHUF_RESPONSE_TIMEOUT} seconds... (This check can be skipped with the command line argument --shuffFilesIgnore (-sfi) )
+
+                            The above listed files may not contain the same data as the input file. If you wish to use one of the above, please check and compare
+                            the files to ensure the previously shuffled file is what you expect.
+
+                            To quit and use a previously shuffled file hit <Enter>. To continue, wait {SHUF_RESPONSE_TIMEOUT} seconds or type c and <Enter>
+                        '''))
+
+                        # Wait 30 seconds to allow user to use a prior shuffle, timeout and continue if automated
+                        while True:
+                            r, _, _ = select.select([sys.stdin], [], [], SHUF_RESPONSE_TIMEOUT)
+                            if r:
+                                # Read wihtout hitting enter?
+                                read_input = sys.stdin.readline()
+                                if read_input == '\n':
+                                    sys.exit(0)
+                                elif read_input.lower() == 'c\n':
+                                    break
+                                else:
+                                    print('<Enter> to quit or type c and <Enter> to continue: ')
+                            else:
+                                break
+
+                else:
+                    print(f'INFO: Skipping check for previously shuffled files for {plib_file_path.name}')
+
+                # If redirecting the shuffled file modify to redirect path
+                if args.shuffFileRedirect:
+                    shuf_file_path = shuf_path_redirect.joinpath(shuf_file_path.name)
+
+                print(f'\nShuffling file to: {shuf_file_path}\n')
+
+                cmd = f'shuf {filePath} > {shuf_file_path}'
+                if sourceDict['FILE_FORMAT'] not in ('JSON', 'UMF'):
+                    cmd = f'head -n1 {filePath} > {shuf_file_path} && tail -n+2 {filePath} | shuf >> {shuf_file_path}'
+
+                try:
+                    process = subprocess.run(cmd, shell=True, check=True)
+                except subprocess.CalledProcessError as ex:
+                    print(f'\nERROR: Shuffle command failed: {ex}')
+                    exitCode = 1
+                    return
+
+                filePath = str(shuf_file_path)
+
         fileReader = openPossiblyCompressedFile(filePath, 'r')
         #--fileReader = safe_csv_reader(csv.reader(csvFile, fileFormat), cntBadParse)
 
@@ -583,7 +665,7 @@ def perform_load():
             cntRows += 1
 
             # Skip records
-            if not args.redoMode and args.skipRecords and cntRows < args.skipRecords:
+            if not args.redoMode and args.skipRecords and cntRows < args.skipRecords + 1:
                 if cntRows == 1 or cntRows % args.loadOutputFrequency == 0:
                     print(f'INFO: Skipping the first {args.skipRecords} records{"..." if cntRows == 1 else ","} {"skipped " + str(cntRows) + "..." if cntRows > 1 else ""}')
                 continue
@@ -717,12 +799,11 @@ def perform_load():
         if args.createJsonOnly:
             outputFile.close()
 
-        # Remove shuffled file
-        if not args.noShuffleDelete:
-            try:
-                os.remove(shufFilePath)
-            except Exception as _:
-                pass
+        # Remove shuffled file unless run with -snd or prior shuffle detected and not small file/low thread count
+        if not args.shuffleNoDelete and not shuf_detected and transportThreadCount > 1 and not args.noShuffle:
+            print(f'\nDeleting shuffled file: {shuf_file_path}')
+            with suppress(Exception):
+                os.remove(shuf_file_path)
 
         # Stop processes and threads
         stopLoaderProcessAndThreads(threadList, workQueue)
@@ -735,25 +816,35 @@ def perform_load():
             # Use good records count istead of 0 on small fast files
             fileTps = fileTps if fileTps > 0 else cntGoodUmf
 
+            if shuf_detected:
+                shuf_msg = 'Shuffling skipped, file was previously shuffled by G2Loader'
+            elif transportThreadCount > 1:
+                shuf_msg = shuf_file_path if args.shuffleNoDelete and 'shuf_file_path' in locals() else 'Shuffled file deleted (-snd to keep after load)'
+            else:
+                shuf_msg = 'File wasn\'t shuffled, small size or number of threads was 1'
+
+            # Format with seperator if specified
+            skip_records = f'{args.skipRecords:,}' if args.skipRecords and args.skipRecords != 0 else ''
+            stop_on_record = f'{args.stopOnRecord:,}' if args.stopOnRecord and args.stopOnRecord != 0 else ''
+
             print(textwrap.dedent(f'''\n\
                     Processing Information
                     ----------------------
 
                         Start time:                     {datetime.fromtimestamp(fileStartTime).strftime('%I:%M:%S%p').lower()}
                         End time:                       {end_time}
-                        File loaded:                    {orig_filePath}
-                        Shuffled into:                  {shufFilePath if args.noShuffleDelete and 'shufFilePath' in locals() else 'Shuffled file deleted (-nsd to keep after load)'}
-                        Good records:                   {cntGoodUmf}
-                        Bad records:                    {cntBadParse}
-                        Incomplete records:             {cntBadUmf}
-                        Skipped records:                {str(args.skipRecords) + ' (-skr was specified)' if args.skipRecords else ''}
-                        Stop on record:                 {str(args.stopOnRecord) + ' (-sr was specified)' if args.stopOnRecord else ''}
+                        File loaded:                    {pathlib.Path(orig_filePath).resolve()}
+                        Shuffled into:                  {shuf_msg}
+                        Good records:                   {cntGoodUmf:,}
+                        Bad records:                    {cntBadParse:,}
+                        Incomplete records:             {cntBadUmf:,}
+                        Skipped records:                {skip_records + ' (-skr was specified)' if args.skipRecords else 'Not requested'}
+                        Stop on record:                 {stop_on_record + ' (-sr was specified)' if args.stopOnRecord else 'Not requested'}
                         Total elapsed time:             {elapsedMins} mins
                         Time processing redo:           {str(round((time_redo.value - time_starting_engines.value) / 60, 1)) + ' mins' if not args.testMode and not args.noRedo else 'Redo disabled (-n)'}
                         Time paused in governor(s):     {round(time_governing.value / 60, 1)} mins
                         Records per second:             {fileTps}
                 '''))
-
             statPack = g2Project.getStatPack()
             if statPack['FEATURES']:
                 print(' Features:')
@@ -779,7 +870,28 @@ def perform_load():
         print(f'\nProcess aborted at {time_now()} after {elapsed_mins} minutes')
     else:
         print(f'\nProcess completed successfully at {time_now()} in {elapsed_mins} minutes')
+        if args.noRedo:
+            print(textwrap.dedent(f'''\n
 
+                    Process Redo Records
+                    --------------------
+
+                    Loading is complete but the processing of redo records was disabled with --noRedo (-n).
+
+                    All source records have been entity resolved, there may be minor clean up of some entities
+                    required. Please review: https://senzing.zendesk.com/hc/en-us/articles/360007475133
+
+                    If redo records are not being processed separately by another G2Loader instance in redo only
+                    mode - or another process you've built to manage redo records - run G2Loader again in redo
+                    only mode:
+
+                        ./G2Loader.py --redoMode {'--iniFile ' + str(iniFileName) if args.iniFile else ''}
+
+                    or:
+
+                        ./G2Loader.py -R {'-c ' + str(iniFileName) if args.iniFile else ''}
+
+                    '''))
     return exitCode
 
 
@@ -792,9 +904,6 @@ def loadRedoQueueAndProcess():
     threadList, workQueue = startLoaderProcessAndThreads(defaultThreadCount)
     if threadStop.value != 0:
         return exitCode
-
-    # Start processing queue
-    ####fileStartTime = time.time()
 
     if threadStop.value == 0 and not args.testMode and not args.noRedo:
         exitCode = processRedo(workQueue)
@@ -821,7 +930,7 @@ def verifyEntityTypeExists(configJson, entityType):
 
 
 def addDataSource(g2ConfigModule, configDoc, dataSource, configuredDatasourcesOnly):
-    ''' adds a data source if does not exist '''
+    ''' Adds a data source if does not exist '''
 
     returnCode = 0  # 1=inserted, 2=updated
 
@@ -855,7 +964,7 @@ def addDataSource(g2ConfigModule, configDoc, dataSource, configuredDatasourcesOn
 
 
 def addEntityType(g2ConfigModule, configDoc, entityType, configuredDatasourcesOnly):
-    ''' adds an entity type if does not exist '''
+    ''' Adds an entity type if does not exist '''
 
     returnCode = 0  # 1=inserted, 2=updated
 
@@ -1022,7 +1131,7 @@ def sendToG2(threadId_, workQueue_, numThreads_, debugTrace, threadStop, workloa
             threadList = []
 
             for myid in range(numThreads_):
-                threadList.append(threading.Thread(target=g2Thread, args=(str(threadId_)+"-"+str(myid), workQueue_, g2_engine, threadStop, workloadStats, dsrcAction)))
+                threadList.append(threading.Thread(target=g2Thread, args=(str(threadId_) + "-" + str(myid), workQueue_, g2_engine, threadStop, workloadStats, dsrcAction)))
 
             for thread in threadList:
                 thread.start()
@@ -1032,7 +1141,7 @@ def sendToG2(threadId_, workQueue_, numThreads_, debugTrace, threadStop, workloa
         else:
             g2Thread(str(threadId_), workQueue_, g2_engine, threadStop, workloadStats, dsrcAction)
 
-    except:
+    except Exception:
         pass
 
     if workloadStats and numProcessed > 0:
@@ -1040,7 +1149,7 @@ def sendToG2(threadId_, workQueue_, numThreads_, debugTrace, threadStop, workloa
 
     try:
         g2_engine.destroy()
-    except:
+    except Exception:
         pass
 
     return
@@ -1062,7 +1171,7 @@ def g2Thread(threadId_, workQueue_, g2Engine_, threadStop, workloadStats, dsrcAc
 
         try:
             row = workQueue_.get(True, 1)
-        except Empty as ex:
+        except Empty:
             row = None
             continue
 
@@ -1071,10 +1180,9 @@ def g2Thread(threadId_, workQueue_, g2Engine_, threadStop, workloadStats, dsrcAc
             if '_MAPPING_FILE' not in row:
                 rowList = [row]
             else:
-                ####
-                rowList, errorCount = g2Project.csvMapper(row)
+                rowList, errorCount = G2Project.csvMapper(row)
                 if errorCount:
-                    recordList = []
+                    rowList = []
         else:
             rowList = [row]
 
@@ -1225,8 +1333,8 @@ def governor_setup():
 
     # When Postgres always import the Postgres governor - unless requested off (e.g., getting started and no native driver)
     if not args.governor and db_type == 'POSTGRESQL' and not args.governorDisable:
-        print(f'\nUsing {db_type}, loading default governor: {default_postgres_governor}\n')
-        import_governor = default_postgres_governor[:-3] if default_postgres_governor.endswith('.py') else default_postgres_governor
+        print(f'\nUsing {db_type}, loading default governor: {DEFAULT_POSTGRES_GOVERNOR}\n')
+        import_governor = DEFAULT_POSTGRES_GOVERNOR[:-3] if DEFAULT_POSTGRES_GOVERNOR.endswith('.py') else DEFAULT_POSTGRES_GOVERNOR
     # If a governor was specified import it
     elif args.governor:
         import_governor = args.governor[0][:-3] if args.governor[0].endswith('.py') else args.governor[0]
@@ -1280,6 +1388,12 @@ def governor_cleanup():
 
 if __name__ == '__main__':
 
+    DEFAULT_POSTGRES_GOVERNOR = 'governor_postgres_xid.py'
+    SHUF_NO_DEL_TAG = '_-_SzShufNoDel_-_'
+    SHUF_TAG = '_-_SzShuf_-_'
+    SHUF_TAG_GLOB = '_-_SzShuf*'
+    SHUF_RESPONSE_TIMEOUT = 30
+
     exitCode = 0
     threadStop = Value('i', 0)
     time_starting_engines = Value('d', 0)
@@ -1292,7 +1406,6 @@ if __name__ == '__main__':
     DumpStack.listen()
 
     tmp_path = os.path.join(tempfile.gettempdir(), 'senzing', 'g2')
-    default_postgres_governor = 'governor_postgres_xid.py'
 
     # Don't allow argparse to create abbreviations of options
     g2load_parser = argparse.ArgumentParser(allow_abbrev=False)
@@ -1311,6 +1424,8 @@ if __name__ == '__main__':
     g2load_parser.add_argument('-gpd', '--governorDisable', dest='governorDisable', action='store_true', default=False, help='disable default Postgres governor, when repository is Postgres')
     g2load_parser.add_argument('-tmp', '--tmpPath', default=tmp_path, help=f'use this path instead of {tmp_path} (For S3 files)', nargs='?')
     g2load_parser.add_argument('-skr', '--skipRecords', default=0, type=int, help='skip the first n records in a file')
+    g2load_parser.add_argument('-sfi', '--shuffFilesIgnore', action='store_true', default=False, help='skip checking for previously shuffled files and pausing')
+    g2load_parser.add_argument('-sfr', '--shuffFileRedirect', default=None, nargs='+', help='alternative path to output shuffled file to, useful for performance and device space')
 
     # Both -nt and -ntm shouldn't be used together
     num_threads_group = g2load_parser.add_mutually_exclusive_group()
@@ -1319,11 +1434,12 @@ if __name__ == '__main__':
     # Both -p and -f shouldn't be used together
     file_project_group = g2load_parser.add_mutually_exclusive_group()
     file_project_group.add_argument('-p', '--projectFile', dest='projectFileName', default=None, help='the name of a project CSV or JSON file')
-    file_project_group.add_argument('-f', '--fileSpec', dest='projectFileSpec', default=None, help='the name of a file and parameters to load such as /data/mydata.json/?data_source=?,file_format=?', nargs='+')
-    # Both -ns and -nsd shouldn't be used together
-    no_shuf_no_shuf_del = g2load_parser.add_mutually_exclusive_group()
-    no_shuf_no_shuf_del.add_argument('-ns', '--noShuffle', dest='noShuffle', action='store_true', default=False, help='don\'t shuffle input file(s), shuffling improves performance')
-    no_shuf_no_shuf_del.add_argument('-nsd', '--noShuffleDelete', dest='noShuffleDelete', action='store_true', default=False, help='don\'t delete shuffled file(s), default is to delete')
+    file_project_group.add_argument('-f', '--fileSpec', dest='projectFileSpec', default=[], nargs='+', help='the name of a file and parameters to load such as /data/mydata.json/?data_source=?,file_format=?')    # Both -ns and -nsd shouldn't be used together
+    # Both -ns and -snd shouldn't be used together
+    no_shuf_shuf_no_del = g2load_parser.add_mutually_exclusive_group()
+    no_shuf_shuf_no_del.add_argument('-ns', '--noShuffle', dest='noShuffle', action='store_true', default=False, help='don\'t shuffle input file(s), shuffling improves performance')
+    no_shuf_shuf_no_del.add_argument('-snd', '--shuffleNoDelete', action='store_true', default=False, help=f'don\'t delete shuffled source file(s) after G2Loader shuffles them. Adds {SHUF_NO_DEL_TAG} and timestamp to the shuffled file')
+    no_shuf_shuf_no_del.add_argument('-nsd', '--noShuffleDelete', dest='noShuffleDelete', action='store_true', default=False, help='DEPRECATED please use --shuffleNoDelete (-snd)')
     # Both -R and -sr shouldn't be used together
     stop_row_redo_node = g2load_parser.add_mutually_exclusive_group()
     stop_row_redo_node.add_argument('-R', '--redoMode', dest='redoMode', action='store_true', default=False, help='run in redo mode only processesing the redo queue')
@@ -1334,13 +1450,14 @@ if __name__ == '__main__':
     purge_dsrc_delete.add_argument('-P', '--purgeFirst', dest='purgeFirst', action='store_true', default=False, help='purge the Senzing repository before loading, confirmation prompt before purging')
     purge_dsrc_delete.add_argument('--FORCEPURGE', dest='forcePurge', action='store_true', default=False, help='purge the Senzing repository before loading, no confirmation prompt before purging')
 
-    # Options hidden from help, mostly used for testing
+    # Options hidden from help, used for testing
     # Frequency to ouput load and redo rate
     g2load_parser.add_argument('-lof', '--loadOutputFrequency', dest='loadOutputFrequency', default=1000, type=int, help=argparse.SUPPRESS)
     # Frequency to pause loading and perform redo
     g2load_parser.add_argument('-rif', '--redoInterruptFrequency', dest='redoInterruptFrequency', default=100000, type=int, help=argparse.SUPPRESS)
     # Disable DB Perf - automate this for autoscaling cloud
     g2load_parser.add_argument('-dbp', '--disableDBPerf', action='store_true', default=False, help=argparse.SUPPRESS)
+
 # <-ExampleQ-> # Example Q for withInfo
 # <-ExampleQ-> g2load_parser.add_argument('-qn', '--queueName', default='', help='rabbitMQ queue name')
 # <-ExampleQ-> g2load_parser.add_argument('-qh', '--queueHost', default='', help='rabbitMQ host name or IP address')
@@ -1353,6 +1470,10 @@ if __name__ == '__main__':
         print(f'\n{g2load_parser.format_help()}')
         sys.exit(0)
 
+    # Collect env vars that may be needed to react to, e.g. set in infrastructure such as Senzing containers
+    check_skip_dbperf = os.environ.get("SENZING_SKIP_DATABASE_PERFORMANCE_TEST", "UNSET")
+    env_var_skip_dbperf = True if check_skip_dbperf != "UNSET" and check_skip_dbperf == 'true' else False
+
     # Add command line arguments to output to capture when redirecting output
     print(f'\nArguments: {" ".join(sys.argv[1:])}')
 
@@ -1364,6 +1485,34 @@ if __name__ == '__main__':
     if args.skipRecords and args.stopOnRecord and args.skipRecords > args.stopOnRecord:
         print('\nWARNING: The number of records to skip is greater than the record number to stop on. No work would be done!')
         sys.exit(1)
+
+    # Cheack early we can read -f/-p - G2Project can handle but early out before running dbperf etc
+    # Note args.projectFileSpec is a list, G2Project accepts file globbing, split to get only filename not URI
+    if args.projectFileSpec or args.projectFileName:
+        try:
+            with open(args.projectFileSpec[0].split('/?')[0] if args.projectFileSpec else args.projectFileName, 'r') as fh:
+                pass
+        except IOError as ex:
+            print('\nERROR: Unable to read file or project')
+            print(f'       {ex}')
+            sys.exit(1)
+
+    # Check early if shuffFileRedirect is accessible and is a path
+    if args.shuffFileRedirect:
+        shuf_path_redirect = pathlib.Path(args.shuffFileRedirect[0]).resolve()
+        if shuf_path_redirect.is_file() or not shuf_path_redirect.is_dir():
+            print('\nERROR: The path to redirect the shuffled source file to does not exist or is a file.')
+            sys.exit(1)
+
+        # Writeable?
+        try:
+            test_touch = shuf_path_redirect.joinpath('senzTestTouch')
+            test_touch.touch()
+            test_touch.unlink()
+        except IOError as ex:
+            print('\nERROR: Unable to write to the path for the shuffled source file redirection.')
+            print(f'       {ex}')
+            sys.exit(1)
 
     # Check G2Project.ini isn't being used, now deprecated.
     # Don't try and auto find G2Module.ini, safer to ask to be specified during this change!
@@ -1391,7 +1540,7 @@ if __name__ == '__main__':
     conn_str = json.loads(g2module_params)['SQL'].get('CONNECTION', None)
     try:
         db_type = conn_str.split('://')[0].upper()
-    except:
+    except Exception:
         print('\nERROR: Unable to determine DB type, is CONNECTION correct in INI file?')
         print(f'       {iniFileName}')
         sys.exit(1)
@@ -1416,6 +1565,15 @@ if __name__ == '__main__':
     # workloadStats. -w will be removed in future updates.
     workloadStats = args.noWorkloadStats
 
+    # -nsd is deprecated, warn and convert until removed
+    if args.noShuffleDelete:
+        print(textwrap.dedent('''
+            WARNING: --noShuffleDelete (-nsd) has been replaced with --shuffleNoDelete (-snd) and will be removed in the future.
+                     Converting --noShuffleDelete to --shuffleNoDelete for this run, please modify scripts etc to use --shuffleNoDelete.
+        '''))
+        args.shuffleNoDelete = True
+        time.sleep(5)
+
     if args.createJsonOnly:
         args.testMode = True
 
@@ -1429,11 +1587,11 @@ if __name__ == '__main__':
     if args.reprocessMode:
         dsrcAction = 'X'
 
-    # Load sample data if neither -p or -f and not in redo mode
-    if not args.projectFileName and not args.projectFileSpec and not args.redoMode:
-        print('\nNo source file or project file was specified, using the sample data')
+    # Load truthset data if neither -p and -f and not in redo mode but pruge was requested
+    if not args.projectFileName and not args.projectFileSpec and not args.redoMode and (args.purgeFirst or args.forcePurge):
+        print('\nINFO: No source file or project file was specified, loading the sample truth set data...')
         # Convert the path to a string, G2Project needs updating to accomodate pathlib objects
-        args.projectFileName = str(pathlib.Path(os.environ.get('SENZING_ROOT', '/opt/senzing/g2/')).joinpath('python', 'demo', 'sample', 'project.csv'))
+        args.projectFileName = str(pathlib.Path(os.environ.get('SENZING_ROOT', '/opt/senzing/g2/')).joinpath('python', 'demo', 'truth', 'project.csv'))
 
     # Running in redo only mode? Don't purge in redo only mode, would purge the queue!
     if args.redoMode:
@@ -1443,6 +1601,10 @@ if __name__ == '__main__':
             if threadStop.value == 9 or exitCode != 0:
                 break
     else:
+        # Didn't load truthset data and nothing to do!
+        if not args.projectFileName and not args.projectFileSpec:
+            print('\nERROR: No file or project was specified to load!')
+            sys.exit(1)
         exitCode = perform_load()
 
     # Perform governor clean up

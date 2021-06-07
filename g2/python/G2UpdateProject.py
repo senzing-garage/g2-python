@@ -6,13 +6,17 @@ import argparse
 import errno
 import shutil
 import json
+import pathlib
 from distutils.dir_util import copy_tree
 try: import configparser
 except: import ConfigParser as configparser
 
 
 senzing_path = '/opt/senzing/g2'
-paths_to_exclude = []
+jre_dir_name = 'jdk-11.0.10+9-jre'
+past_jre_dir_names = [
+    'jdk-11.0.10+9-jre'
+]
 files_to_exclude = ['G2CreateProject.py', 'G2UpdateProject.py']
 paths_to_remove = [
     os.path.join('extras', 'poc'),
@@ -39,15 +43,12 @@ files_to_remove = [
     os.path.join('python', 'demo', 'ofac', 'ofac.json'),
     os.path.join('python', 'demo', 'ofac', 'project.json'),
 ]
-
-def get_ignored(path, filenames):        
-    ret = []
-    for filename in filenames:
-        if os.path.join(path, filename) in paths_to_exclude:
-            ret.append(filename)
-        elif filename in files_to_exclude:
-            ret.append(filename)
-    return ret
+symlinks = [
+    os.path.join(senzing_path, 'data')
+]
+folders_to_ignore = [
+    pathlib.Path(os.path.join(senzing_path, 'lib', 'jdk-11.0.10+9-jre'))
+]
 
 def find_replace_in_file(filename, old_string, new_string):
     # Safely read the input filename using 'with'
@@ -60,8 +61,13 @@ def find_replace_in_file(filename, old_string, new_string):
         f.write(s)
 
 def dirShouldBeSymlink(source_file_path):
-    if source_file_path == senzing_path + "/data":
-        return True
+    return source_file_path in symlinks
+
+def ignore_folder(dir_to_test):
+    test_path = pathlib.Path(dir_to_test)
+    for this_dir in folders_to_ignore:
+        if this_dir in (test_path, *test_path.parents):
+            return True
     return False
 
 def overlayFiles(sourcePath,destPath):
@@ -71,6 +77,8 @@ def overlayFiles(sourcePath,destPath):
             continue
         source_file_path = os.path.join(sourcePath, the_file)
         target_file_path = os.path.join(destPath, the_file)
+        if ignore_folder(source_file_path):
+            continue
         try:
             # clear out the old file
             if os.path.isfile(target_file_path):
@@ -84,8 +92,9 @@ def overlayFiles(sourcePath,destPath):
             if os.path.isfile(source_file_path):
                 shutil.copy(source_file_path, target_file_path)
             elif os.path.islink(source_file_path):
-                shutil.copy(source_file_path, target_file_path)
+                shutil.copy(source_file_path, target_file_path, follow_symlinks=False)
             elif os.path.isdir(source_file_path): 
+
                 if dirShouldBeSymlink(source_file_path) == True:
                     pass
                 else:
@@ -140,7 +149,7 @@ if __name__ == '__main__':
     while 'var' in files_and_folders:
         files_and_folders.remove('var')
 
-    # Clean up old files/foldes from old releases that are not in the current release
+    # Clean up old files/folders from old releases that are not in the current release
     for f in files_to_remove:
         try:
             os.remove(os.path.join(target_path, f))
@@ -154,15 +163,32 @@ if __name__ == '__main__':
         except (FileNotFoundError, OSError):
             # ok if file doesn't exist or the folder is not empty
             pass
-    
+
+    # Remove JRE (if it exists)
+    jre_to_remove = None
+    for jre in past_jre_dir_names:
+        test_path = os.path.join(target_path, 'lib', jre)
+        if os.path.exists(test_path):
+            jre_to_remove = test_path
+            break
+
+    if jre_to_remove is not None:
+        shutil.rmtree(jre_to_remove)
+
     # Update most of the files from opt
     overlayFiles(senzing_path,target_path)
+
+    # copy over new JRE
+    jre_source_path = os.path.join(senzing_path, 'lib', jre_dir_name)
+    jre_target_path = os.path.join(target_path, 'lib', jre_dir_name)
+
+    shutil.copytree(jre_source_path, jre_target_path)
 
     # soft link in data
     try:
         if os.path.exists(os.path.join(target_path, 'data')):
             os.remove(os.path.join(target_path, 'data'))
-        os.symlink('/opt/senzing/data/1.0.0', os.path.join(target_path, 'data'))
+        os.symlink('/opt/senzing/data/2.0.0', os.path.join(target_path, 'data'))
     except Exception as e:
         print(e)
 

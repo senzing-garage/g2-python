@@ -458,7 +458,7 @@ def check_resources_and_startup(thread_count, doPurge, doLicense=True):
 
     if critical_error or warning_issued:
         print(pause_msg, flush=True)
-        time.sleep({10 if critical_error else 3})
+        time.sleep(10 if critical_error else 3)
 
     # Purge repository
     if doPurge:
@@ -800,9 +800,13 @@ def perform_load():
             outputFile.close()
 
         # Remove shuffled file unless run with -snd or prior shuffle detected and not small file/low thread count
-        if not args.shuffleNoDelete and not shuf_detected and transportThreadCount > 1 and not args.noShuffle:
-            print(f'\nDeleting shuffled file: {shuf_file_path}')
+        if not args.shuffleNoDelete \
+           and not shuf_detected \
+           and not args.noShuffle \
+           and not args.testMode \
+           and transportThreadCount > 1:
             with suppress(Exception):
+                print(f'\nDeleting shuffled file: {shuf_file_path}')
                 os.remove(shuf_file_path)
 
         # Stop processes and threads

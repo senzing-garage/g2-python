@@ -18,7 +18,7 @@ TI-1015,TI-1015-3,resolve: name | ssn ,TRUTH-SET1,PERSON,1017
 TI-1015,TI-1015-3,resolve: name var | close dob | phone,TRUTH-SET1,PERSON,1018
 TI-1015,TI-1015-4,related: sur name | address  | email,TRUTH-SET1,PERSON,1019
 TI-1015,TI-1015-5,related: sur name | address  | email,TRUTH-SET1,PERSON,1020
-TI-1015,TI-1015-5,resolve: no name | ssn | address | email (better match to Marsha),TRUTH-SET1,PERSON,1021
+TI-1015,TI-1015-5,resolve: no name | ssn | address | email (better match to Marsha),TRUTH-SET2,PERSON,1021
 TI-1017,TI-1017-1,anchor,TRUTH-SET1,PERSON,1022
 TI-1017,TI-1017-1,resolve: very close name  | dob,TRUTH-SET1,PERSON,1023
 TI-1017,TI-1017-1,resolve:  name var  | dob,TRUTH-SET2,PERSON,1024

@@ -1,51 +1,49 @@
 #! /usr/bin/env python3
 
-#### import csv
 import fnmatch
 import glob
+import io
 import json
 import optparse
 import os
 import sys
 import textwrap
+from contextlib import redirect_stdout
 from operator import itemgetter
 
 from CompressedFile import (fileRowParser, isCompressedFile,
                             openPossiblyCompressedFile)
-#### from G2Exception import (G2InvalidFileTypeContentsException, G2UnsupportedFileTypeException)
 from G2S3 import G2S3
 
-#### try:
-####     from dateutil.parser import parse as dateParser
-#### except Exception:
-####     pass
-
-try:
-    from nameparser import HumanName as nameParser
-except Exception:
-    pass
 
 #======================
 class G2Project:
 #======================
 
     #----------------------------------------
-    def __init__(self, g2ConfigTables, projectFileName = None, projectFileUri = None, tempFolderPath = None):
+    def __init__(self, g2ConfigTables, dsrcAction, projectFileName=None, projectFileUri=None, tempFolderPath=None):
         """ open and validate a g2 generic configuration and project file """
 
         self.projectSourceList = []
         self.mappingFiles = {}
 
-        self.attributeDict = g2ConfigTables.loadConfig('CFG_ATTR')
         self.dataSourceDict = g2ConfigTables.loadConfig('CFG_DSRC')
         self.entityTypeDict = g2ConfigTables.loadConfig('CFG_ETYPE')
+        self.featureDict = g2ConfigTables.loadConfig('CFG_FTYPE')
+        self.attributeDict = g2ConfigTables.loadConfig('CFG_ATTR')
+
+        self.f1Features = []
+        for feature in self.featureDict:
+            if self.featureDict[feature]['FTYPE_FREQ'] == 'F1':
+                self.f1Features.append(feature)
 
         self.success = True
         self.mappingCache = {}
         self.tempFolderPath = tempFolderPath
+        self.dsrcAction = dsrcAction
 
         self.clearStatPack()
-        self.loadAttributes()
+
         if self.success and projectFileName:
             self.loadProjectFile(projectFileName)
         elif self.success and projectFileUri:
@@ -56,28 +54,6 @@ class G2Project:
     #-----------------------------
     #--mapping functions
     #-----------------------------
-
-    #----------------------------------------
-    def loadAttributes(self):
-        ''' creates a feature/element structure out of the flat attributes in the mapping file '''
-
-        #--create the list of elements per feature so that we can validate the mappings
-        attributeDict = self.attributeDict
-        self.featureDict = {}
-        for configAttribute in attributeDict:
-            if attributeDict[configAttribute]['FTYPE_CODE']:
-                if attributeDict[configAttribute]['FTYPE_CODE'] not in self.featureDict:
-                    self.featureDict[attributeDict[configAttribute]['FTYPE_CODE']] = {}
-                    self.featureDict[attributeDict[configAttribute]['FTYPE_CODE']]['FEATURE_ORDER'] = attributeDict[configAttribute]['ATTR_ID']
-                    self.featureDict[attributeDict[configAttribute]['FTYPE_CODE']]['ATTR_CLASS'] = attributeDict[configAttribute]['ATTR_CLASS']
-                    self.featureDict[attributeDict[configAttribute]['FTYPE_CODE']]['ELEMENT_LIST'] = []
-                if attributeDict[configAttribute]['ATTR_ID'] < self.featureDict[attributeDict[configAttribute]['FTYPE_CODE']]['FEATURE_ORDER']:
-                    self.featureDict[attributeDict[configAttribute]['FTYPE_CODE']]['FEATURE_ORDER'] = attributeDict[configAttribute]['ATTR_ID']
-
-        #--reclass dict no longer valid
-        self.reclassDict = {}
-
-        return
 
     #----------------------------------------
     def lookupAttribute(self, attrName):
@@ -129,54 +105,20 @@ class G2Project:
         ''' places mapped column values into a feature structure '''
 
         #--strip spaces and ensure a string
-        if attrValue:
-            if type(attrValue) in (str, str):
-                attrValue = attrValue.strip()
-                #if attrValue.upper() == 'NULL' or self.containsOnly(attrValue, '.,-?'):
-                #    attrValue = None
-            else:
-                attrValue = str(attrValue)
+        if not str(attrValue).strip():
+            return None
 
-        #--if still a column value
-        if attrValue:
-            attrMapping = self.lookupAttribute(attrName)
-            attrMapping['ATTR_NAME'] = attrName
-            attrMapping['ATTR_VALUE'] = attrValue
-        else:
-            attrMapping = None
+        attrMapping = self.lookupAttribute(attrName)
+        attrMapping['ATTR_NAME'] = attrName
+        attrMapping['ATTR_VALUE'] = attrValue
 
         return attrMapping
 
-    def listHasLowerCaseKeys(self,listCollection):
-        hasLowerCaseKeys = False
-        for item in listCollection:
-            if type(item) is dict:
-                hasLowerCaseKeys = hasLowerCaseKeys or self.dictHasLowerCaseKeys(item)
-            elif type(item) is list:
-                hasLowerCaseKeys = hasLowerCaseKeys or self.listHasLowerCaseKeys(item)
-        return hasLowerCaseKeys
-
-    def dictHasLowerCaseKeys(self,dictCollection):
-        hasLowerCaseKeys = False
-        for dictKey, dictValue in dictCollection.items():
-            for c in dictKey:
-                if c.islower():
-                    hasLowerCaseKeys = True
-            if type(dictValue) is dict:
-                hasLowerCaseKeys = hasLowerCaseKeys or self.dictHasLowerCaseKeys(dictValue)
-            elif type(dictValue) is list:
-                hasLowerCaseKeys = hasLowerCaseKeys or self.listHasLowerCaseKeys(dictValue)
-        return hasLowerCaseKeys
-
-    def recordHasLowerCaseKeys(self,jsonRecord):
-        return self.dictHasLowerCaseKeys(jsonRecord)
-
     #----------------------------------------
-    def mapJsonRecord(self, jsonDict):
-        '''checks for mapping errors'''
+    def testJsonRecord(self, jsonDict, rowNum, sourceDict):
         mappingErrors = []
         mappedAttributeList = []
-        valuesByClass = {}
+        mappedFeatures = {}
         entityName = None
         self.recordCount += 1
 
@@ -187,7 +129,7 @@ class G2Project:
                 for childRow in jsonDict[columnName]:
                     childRowNum += 1
                     if type(childRow) != dict:
-                        mappingErrors.append('expected {records} in list under %s' % columnName)
+                        mappingErrors.append('expected records in list under %s' % columnName)
                         break
                     else:
                         for childColumn in childRow:
@@ -197,19 +139,20 @@ class G2Project:
                                     mappedAttribute['ATTR_LEVEL'] = columnName + '#' + str(childRowNum)
                                     mappedAttributeList.append(mappedAttribute)
                             else:
-                                mappingErrors.append('unexpected {records} under %s of %s' % (childColumn, columnName))
+                                mappingErrors.append('unexpected records under %s of %s' % (childColumn, columnName))
                                 break
 
             elif type(jsonDict[columnName]) != dict: #--safeguard
-                columnValue = jsonDict[columnName]
                 mappedAttribute = self.mapAttribute(columnName, jsonDict[columnName])
                 if mappedAttribute:
                     mappedAttribute['ATTR_LEVEL'] = 'ROOT'
                     mappedAttributeList.append(mappedAttribute)
             else:
-                mappingErrors.append('unexpected {records} under %s' % columnName)
+                mappingErrors.append('unexpected records under %s' % columnName)
 
-        if not mappingErrors:
+        if mappingErrors:
+            self.updateStatPack('ERROR', 'Invalid JSON structure', 'row: ' + str(rowNum))
+        else:
 
             #--create a feature key to group elements that go together
             elementKeyVersions = {}
@@ -237,22 +180,33 @@ class G2Project:
             i = 0
             while i < mappedAttributeListLength:
                 if mappedAttributeList[i]['FEATURE_KEY']:
+
                     featureKey = mappedAttributeList[i]['FEATURE_KEY']
                     ftypeClass = mappedAttributeList[i]['ATTR_CLASS']
                     ftypeCode = mappedAttributeList[i]['FTYPE_CODE']
                     utypeCode = mappedAttributeList[i]['UTYPE_CODE']
                     featureDesc = ''
+                    attrList = []
                     completeFeature = False
                     while i < mappedAttributeListLength and mappedAttributeList[i]['FEATURE_KEY'] == featureKey:
+                        attrCode = mappedAttributeList[i]['ATTR_CODE']
+                        attrValue = mappedAttributeList[i]['ATTR_VALUE']
+                        if attrCode != ftypeCode:
+                            self.updateStatPack('MAPPED', f'{ftypeCode}|{utypeCode}|{attrCode}', attrValue)
                         if mappedAttributeList[i]['FELEM_CODE'] == 'USAGE_TYPE':
                             utypeCode = mappedAttributeList[i]['ATTR_VALUE']
                         elif mappedAttributeList[i]['FELEM_CODE'].upper() not in ('USED_FROM_DT', 'USED_THRU_DT'):
-                            featureDesc += ('' if len(featureDesc) == 0 else ' ') + mappedAttributeList[i]['ATTR_VALUE']
-                            if mappedAttributeList[i]['FELEM_REQ'].upper() in ('YES', 'ANY'):
-                                completeFeature = True
+                            if len(str(mappedAttributeList[i]['ATTR_VALUE'])) if mappedAttributeList[i]['ATTR_VALUE'] != None else 0: #--can't count null values
+                                attrList.append(attrCode)
+                                featureDesc += ' ' + mappedAttributeList[i]['ATTR_VALUE']
+                                if mappedAttributeList[i]['FELEM_REQ'].upper() in ('YES', 'ANY'):
+                                    completeFeature = True
                         i += 1
 
-                    if completeFeature:
+                    if not completeFeature:
+                        self.updateStatPack('INFO', f'Incomplete {ftypeCode}', f'row {self.recordCount}')
+                    else:
+                        self.updateStatPack('MAPPED', f'{ftypeCode}|{utypeCode}|n/a', featureDesc.strip())
                         featureCount += 1
 
                         #--update mapping stats
@@ -262,19 +216,17 @@ class G2Project:
                         else:
                             self.featureStats[statCode] = 1
 
-                        #--yse first name encountered as the entity description
+
+                        #--use first name encountered as the entity description
                         if ftypeCode == 'NAME' and not entityName:
                             entityName = featureDesc
 
-                        #--update values by class
-                        if utypeCode:
-                            featureDesc = utypeCode +': ' + featureDesc
-                        if ftypeCode not in ('NAME', 'ADDRESS', 'PHONE'):
-                            featureDesc = ftypeCode +': ' + featureDesc
-                        if ftypeClass in valuesByClass:
-                            valuesByClass[ftypeClass] += '\n' + featureDesc
+                        #--capture feature stats for validation
+                        validationData = {'USAGE_TYPE': utypeCode, 'ATTR_LIST': attrList}
+                        if ftypeCode not in mappedFeatures:
+                            mappedFeatures[ftypeCode] = [validationData]
                         else:
-                            valuesByClass[ftypeClass] = featureDesc
+                            mappedFeatures[ftypeCode].append(validationData)
 
                 else:
                     #--this is an unmapped attribute
@@ -287,118 +239,189 @@ class G2Project:
                         else:
                             self.unmappedStats[statCode] = 1
 
-                        #--update values by class
-                        attrClass = mappedAttributeList[i]['ATTR_CLASS']
-                        attrDesc = mappedAttributeList[i]['ATTR_NAME'] +': ' + mappedAttributeList[i]['ATTR_VALUE']
-                        if attrClass in valuesByClass:
-                            valuesByClass[attrClass] += '\n' + attrDesc
-                        else:
-                            valuesByClass[attrClass] = attrDesc
+                        attrCode = mappedAttributeList[i]['ATTR_NAME']
+                        attrValue = mappedAttributeList[i]['ATTR_VALUE']
+                        self.updateStatPack('UNMAPPED', attrCode, attrValue)
 
                     elif mappedAttributeList[i]['ATTR_CLASS'] == 'OBSERVATION':
-                        pass #--no need as not creating umf
+                        attrCode = mappedAttributeList[i]['ATTR_NAME']
+                        attrValue = mappedAttributeList[i]['ATTR_VALUE']
+                        self.updateStatPack('MAPPED', 'n/a||' + attrCode, attrValue)  #--"n/a||"" to give same structure as an actual feature
 
                     i += 1
 
-            if featureCount == 0:
-                mappingErrors.append('no features mapped')
+            #--errors and warnings
+            messageList = []
+            if self.dsrcAction == 'A' and featureCount == 0:
+                messageList.append(['ERROR', 'No features mapped'])
 
-        return [mappingErrors, mappedAttributeList, valuesByClass, entityName]
+            #--required missing values
+            if 'DATA_SOURCE' not in jsonDict and 'DATA_SOURCE' not in sourceDict:
+                messageList.append(['ERROR', 'Data source missing'])
+            #--this next condition is confusing because if they specified data source for the file (sourceDict) it will be added automatically
+            #--so if the data source was not specified for the file its in the json record and needs to be validated
+            elif 'DATA_SOURCE' not in sourceDict and jsonDict['DATA_SOURCE'].upper() not in self.dataSourceDict:
+                messageList.append(['ERROR', 'Invalid data source: ' + jsonDict['DATA_SOURCE'].upper()])
+            if 'ENTITY_TYPE' in jsonDict and jsonDict['ENTITY_TYPE'].upper() not in self.entityTypeDict:
+                messageList.append(['ERROR', 'Invalid entity type: ' + jsonDict['ENTITY_TYPE'].upper()])
 
-    #----------------------------------------
-    def validateJsonMessage(self, msg):
-        ''' validates a json message and return the mappings '''
-        jsonErrors = []
-        jsonMappings = {}
-        if type(msg) == dict:
-            jsonDict = msg
-        else:
-            try: jsonDict = json.loads(msg, encoding="utf-8")
-            except:
-                jsonErrors.append('ERROR: could not parse as json')
-                jsonDict = None
+            #--record_id
+            if 'RECORD_ID' not in jsonDict:
+                messageList.append(['INFO', 'Record ID is missing'])
+                record_id = ''
+            else:
+                record_id = jsonDict['RECORD_ID']
 
-        if not jsonErrors:
-            ##print '-' * 50
-            for columnName in jsonDict:
-                ##print columnName+'-'*10, type(jsonDict[columnName])
-                if type(jsonDict[columnName]) == dict:
-                    jsonErrors.append('ERROR: single value expected: %s : %s' % (columnName, json.dumps(jsonDict[columnName])))
-                elif type(jsonDict[columnName]) == list:
-                    childRowNum = 0
-                    for childRow in jsonDict[columnName]:
-                        childRowNum += 1
-                        if type(childRow) != dict:
-                            jsonErrors.append('ERROR: dict expected: %s : %s' % (columnName, json.dumps(jsonDict[columnName])))
-                            break
-                        else:
-                            for childColumn in childRow:
-                                ##print str(childRowNum) + ' ' + childColumn + '-'*8, type(childColumn)
-                                if type(childColumn) in (dict, list):
-                                    jsonErrors.append('ERROR: single value expected: %s : %s' % (columnName, json.dumps(jsonDict[columnName])))
-                                    break
-                                elif childColumn not in jsonMappings:
-                                    jsonMappings[childColumn] = self.lookupAttribute(childColumn)
+            #--name warnings
+            if 'NAME' not in mappedFeatures:
+                messageList.append(['INFO', 'Missing Name'])
+            else:
+                crossAttrList = []
+                for validationData in mappedFeatures['NAME']:
+                    crossAttrList += validationData['ATTR_LIST']
+                    if 'NAME_FULL' in validationData['ATTR_LIST'] and any(item in validationData['ATTR_LIST'] for item in ['NAME_FIRST', 'NAME_LAST', 'NAME_ORG']):
+                        messageList.append(['INFO', 'Full name should be mapped alone'])
+                    elif 'NAME_LAST' in validationData['ATTR_LIST'] and 'NAME_FIRST' not in validationData['ATTR_LIST']:
+                        messageList.append(['INFO', 'Last name without first name'])
+                    elif 'NAME_FIRST' in validationData['ATTR_LIST'] and 'NAME_LAST' not in validationData['ATTR_LIST']:
+                        messageList.append(['INFO', 'First name without last name'])
+                if 'NAME_ORG' in crossAttrList and any(item in crossAttrList for item in ['NAME_FIRST', 'NAME_LAST']):
+                    messageList.append(['WARNING', 'Organization and person names on same record'])
 
-                elif columnName not in jsonMappings:
-                    jsonMappings[columnName] = self.lookupAttribute(columnName)
+            #--address warnings
+            if 'ADDRESS' in mappedFeatures:
+                for validationData in mappedFeatures['ADDRESS']:
+                    if 'ADDR_FULL' in validationData['ATTR_LIST']:
+                        if any(item in validationData['ATTR_LIST'] for item in ['ADDR_LINE1', 'ADDR_CITY', 'ADDR_STATE', 'ADDR_POSTAL_CODE', 'ADDR_COUNTRY' ]):
+                            messageList.append(['INFO', 'Full address should be mapped alone'])
+                    else:
+                        if 'ADDR_LINE1' not in validationData['ATTR_LIST']:
+                            messageList.append(['INFO', 'Address line1 is missing'])
+                        if 'ADDR_CITY' not in validationData['ATTR_LIST']:
+                            messageList.append(['INFO', 'Address city is missing'])
+                        if 'ADDR_POSTAL_CODE' not in validationData['ATTR_LIST']:
+                            messageList.append(['INFO', 'Address postal code is missing'])
 
-        return jsonErrors, jsonDict, jsonMappings
+            #--other warnings
+            if 'OTHER_ID' in mappedFeatures:
+                if len(mappedFeatures['OTHER_ID']) > 1:
+                    messageList.append(['INFO', 'Multiple other_ids mapped'])
+                else:
+                    messageList.append(['INFO', 'Use of other_id feature'])
+
+            for message in messageList:
+                self.updateStatPack(message[0], message[1], 'row: ' + str(rowNum) + (', record_id: ' + record_id if record_id else ''))
+                mappingErrors.append(message)
+
+        return [mappingErrors, mappedAttributeList, entityName]
 
     #---------------------------------------
     def clearStatPack(self):
         ''' clear the statistics on demand '''
         self.recordCount = 0
+        self.statPack = {}
+
         self.featureStats = {}
         self.unmappedStats = {}
         return
 
+    #----------------------------------------
+    def updateStatPack(self, cat1, cat2, value=None):
+
+        if cat1 not in self.statPack:
+            self.statPack[cat1] = {}
+        if cat2 not in self.statPack[cat1]:
+            self.statPack[cat1][cat2] = {'COUNT': 1, 'VALUES': {}}
+        else:
+            self.statPack[cat1][cat2]['COUNT'] += 1
+
+        if value:
+            if value not in self.statPack[cat1][cat2]['VALUES']:
+                self.statPack[cat1][cat2]['VALUES'][value] = 1
+            else:
+                self.statPack[cat1][cat2]['VALUES'][value] += 1
+        return
+
     #---------------------------------------
     def getStatPack(self):
-
-        ''' return the statistics for each feature '''
         statPack = {}
+        fileWarnings = []
+        for cat1 in self.statPack:
+            itemList = []
+            for cat2 in self.statPack[cat1]:
+                reclass_warning = False
+                itemDict = {}
+                if cat1 == 'MAPPED':
+                    cat2parts = cat2.split('|')
+                    itemDict['feature'] = cat2parts[0]
+                    itemDict['label'] = cat2parts[1]
+                    itemDict['attribute'] = cat2parts[2]
+                    itemDict['featId'] = self.featureDict[cat2parts[0]]['ID'] if cat2parts[0] != 'n/a' else 0
+                    itemDict['attrId'] = self.attributeDict[cat2parts[2]]['ATTR_ID'] if cat2parts[2] != 'n/a' else 0
+                    if not itemDict['attrId']:
+                        itemDict['description'] = itemDict['feature'] + (' - ' + itemDict['label'] if itemDict['label'] else '')
+                    elif not itemDict['featId']:
+                        itemDict['description'] = itemDict['attribute']
+                    else:
+                        itemDict['description'] = '  ' + itemDict['attribute'].lower()
 
-        featureStats = []
-        for feature in self.featureStats:
-            featureStat = {}
-            featureStat['FEATURE'] = feature
-            if '-' in feature:
-                featureSplit = feature.split('-')
-                featureStat['FTYPE_CODE'] = featureSplit[0]
-                featureStat['UTYPE_CODE'] = featureSplit[1]
-            else:
-                featureStat['FTYPE_CODE'] = feature
-                featureStat['UTYPE_CODE'] = ''
-            featureStat['FEATURE_ORDER'] = self.featureDict[featureStat['FTYPE_CODE']]['FEATURE_ORDER']
-            featureStat['COUNT'] = self.featureStats[feature]
-            if self.recordCount == 0:
-                featureStat['PERCENT'] = 0
-            else:
-                featureStat['PERCENT'] = round((float(featureStat['COUNT']) / self.recordCount) * 100,2)
-            featureStats.append(featureStat)
-        statPack['FEATURES'] = sorted(featureStats, key=itemgetter('FEATURE_ORDER', 'UTYPE_CODE'))
+                elif cat1 == 'UNMAPPED':
+                    itemDict['attribute'] = cat2
+                else:
+                    itemDict['type'] = cat1
+                    itemDict['message'] = cat2
 
-        unmappedStats = []
-        for attribute in self.unmappedStats:
-            unmappedStat = {}
-            unmappedStat['ATTRIBUTE'] = attribute
-            unmappedStat['COUNT'] = self.unmappedStats[attribute]
-            if self.recordCount == 0:
-                unmappedStat['PERCENT'] = 0
+                itemDict['recordCount'] = self.statPack[cat1][cat2]['COUNT']
+                itemDict['recordPercent'] = self.statPack[cat1][cat2]['COUNT'] / self.recordCount if self.recordCount else 0
+                if cat1 in ('MAPPED', 'UNMAPPED'):
+                    itemDict['uniqueCount'] = len(self.statPack[cat1][cat2]['VALUES'])
+                    itemDict['uniquePercent'] = itemDict['uniqueCount'] / itemDict['recordCount'] if itemDict['recordCount'] else 0
+
+                #--feature warnings (not statistically relevant on small amounts of data)
+                if cat1 == 'MAPPED' and itemDict['attrId'] == 0 and itemDict['recordCount'] >= 1000:
+                    itemDict['frequency'] = self.featureDict[cat2parts[0]]['FTYPE_FREQ']
+                    if itemDict['frequency'] == 'F1' and itemDict['uniquePercent'] < .8:
+                        itemDict['warning'] = True
+                        msg = itemDict['feature'] + ' is only ' + str(round(itemDict['uniquePercent'] * 100, 0)) +'% unique'
+                        fileWarnings.append({'type': 'WARNING', 'message': msg, 'recordCount': itemDict['uniqueCount'], 'recordPercent': itemDict['uniquePercent']})
+                    if itemDict['frequency'] == 'NAME' and itemDict['uniquePercent'] < .7:
+                        itemDict['warning'] = True
+                        msg = itemDict['feature'] + ' is only ' + str(round(itemDict['uniquePercent'] * 100, 0)) +'% unique'
+                        fileWarnings.append({'type': 'WARNING', 'message': msg, 'recordCount': itemDict['uniqueCount'], 'recordPercent': itemDict['uniquePercent']})
+                    if itemDict['frequency'] == 'FF' and itemDict['uniquePercent'] < .7:
+                        itemDict['warning'] = True
+                        msg = itemDict['feature'] + ' is only ' + str(round(itemDict['uniquePercent'] * 100, 0)) +'% unique'
+                        fileWarnings.append({'type': 'WARNING', 'message': msg, 'recordCount': itemDict['uniqueCount'], 'recordPercent': itemDict['uniquePercent']})
+
+                #--reclass prevalent informational messages to warnings
+                elif cat1 == 'INFO' and itemDict['recordPercent'] >= .5:
+                    reclass_warning = True
+
+                itemDict['topValues'] = []
+                for value in sorted(self.statPack[cat1][cat2]['VALUES'].items(), key=lambda x: x[1], reverse=True):
+                    itemDict['topValues'].append('%s (%s)' % value)
+                    if len(itemDict['topValues']) == 10:
+                        break
+
+                if reclass_warning:
+                    fileWarnings.append(itemDict)
+                else:
+                    itemList.append(itemDict)
+
+            if cat1 == 'MAPPED':
+                statPack[cat1] = sorted(itemList, key=lambda x: (x['featId'], x['label'], x['attrId']))
+            elif cat1 == 'UNMAPPED':
+                statPack[cat1] = sorted(itemList, key=lambda x: x['attribute'])
             else:
-                unmappedStat['PERCENT'] = round((float(unmappedStat['COUNT']) / self.recordCount) * 100,2)
-            unmappedStats.append(unmappedStat)
-        statPack['UNMAPPED'] = sorted(unmappedStats, key=itemgetter('ATTRIBUTE'))
+                statPack[cat1] = sorted(itemList, key=lambda x: x['recordCount'], reverse = True)
+
+        if fileWarnings and 'WARNING' not in statPack:
+            statPack['WARNING'] = []
+        for itemDict in fileWarnings:
+            itemDict['type'] = 'WARNING'
+            statPack['WARNING'].insert(0, itemDict)
 
         return statPack
-
-    #---------------------------------------
-    def featureToJson(self, featureList):
-        ''' turns database feature (felem_values) strings back into json attributes '''
-        jsonString = None
-
-        return jsonString
 
     #-----------------------------
     #--project functions
@@ -532,18 +555,6 @@ class G2Project:
         return
 
     #----------------------------------------
-    def dictKeysUpper(self, in_dict):
-        if type(in_dict) is dict:
-            out_dict = {}
-            for key, item in in_dict.items():
-                out_dict[key.upper()] = self.dictKeysUpper(item)
-            return out_dict
-        elif type(in_dict) is list:
-            return [self.dictKeysUpper(obj) for obj in in_dict]
-        else:
-            return in_dict
-
-    #----------------------------------------
     def loadJsonProject(self):
         ''' validates and loads a json project file into memory '''
         try:
@@ -554,9 +565,9 @@ class G2Project:
         else:
             projectData = self.dictKeysUpper(projectData)
             if type(projectData) == list:
-                projectData = {"DATA_SOURCES": projectData}
+                projectData = {'DATA_SOURCES': projectData}
 
-            if "DATA_SOURCES" in projectData:
+            if 'DATA_SOURCES' in projectData:
                 sourceRow = 0
                 for sourceDict in projectData['DATA_SOURCES']:
                     sourceRow += 1
@@ -630,8 +641,6 @@ class G2Project:
 
             if 'DATA_SOURCE' in sourceDict:
                 sourceDict['DATA_SOURCE'] = sourceDict['DATA_SOURCE'].strip().upper()
-                if 'ENTITY_TYPE' not in sourceDict:
-                    sourceDict['ENTITY_TYPE'] = 'GENERIC'
 
             if 'FILE_FORMAT' not in sourceDict:
                 fileName, fileExtension = os.path.splitext(sourceDict['FILE_NAME'])
@@ -727,44 +736,21 @@ class G2Project:
 
                         if sourceDict['FILE_FORMAT'] == 'UMF':
                             if not (rowData.upper().startswith('<UMF_DOC') and rowData.upper().endswith('/UMF_DOC>')):
-                                print(' WARNING: invalid UMF in row %s (%s)' % (rowCnt, rowData[0:50]))
+                                print('WARNING: invalid UMF in row %s (%s)' % (rowCnt, rowData[0:50]))
                                 badCnt += 1
-                        else: #--json or csv
-
-                            #--perform csv mapping if needed
-                            if not sourceDict['MAPPING_FILE']:
-                                recordList = [rowData]
-                            else:
-                                rowData['_MAPPING_FILE'] = sourceDict['MAPPING_FILE']
-                                recordList, errorCount = self.csvMapper(rowData)
-                                if errorCount:
-                                    badCnt += 1
-                                    recordList = []
-
-                            #--ensure output(s) have mapped features
-                            for rowData in recordList:
-                                if 'DATA_SOURCE' not in rowData and 'DATA_SOURCE' not in sourceDict:
-                                    print(' WARNING: data source missing in row %s and not specified at the file level' % rowCnt)
-                                    badCnt += 1
-                                elif 'DATA_SOURCE' in rowData and rowData['DATA_SOURCE'].upper() not in self.dataSourceDict:
-                                    print(' WARNING: invalid data_source in row %s (%s)' % (rowCnt, rowData['DATA_SOURCE']))
-                                    badCnt += 1
-                                elif 'ENTITY_TYPE' in rowData and rowData['ENTITY_TYPE'].upper() not in self.entityTypeDict:
-                                    print(' WARNING: invalid entity_type in row %s (%s)' % (rowCnt, rowData['ENTITY_TYPE']))
-                                    badCnt += 1
-                                elif 'DSRC_ACTION' in rowData and rowData['DSRC_ACTION'].upper() == 'X':
-                                    pass
-                                else:
-                                    #--other mapping errors
-                                    mappingResponse = self.mapJsonRecord(rowData)
-                                    if mappingResponse[0]:
-                                        badCnt += 1
-                                        for mappingError in mappingResponse[0]:
-                                            print(' WARNING: mapping error in row %s (%s)' % (rowCnt, mappingError))
+                        else: #--test json or csv record
+                            mappingResponse = self.testJsonRecord(rowData, rowCnt, sourceDict)
+                            errors = False
+                            for mappingError in mappingResponse[0]:
+                                if mappingError[0] == 'ERROR':
+                                    errors = True
+                                    print(f'    {mappingError[0]}: Row {rowCnt} - {mappingError[1]}')
+                            if errors:
+                                badCnt += 1
 
                     #--fails if too many bad records (more than 10 of 100 or all bad)
                     if badCnt >= 10 or badCnt == rowCnt:
-                        print(' ERROR: Pre-test failed %s bad records in first %s' % (badCnt, rowCnt))
+                        print(f'\nERROR: Pre-test failed {badCnt} bad records in first {rowCnt}')
                         self.success = False
 
                     fileReader.close()
@@ -775,145 +761,114 @@ class G2Project:
         return
 
     #----------------------------------------
-    def csvMapper(self, rowData):
-        outputRows = []
-
-        #--clean garbage values
-        for key in rowData:
-            try:
-                if rowData[key].upper() in ('NULL', 'NONE', 'N/A', '\\N'):
-                    rowData[key] = ''
-            except Exception:
-                pass
-
-        mappingErrors = 0
-        csvMap = self.mappingFiles[rowData['_MAPPING_FILE']]
-
-        if 'CALCULATIONS' in csvMap:
-
-            if type(csvMap['CALCULATIONS']) == dict:
-                for newField in csvMap['CALCULATIONS']:
-                    try: rowData[newField] = eval(csvMap['CALCULATIONS'][newField])
-                    except Exception as e:
-                        print('  error: %s [%s]' % (newField, e))
-                        mappingErrors += 1
-
-            elif type(csvMap['CALCULATIONS']) == list:
-                for calcDict in csvMap['CALCULATIONS']:
-                    try: rowData[calcDict['NAME']] = eval(calcDict['EXPRESSION'])
-                    except Exception as e:
-                        print('  error: %s [%s]' % (calcDict['NAME'], e))
-                        mappingErrors += 1
-
-        #--for each mapping (output record)
-        for mappingData in csvMap['MAPPINGS']:
-            mappedData = {}
-            for columnName in mappingData:
-
-                #--perform the mapping
-                try: columnValue = mappingData[columnName] % rowData
-                except:
-                    print('  error: could not map %s' % mappingData[columnName])
-                    mappingErrors += 1
-                    columnValue = ''
-
-                #--clear nulls
-                if not columnValue or columnValue.upper() in ('NONE', 'NULL', '\\N'):
-                    columnValue = ''
-
-                #--dont write empty tags
-                if columnValue:
-                    mappedData[columnName] = columnValue
-
-            outputRows.append(mappedData)
-
-        return outputRows, mappingErrors
-
-#--------------------
-#--utility functions
-#--------------------
-
-#----------------------------------------
-def pause(question = None):
-    if not question:
-        v_wait = input("PRESS ENTER TO CONTINUE ... ")
-    else:
-        v_wait = input(question)
-    return v_wait
-
-#----------------------------------------
-def containsOnly(seq, aset):
-    ''' Check whether sequence seq contains ONLY items in aset '''
-    for c in seq:
-        if c not in aset: return False
-    return True
-
-#----------------------------------------
-def calcNameKey(fullNameStr, keyType):
-
-    if type(fullNameStr) == list:
-        newStr = ''
-        for namePart in fullNameStr:
-            if namePart:
-                newStr += (' ' + namePart)
-        fullNameStr = newStr.strip()
-
-    try:
-        values = []
-        parsedName = nameParser(fullNameStr)
-        if keyType.upper() == 'FULL':
-            if len(parsedName.last) != 0:
-                values.append(parsedName.last)
-            if len(parsedName.first) != 0:
-                values.append(parsedName.first)
-            if len(parsedName.middle) != 0:
-                values.append(parsedName.middle)
+    def dictKeysUpper(self, in_dict):
+        if type(in_dict) is dict:
+            out_dict = {}
+            for key, item in in_dict.items():
+                out_dict[key.upper()] = self.dictKeysUpper(item)
+            return out_dict
+        elif type(in_dict) is list:
+            return [self.dictKeysUpper(obj) for obj in in_dict]
         else:
-            if len(parsedName.last) != 0 and len(parsedName.first) != 0 and len(parsedName.middle) != 0:
-                values = [parsedName.last, parsedName.first]
-    except:
-        values = fullNameStr.upper().replace('.',' ').replace(',',' ').split()
+            return in_dict
 
-    return '|'.join(sorted([x.upper() for x in values]))
+    #-----------------------------
+    #--report functions
+    #-----------------------------
 
-#----------------------------------------
-def calcOrgKey(fullNameStr):
-    values = fullNameStr.upper().replace('.',' ').replace(',',' ').split()
-    return ' '.join(values)
+    def getTestResults(self, reportStyle = 'Full'):
+        statPack = self.getStatPack()
+        with io.StringIO() as buf, redirect_stdout(buf):
 
-#----------------------------------------
-def compositeKeyBuilder(rowData, keyList):
-    values = []
-    for key in keyList:
-        if key in rowData and rowData[key]:
-            values.append(str(rowData[key]))
-        else:
-            return ''
-    return '|'.join(values)
+            print ('\nTEST RESULTS')
 
-#----------------------------------------
-if __name__ == "__main__":
+            if 'MAPPED' in statPack:
+                tableInfo = [{'header': 'MAPPED FEATURES', 'width': 40, 'just': '<'},
+                             {'header': 'UniqueCount', 'width': 0, 'just': '>', 'style': ','},
+                             {'header': 'UniquePercent', 'width': 0, 'just': '>', 'style': '.1%'},
+                             {'header': 'RecordCount', 'width': 0, 'just': '>', 'style': ','},
+                             {'header': 'RecordPercent', 'width': 0, 'just': '>', 'style': '.1%'}]
+                if reportStyle == 'F':
+                    for i in range(10):
+                        tableInfo.append({'header': f'Top used value {i+1}', 'width': 50})
+                tableData = []
+                for itemDict in statPack['MAPPED']:
+                    rowData = [itemDict['description'], itemDict['uniqueCount'], itemDict['uniquePercent'],
+                               itemDict['recordCount'], itemDict['recordPercent']]
+                    if reportStyle == 'F':
+                        for i in range(10):
+                            if i < len(itemDict['topValues']):
+                                rowData.append(itemDict['topValues'][i])
+                            else:
+                                rowData.append('')
+                    tableData.append(rowData)
 
-    #--running in debug mode - no parameters
-    if len(sys.argv) == 1:
-        mappingFileName = './g2Generic.map'
-        projectFileName = './test/input/project.json'
+                print()
+                self.renderTable(tableInfo, tableData)
 
-    #--capture the command line arguments
-    else:
-        optParser = optparse.OptionParser()
-        optParser.add_option('-m', '--mappingFile', dest='mappingFileName', default='', help='the name of a g2 attribute mapping file')
-        optParser.add_option('-p', '--projectFile', dest='projectFileName', default='', help='the name of a g2 project csv or json file')
-        (options, args) = optParser.parse_args()
-        mappingFileName = options.mappingFileName
-        projectFileName = options.projectFileName
+            if 'UNMAPPED' in statPack:
+                tableInfo[0]['header'] = 'UNMAPPED ATTRIBUTES'
+                tableData = []
+                for itemDict in statPack['UNMAPPED']:
+                    rowData = [itemDict['attribute'], itemDict['uniqueCount'], itemDict['uniquePercent'],
+                               itemDict['recordCount'], itemDict['recordPercent']]
+                    if reportStyle == 'F':
+                        for i in range(10):
+                            if i < len(itemDict['topValues']):
+                                rowData.append(itemDict['topValues'][i])
+                            else:
+                                rowData.append('')
+                    tableData.append(rowData)
 
-    #--create an instance
-    myProject = g2Mapper('self', mappingFileName, projectFileName)
-    if myProject.success:
-        print('SUCCESS: project ' + projectFileName + ' is valid!')
+                print()
+                self.renderTable(tableInfo, tableData)
 
-    #--delete the instance
-    del myProject
+            for msgType in ['ERROR', 'WARNING', 'INFO']:
+                if msgType in statPack:
+                    tableInfo = [{'header': msgType, 'width': 66, 'just': '<'},
+                                 {'header': 'RecordCount', 'width': 0, 'just': '>', 'style': ','},
+                                 {'header': 'RecordPercent', 'width': 0, 'just': '>', 'style': '.1%'}]
+                    if reportStyle == 'F':
+                        for i in range(10):
+                            tableInfo.append({'header': f'Example: {i+1}', 'width': 50})
+                    tableData = []
+                    for itemDict in statPack[msgType]:
+                        rowData = [itemDict['message'], itemDict['recordCount'], itemDict['recordPercent']]
+                        if reportStyle == 'F':
+                            for i in range(10):
+                                if 'topValues' in itemDict and i < len(itemDict['topValues']):
+                                    rowData.append(itemDict['topValues'][i])
+                                else:
+                                    rowData.append('')
+                        tableData.append(rowData)
 
-    sys.exit()
+                    print()
+                    self.renderTable(tableInfo, tableData)
+
+            if 'ERROR' in statPack or 'WARNING' in statPack:
+                print('\n** PLEASE REVISIT THE MAPPINGS FOR THIS FILE BEFORE LOADING IT **')
+            else:
+                print('\nNO ERRORS OR WARNINGS DETECTED')
+
+            return buf.getvalue()
+        return ''
+
+    def renderTable(self, tableInfo, tableData):
+        hdrFormat = ''
+        rowFormat = ''
+        headerRow1 = []
+        headerRow2 = []
+        for columnInfo in tableInfo:
+            if 'width' not in columnInfo or columnInfo['width'] == 0:
+                columnInfo['width'] = len(columnInfo['header'])
+            if 'just' not in columnInfo:
+                columnInfo['just'] = '<'
+            hdrFormat += '{:' + columnInfo['just'] + str(columnInfo['width']) + '} '
+            rowFormat += '{:' + columnInfo['just'] + str(columnInfo['width']) + (columnInfo['style'] if 'style' in columnInfo else '') + '} '
+            headerRow1.append(columnInfo['header'])
+            headerRow2.append('-' * columnInfo['width'])
+
+        print(hdrFormat.format(*headerRow1))
+        print(hdrFormat.format(*headerRow2))
+        for row in tableData:
+            print(rowFormat.format(*row))

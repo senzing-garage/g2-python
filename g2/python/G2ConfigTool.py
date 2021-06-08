@@ -5,12 +5,15 @@ import cmd
 import glob
 import json
 import os
+import pathlib
 import platform
 import re
+import shlex
 import sys
 import textwrap
 import traceback
 from collections import OrderedDict
+from contextlib import suppress
 from datetime import datetime
 from shutil import copyfile
 
@@ -18,12 +21,12 @@ import G2Paths
 
 try:
     from G2IniParams import G2IniParams
+    from G2Engine import G2Engine
     from G2Health import G2Health
-    from G2Database import G2Database
     from G2ConfigMgr import G2ConfigMgr
     from G2Config import G2Config
     import G2Exception
-except:
+except Exception:
     pass
 
 try:
@@ -32,15 +35,20 @@ try:
 except ImportError:
     readline = None
 
+try:
+    from pygments import highlight, lexers, formatters
+except ImportError:
+    pass
+
+
 class G2CmdShell(cmd.Cmd, object):
 
     #Override function from cmd module to make command completion case insensitive
     def completenames(self, text, *ignored):
-        dotext = 'do_'+text
-        return  [a[3:] for a in self.get_names() if a.lower().startswith(dotext.lower())]
+        dotext = 'do_' + text
+        return [a[3:] for a in self.get_names() if a.lower().startswith(dotext.lower())]
 
-
-    def __init__(self, g2_cfg_file, hist_disable, force_mode, file_to_process, ini_file, g2Dbo):
+    def __init__(self, g2_cfg_file, hist_disable, force_mode, file_to_process, ini_file):
         cmd.Cmd.__init__(self)
 
         # Cmd Module settings
@@ -48,9 +56,13 @@ class G2CmdShell(cmd.Cmd, object):
         self.prompt = '(g2cfg) '
         self.ruler = '-'
         self.doc_header = 'Configuration Commands'
-        self.misc_header  = 'Help Topics (help <topic>)'
+        self.misc_header = 'Help Topics (help <topic>)'
         self.undoc_header = 'Misc Commands'
         self.__hidden_methods = ('do_shell', 'do_EOF', 'do_help')
+
+        self.g2_module = G2Engine()
+        self.g2_configmgr = G2ConfigMgr()
+        self.g2_config = G2Config()
 
         # Set flag to know if running an interactive command shell or reading from file
         self.isInteractive = True
@@ -63,25 +75,31 @@ class G2CmdShell(cmd.Cmd, object):
         self.g2ConfigFileUsed = False
         self.configUpdated = False
         self.g2configFile = g2_cfg_file
-        self.iniFileName = G2Paths.get_G2Module_ini_path() if not ini_file else ini_file
-        self.getConfig()
-
-        self.g2Dbo = g2Dbo
+        self.ini_file_name = ini_file
 
         # Processing input file
         self.forceMode = force_mode
         self.fileToProcess = file_to_process
 
         self.attributeClassList = ('NAME', 'ATTRIBUTE', 'IDENTIFIER', 'ADDRESS', 'PHONE', 'RELATIONSHIP', 'OTHER')
-        self.lockedFeatureList = ('NAME','ADDRESS', 'PHONE', 'DOB', 'REL_LINK', 'REL_ANCHOR', 'REL_POINTER')
+        self.lockedFeatureList = ('NAME', 'ADDRESS', 'PHONE', 'DOB', 'REL_LINK', 'REL_ANCHOR', 'REL_POINTER')
 
         self.doDebug = False
+
+        # Setup for pretty printing
+        self.prettyPrint = True
+        self.pygmentsInstalled = True if 'pygments' in sys.modules else False
 
         # Readline and history
         self.readlineAvail = True if 'readline' in sys.modules else False
         self.histDisable = hist_disable
         self.histCheck()
 
+        self.parser = argparse.ArgumentParser(prog='', add_help=False)
+        self.subparsers = self.parser.add_subparsers()
+
+        getConfig_parser = self.subparsers.add_parser('getConfig', usage=argparse.SUPPRESS)
+        getConfig_parser.add_argument('configID', type=int)
 
     def getConfig(self):
         ''' Get configutation from database or set default one if not found '''
@@ -96,84 +114,68 @@ class G2CmdShell(cmd.Cmd, object):
                 self.cfgData = json.load(open(self.g2configFile), encoding="utf-8")
             except ValueError as e:
                 print(f'\nERROR: {self.g2configFile} doesn\'t appear to be valid JSON!')
-                print(f'ERROR: {e}\n')
+                print(f'       {e}\n')
                 sys.exit(1)
 
         else:
 
             # Get the current configuration from the Senzing database
-            iniParams = iniParamCreator.getJsonINIParams(self.iniFileName)
-            g2ConfigMgr = G2ConfigMgr()
-            g2ConfigMgr.initV2('pyG2ConfigMgr', iniParams, False)
-
             defaultConfigID = bytearray()
-            g2ConfigMgr.getDefaultConfigID(defaultConfigID)
+            self.g2_configmgr.getDefaultConfigID(defaultConfigID)
 
             # If a default config isn't found, create a new default configuration
             if not defaultConfigID:
 
-                print('\nWARN: No default config stored in the database, see: https://senzing.zendesk.com/hc/en-us/articles/360036587313')
+                print('\nWARNING: No default config stored in the database, see: https://senzing.zendesk.com/hc/en-us/articles/360036587313')
                 print('\nINFO: Adding a new default configuration to the database...')
 
-                g2_config = G2Config()
-
-                g2_config.initV2('pyG2Config', iniParams, False)
-                config_handle = g2_config.create()
+                config_handle = self.g2_config.create()
 
                 config_default = bytearray()
-                g2_config.save(config_handle, config_default)
+                self.g2_config.save(config_handle, config_default)
                 config_string = config_default.decode()
 
                 # Persist new default config to Senzing Repository
                 try:
-
                     addconfig_id = bytearray()
-                    g2ConfigMgr.addConfig(config_string, 'New default configuration added by G2ConfigTool.', addconfig_id)
-                    g2ConfigMgr.setDefaultConfigID(addconfig_id)
-
+                    self.g2ConfigMgr.addConfig(config_string, 'New default configuration added by G2ConfigTool.', addconfig_id)
+                    self.g2ConfigMgr.setDefaultConfigID(addconfig_id)
                 except G2Exception.G2ModuleGenericException:
                     raise
 
-                g2_config.destroy()
-
+                self.destroyEngines()
+                sys.exit(1)
             else:
-
                 config_current = bytearray()
-                g2ConfigMgr.getConfig(defaultConfigID, config_current)
+                self.g2_configmgr.getConfig(defaultConfigID, config_current)
                 config_string = config_current.decode()
 
             self.cfgData = json.loads(config_string)
 
-            g2ConfigMgr.destroy()
-
+            self.configUpdated = False
 
     def do_quit(self, arg):
 
-        if self.configUpdated and input('\nThere are unsaved changes, would you like to save first? (y/n)  ') in ['y','Y', 'yes', 'YES']:
-                self.do_save(self)
+        if self.configUpdated and input('\nThere are unsaved changes, would you like to save first? (y/n)  ') in ['y', 'Y', 'yes', 'YES']:
+            self.do_save(self)
 
         return True
-
 
     def do_exit(self, arg):
         self.do_quit(self)
 
         return True
 
-
     def do_EOF(self, line):
         return True
-
 
     def emptyline(self):
         return
 
     def default(self, line):
-        printWithNewLines(f'ERROR: Unknown command, type help to list available commands.', 'B')
+        printWithNewLines('ERROR: Unknown command, type help to list available commands.', 'B')
         return
 
-
-    # -----------------------------
     def cmdloop(self):
 
         while True:
@@ -182,11 +184,11 @@ class G2CmdShell(cmd.Cmd, object):
                 break
             except KeyboardInterrupt:
                 if self.configUpdated:
-                    if input('\n\nThere are unsaved changes, would you like to save first? (y/n)  ') in ['y','Y', 'yes', 'YES']:
+                    if input('\n\nThere are unsaved changes, would you like to save first? (y/n)  ') in ['y', 'Y', 'yes', 'YES']:
                         self.do_save(self)
                         break
 
-                if input('\nAre you sure you want to exit? (y/n)  ') in ['y','Y', 'yes', 'YES']:
+                if input('\nAre you sure you want to exit? (y/n)  ') in ['y', 'Y', 'yes', 'YES']:
                     break
                 else:
                     print()
@@ -197,31 +199,65 @@ class G2CmdShell(cmd.Cmd, object):
                 for item in traceback.format_tb(traceback_):
                     printWithNewLines(item)
 
+    def initEngines(self, init_msg=True):
+
+        if init_msg:
+            printWithNewLines('Initializing Senzing engines...', 'B')
+
+        try:
+            self.g2_module.initV2('pyG2E', g2module_params, False)
+            self.g2_configmgr.initV2('pyG2ConfigMgr', g2module_params, False)
+            self.g2_config.initV2('pyG2Config', g2module_params, False)
+        except G2Exception.G2Exception as ex:
+            printWithNewLines(f'ERROR: {ex}', 'B')
+            # Clean up before exiting
+            self.destroyEngines()
+            sys.exit(1)
+
+        # Re-read config after a save
+        if self.configUpdated:
+            self.getConfig()
+
+    def destroyEngines(self):
+
+        with suppress(Exception):
+            self.g2_module.destroy()
+            self.g2_configmgr.destroy()
+            self.g2_config.destroy()
+
     def preloop(self):
 
-        printWithNewLines('Welcome to G2Config Tool. Type help or ? to list commands.', 'B')
+        self.initEngines()
+        self.getConfig()
 
+        printWithNewLines('Welcome to G2Config Tool. Type help or ? to list commands.', 'E')
 
     def postloop(self):
-        pass
 
+        self.destroyEngines()
 
-    #Hide functions from available list of Commands. Seperate help sections for some
+    def do_prettyPrint(self, arg):
+
+        if self.prettyPrint:
+            self.prettyPrint = False
+            printWithNewLines('JSON pretty print is now off', 'B')
+        else:
+            self.prettyPrint = True
+            printWithNewLines('JSON pretty print is now on', 'B')
+
+    # Hide functions from available list of Commands. Seperate help sections for some
     def get_names(self):
         return [n for n in dir(self.__class__) if n not in self.__hidden_methods]
-
 
     def help_KnowledgeCenter(self):
         printWithNewLines(textwrap.dedent('''\
             - Senzing Knowledge Center: https://senzing.zendesk.com/hc/en-us
             '''), 'S')
 
-
     def help_Support(self):
         printWithNewLines(textwrap.dedent('''\
             - Senzing Support Request: https://senzing.zendesk.com/hc/en-us/requests/new
             '''), 'S')
-
 
     def help_Arguments(self):
         printWithNewLines(textwrap.dedent('''\
@@ -234,12 +270,10 @@ class G2CmdShell(cmd.Cmd, object):
                 addAttribute {"attribute": "myNewAttribute"}
             '''), 'S')
 
-
     def help_Shell(self):
         printWithNewLines(textwrap.dedent('''\
             - Run basic OS shell commands: ! <command>
             '''), 'S')
-
 
     def help_History(self):
         printWithNewLines(textwrap.dedent(f'''\
@@ -264,13 +298,25 @@ class G2CmdShell(cmd.Cmd, object):
                 - History file error: {self.histFileError}
             '''), 'S')
 
+    def help_PrettyPrint(self):
+        printWithNewLines(textwrap.dedent(f'''\
+            - Toggles pretty printing on/off for JSON output
+
+            - Pretty print enabled: {self.prettyPrint}
+            '''), 'S')
+
+    def help_PrettyPrintColor(self):
+        printWithNewLines(textwrap.dedent(f'''\
+            - To colorize pretty printed JSON output install python Pygments if not installed: https://pypi.org/project/Pygments/
+
+            - Python Pygments installed: {self.pygmentsInstalled}
+            '''), 'S')
 
     def do_shell(self, line):
         '\nRun OS shell commands: !<command>\n'
 
         output = os.popen(line).read()
         print(output)
-
 
     def histCheck(self):
         '''  '''
@@ -311,15 +357,14 @@ class G2CmdShell(cmd.Cmd, object):
                 self.histFileError = None
                 self.histAvail = True
 
-
     def do_histDedupe(self, arg):
 
         if self.histAvail:
-            if input('\nThis will de-duplicate both this session history and the history file, are you sure? (y/n)  ') in ['y','Y', 'yes', 'YES']:
+            if input('\nThis will de-duplicate both this session history and the history file, are you sure? (y/n)  ') in ['y', 'Y', 'yes', 'YES']:
 
                 with open(self.histFileName) as hf:
                     linesIn = (line.rstrip() for line in hf)
-                    uniqLines = OrderedDict.fromkeys( line for line in linesIn if line )
+                    uniqLines = OrderedDict.fromkeys(line for line in linesIn if line)
 
                     readline.clear_history()
                     for ul in uniqLines:
@@ -331,11 +376,10 @@ class G2CmdShell(cmd.Cmd, object):
         else:
             printWithNewLines('History isn\'t available in this session.', 'B')
 
-
     def do_histClear(self, arg):
 
         if self.histAvail:
-            if input('\nThis will clear both this session history and the history file, are you sure? (y/n)  ') in ['y','Y', 'yes', 'YES']:
+            if input('\nThis will clear both this session history and the history file, are you sure? (y/n)  ') in ['y', 'Y', 'yes', 'YES']:
                 readline.clear_history()
                 readline.write_history_file(self.histFileName)
                 printWithNewLines('Session history and history file both cleared.', 'B')
@@ -343,7 +387,6 @@ class G2CmdShell(cmd.Cmd, object):
                 print()
         else:
             printWithNewLines('History isn\'t available in this session.', 'B')
-
 
     def do_histShow(self, arg):
 
@@ -355,8 +398,11 @@ class G2CmdShell(cmd.Cmd, object):
         else:
             printWithNewLines('History isn\'t available in this session.', 'B')
 
-
     def fileloop(self):
+
+        # Get initial config
+        self.initEngines(init_msg=False)
+        self.getConfig()
 
         # Set flag to know running an interactive command shell or not
         self.isInteractive = False
@@ -366,14 +412,14 @@ class G2CmdShell(cmd.Cmd, object):
         with open(self.fileToProcess) as data_in:
             for line in data_in:
                 line = line.strip()
-                if len(line) > 0 and line[0:1] not in ('#','-','/'):
+                if len(line) > 0 and line[0:1] not in ('#', '-', '/'):
                     #*args allows for empty list if there are no args
                     (read_cmd, *args) = line.split()
                     process_cmd = f'do_{read_cmd}'
                     printWithNewLines(f'----- {read_cmd} -----', 'S')
                     printWithNewLines(f'{line}', 'S')
 
-                    if process_cmd == 'do_save' and not save_detected :
+                    if process_cmd == 'do_save' and not save_detected:
                         save_detected = True
 
                     if process_cmd not in dir(self):
@@ -389,13 +435,12 @@ class G2CmdShell(cmd.Cmd, object):
 
         if not save_detected and self.configUpdated:
             if not self.forceMode:
-                if input('\nWARN: No save command was issued would you like to save now? ') in ['y','Y', 'yes', 'YES']:
+                if input('\nWARNING: No save command was issued would you like to save now? ') in ['y', 'Y', 'yes', 'YES']:
                     self.do_save(self)
                     print()
                     return
 
-            printWithNewLines('WARN: Configuration changes were made but have not been saved!', 'B')
-
+            printWithNewLines('WARNING: Configuration changes were made but have not been saved!', 'B')
 
     def getRecord(self, table, field, value):
 
@@ -413,8 +458,7 @@ class G2CmdShell(cmd.Cmd, object):
                 return self.cfgData['G2_CONFIG'][table][i]
         return None
 
-
-    def getRecordList(self, table, field = None, value = None):
+    def getRecordList(self, table, field=None, value=None):
 
         recordList = []
         for i in range(len(self.cfgData['G2_CONFIG'][table])):
@@ -425,6 +469,61 @@ class G2CmdShell(cmd.Cmd, object):
                 recordList.append(self.cfgData['G2_CONFIG'][table][i])
         return recordList
 
+# ===== General config =====
+
+    def do_getActiveConfigID(self, arg):
+        '\nGet the config identifier:  getActiveConfigID\n'
+
+        response = bytearray()
+
+        try:
+            self.g2_module.getActiveConfigID(response)
+            printResponse(response)
+        except G2Exception.G2Exception as err:
+            printWithNewLines(err, 'B')
+
+    def do_getConfig(self, arg):
+        '\nGet the config:  getConfig <configID> \n'
+
+        try:
+            args = self.parser.parse_args(['getConfig'] + parse(arg))
+        except SystemExit:
+            print(self.do_getConfig.__doc__)
+            return
+
+        response = bytearray()
+
+        try:
+            self.g2_configmgr.getConfig(args.configID, response)
+            self.printJsonResponse(response)
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_getConfigList(self, arg):
+        '\nGet a list of known configs:  getConfigList \n'
+
+        response = bytearray()
+
+        try:
+            self.g2_configmgr.getConfigList(response)
+            self.printJsonResponse(response)
+        except G2Exception.G2Exception as err:
+            print(err)
+
+    def do_getConfigSection(self, arg):
+        '\n\tGet a single section from the current config: getConfigSection <section>\n'
+
+        if not argCheck('do_getConfigSection', arg, self.do_getConfigSection.__doc__):
+            return
+
+        try:
+            section = json.dumps(self.cfgData["G2_CONFIG"][arg])
+        except KeyError:
+            printWithNewLines(f'{arg} is an unknown section in the configuration!', 'B')
+            return
+
+        self.printJsonResponse(section)
+
 
 # ===== global commands =====
 
@@ -433,7 +532,7 @@ class G2CmdShell(cmd.Cmd, object):
 
         # Check if config has unsaved changes
         if self.configUpdated:
-            if input('\nYou have unsaved changes, are you sure you want to discard them? (y/n)  ') not in ['y','Y', 'yes', 'YES']:
+            if input('\nYou have unsaved changes, are you sure you want to discard them? (y/n)  ') not in ['y', 'Y', 'yes', 'YES']:
                 printWithNewLines('\nConfiguration wasn\'t reloaded. Your changes remain but are still unsaved.\n')
                 return
 
@@ -443,7 +542,6 @@ class G2CmdShell(cmd.Cmd, object):
 
         printWithNewLines('Config has been reloaded.', 'B')
 
-
     def do_save(self, args):
         '\n\tSave changes to the config\n'
 
@@ -451,10 +549,10 @@ class G2CmdShell(cmd.Cmd, object):
 
             # If not accepting file commands without prompts and not using older style config file
             if not self.forceMode and not self.g2ConfigFileUsed:
-                    printWithNewLines('WARN: This will immediately update the current configuration in the Senzing repository with the current configuration!','B')
-                    if input('Are you certain you wish to proceed and save changes?  ') not in ['y','Y', 'yes', 'YES']:
-                        printWithNewLines('Current configuration changes have not been saved!', 'B')
-                        return
+                printWithNewLines('WARNING: This will immediately update the current configuration in the Senzing repository with the current configuration!', 'B')
+                if input('Are you certain you wish to proceed and save changes? (y/n)  ') not in ['y', 'Y', 'yes', 'YES']:
+                    printWithNewLines('Current configuration changes have not been saved!', 'B')
+                    return
 
             if self.g2ConfigFileUsed:
 
@@ -469,48 +567,46 @@ class G2CmdShell(cmd.Cmd, object):
                     return
                 else:
                     with open(self.g2configFile, 'w') as fp:
-                        json.dump(self.cfgData, fp, indent = 4, sort_keys = True)
+                        json.dump(self.cfgData, fp, indent=4, sort_keys=True)
                     printWithNewLines(f'Configuration saved to {self.g2configFile}.', 'B')
                     self.configUpdated = False
 
             else:
 
                 try:
-                    iniParamCreator = G2IniParams()
-                    iniParams = iniParamCreator.getJsonINIParams(iniFileName)
-                    g2ConfigMgr = G2ConfigMgr()
-                    g2ConfigMgr.initV2('pyG2ConfigMgr', iniParams, False)
-
                     newConfigId = bytearray()
-                    g2ConfigMgr.addConfig(json.dumps(self.cfgData), 'Updated by G2ConfigTool', newConfigId)
-                    g2ConfigMgr.setDefaultConfigID(newConfigId)
-                    g2ConfigMgr.destroy()
-                except:
-                    printWithNewLines('ERROR: Failed to save configuration to Senzing repository!', 'B')
+                    self.g2_configmgr.addConfig(json.dumps(self.cfgData), 'Updated by G2ConfigTool', newConfigId)
+                    self.g2_configmgr.setDefaultConfigID(newConfigId)
+
+                except G2Exception.G2ModuleGenericException as err:
+                    printWithNewLines('ERROR: Failed to save configuration to Senzing repository!', 'S')
+                    printWithNewLines(f'       {err}', 'E')
                 else:
                     printWithNewLines('Configuration saved to Senzing repository.', 'B')
+
+                    # Reinit engines to pick up changes. This is good practice and will be needed when rewritten to fully use cfg APIs
+                    # Don't disply init msg if not interactive (fileloop)
+                    self.destroyEngines()
+                    self.initEngines(init_msg=(True if self.isInteractive else False))
                     self.configUpdated = False
 
-
-# ===== Autocompleters for import/export =====
+# ===== Autocompleters =====
 
     def complete_exportToFile(self, text, line, begidx, endidx):
         if re.match("exportToFile +", line):
             return self.pathCompletes(text, line, begidx, endidx, 'exportToFile')
 
-
     def complete_importFromFile(self, text, line, begidx, endidx):
         if re.match("importFromFile +", line):
             return self.pathCompletes(text, line, begidx, endidx, 'importFromFile')
-
 
     def pathCompletes(self, text, line, begidx, endidx, callingcmd):
         ''' Auto complete paths for commands that have a complete_ function '''
 
         completes = []
 
-        pathComp = line[len(callingcmd)+1:endidx]
-        fixed = line[len(callingcmd)+1:begidx]
+        pathComp = line[len(callingcmd) + 1:endidx]
+        fixed = line[len(callingcmd) + 1:begidx]
 
         for path in glob.glob(f'{pathComp}*'):
             path = path + os.sep if path and os.path.isdir(path) and path[-1] != os.sep else path
@@ -518,6 +614,71 @@ class G2CmdShell(cmd.Cmd, object):
 
         return completes
 
+    # Auto completers for approproate commands
+    def complete_getAttribute(self, text, line, begidx, endidx):
+        return self.codes_completes('CFG_ATTR', 'ATTR_CODE', text)
+
+    def complete_getFeature(self, text, line, begidx, endidx):
+        return self.codes_completes('CFG_FTYPE', 'FTYPE_CODE', text)
+
+    def complete_getElement(self, text, line, begidx, endidx):
+        return self.codes_completes('CFG_FELEM', 'FELEM_CODE', text)
+
+    def complete_getFragment(self, text, line, begidx, endidx):
+        return self.codes_completes('CFG_ERFRAG', 'ERFRAG_CODE', text)
+
+    def complete_getRule(self, text, line, begidx, endidx):
+        return self.codes_completes('CFG_ERRULE', 'ERRULE_CODE', text)
+
+    def complete_deleteAttribute(self, text, line, begidx, endidx):
+        return self.codes_completes('CFG_ATTR', 'ATTR_CODE', text)
+
+    def complete_deleteDataSource(self, text, line, begidx, endidx):
+        return self.codes_completes('CFG_DSRC', 'DSRC_CODE', text)
+
+    def complete_deleteElement(self, text, line, begidx, endidx):
+        return self.codes_completes('CFG_FELEM', 'FELEM_CODE', text)
+
+    def complete_deleteEntityType(self, text, line, begidx, endidx):
+        return self.codes_completes('CFG_ETYPE', 'ETYPE_CODE', text)
+
+    def complete_deleteFeature(self, text, line, begidx, endidx):
+        return self.codes_completes('CFG_FTYPE', 'FTYPE_CODE', text)
+
+    def complete_deleteFeatureComparison(self, text, line, begidx, endidx):
+        return self.codes_completes('CFG_FTYPE', 'FTYPE_CODE', text)
+
+    def complete_deleteFeatureDistinctCall(self, text, line, begidx, endidx):
+        return self.codes_completes('CFG_FTYPE', 'FTYPE_CODE', text)
+
+    def complete_deleteFragment(self, text, line, begidx, endidx):
+        return self.codes_completes('CFG_ERFRAG', 'ERFRAG_CODE', text)
+
+    def complete_deleteRule(self, text, line, begidx, endidx):
+        return self.codes_completes('CFG_ERRULE', 'ERRULE_CODE', text)
+
+    def codes_completes(self, table, field, arg):
+        ''' Return codes for auto complete on get* delete*  '''
+
+        # Build list each time to have latest even after an add*, delete*
+        codes_list = self.getRecordCodes(table, field)
+
+        return [code for code in codes_list if code.lower().startswith(arg.lower())]
+
+    def getRecordCodes(self, table, field):
+        ''' Return list of codes from config '''
+
+        code_list = []
+        for i in range(len(self.cfgData['G2_CONFIG'][table])):
+            code_list.append(self.cfgData["G2_CONFIG"][table][i][field])
+
+        return code_list
+
+    def complete_getConfigSection(self, text, line, begidx, endidx):
+        '''  '''
+        return [section for section in self.cfgData["G2_CONFIG"].keys() if section.lower().startswith(text.lower())]
+
+# ===== Export / Import =====
 
     def do_exportToFile(self, arg):
         '\n\tExport the config to a file:  exportToFile <fileName>\n'
@@ -527,7 +688,7 @@ class G2CmdShell(cmd.Cmd, object):
 
         try:
             with open(arg, 'w') as fp:
-                json.dump(self.cfgData, fp, indent = 4, sort_keys = True)
+                json.dump(self.cfgData, fp, indent=4, sort_keys=True)
         except OSError as ex:
             printWithNewLines(textwrap.dedent(f'''\
                 ERROR: Couldn\'t export to {arg}.
@@ -537,7 +698,6 @@ class G2CmdShell(cmd.Cmd, object):
         else:
             printWithNewLines('Successfully exported!', 'B')
 
-
     def do_importFromFile(self, arg):
         '\n\tImport a config from a file:  importFromFile <fileName>\n'
 
@@ -545,7 +705,7 @@ class G2CmdShell(cmd.Cmd, object):
             return
 
         if self.configUpdated:
-            if input('\nYou have unsaved changes, are you sure you want to discard them? (y/n)  ') not in ['y','Y', 'yes', 'YES']:
+            if input('\nYou have unsaved changes, are you sure you want to discard them? (y/n)  ') not in ['y', 'Y', 'yes', 'YES']:
                 printWithNewLines('Configuration wasn\'t imported.  Your changes remain but are still unsaved.')
                 return
 
@@ -575,15 +735,15 @@ class G2CmdShell(cmd.Cmd, object):
         else:
 
             if self.cfgData['G2_CONFIG']['CONFIG_BASE_VERSION']['COMPATIBILITY_VERSION']['CONFIG_VERSION'] != parmData['EXPECTEDVERSION']:
-                printWithNewLines('Compatibility version does not match specified value [%s]!  Actual version is [%s].' % (parmData['EXPECTEDVERSION'],self.cfgData['G2_CONFIG']['CONFIG_BASE_VERSION']['COMPATIBILITY_VERSION']['CONFIG_VERSION']), 'B')
-                if self.isInteractive == False:
+                printWithNewLines('Compatibility version does not match specified value [%s]!  Actual version is [%s].' % (parmData['EXPECTEDVERSION'], self.cfgData['G2_CONFIG']['CONFIG_BASE_VERSION']['COMPATIBILITY_VERSION']['CONFIG_VERSION']), 'B')
+
+                if self.isInteractive is False:
                     # throw an exception, so that we abort running scripts
                     raise Exception('Incorrect compatibility version.')
                 else:
                     # just finish normally, for the interactive command shell.
                     return
             printWithNewLines('Compatibility version successfully verified!', 'B')
-
 
     def do_updateCompatibilityVersion(self, arg):
         '\n\tupdateCompatibilityVersion {"fromVersion": "1", "toVersion": "2"}\n'
@@ -605,7 +765,6 @@ class G2CmdShell(cmd.Cmd, object):
             self.configUpdated = True
             printWithNewLines('Compatibility version successfully changed!', 'B')
 
-
     def do_getCompatibilityVersion(self, arg):
         '\n\tgetCompatibilityVersion\n'
 
@@ -613,7 +772,7 @@ class G2CmdShell(cmd.Cmd, object):
             compat_version = self.cfgData['G2_CONFIG']['CONFIG_BASE_VERSION']['COMPATIBILITY_VERSION']['CONFIG_VERSION']
             printWithNewLines(f'Compatibility version: {compat_version}', 'B')
         except KeyError:
-            printWithNewLines(f'ERROR: Couldn\'t retrieve compatibility version', 'B')
+            printWithNewLines('ERROR: Couldn\'t retrieve compatibility version', 'B')
 
 
 # ===== Config section commands =====
@@ -639,7 +798,6 @@ class G2CmdShell(cmd.Cmd, object):
             self.configUpdated = True
             printWithNewLines('Successfully added!', 'B')
 
-
     def do_addConfigSectionField(self, arg):
         '\n\taddConfigSectionField {"section": "<section_name>","field": "<field_name>","value": "<field_value>"}\n'
 
@@ -649,15 +807,15 @@ class G2CmdShell(cmd.Cmd, object):
         try:
             parmData = dictKeysUpper(json.loads(arg))
 
-            if not 'SECTION' in parmData or len(parmData['SECTION']) == 0:
+            if 'SECTION' not in parmData or len(parmData['SECTION']) == 0:
                 raise ValueError('Config section name is required!')
             parmData['SECTION'] = parmData['SECTION'].upper()
 
-            if not 'FIELD' in parmData or len(parmData['FIELD']) == 0:
+            if 'FIELD' not in parmData or len(parmData['FIELD']) == 0:
                 raise ValueError('Field name is required!')
             parmData['FIELD'] = parmData['FIELD'].upper()
 
-            if not 'VALUE' in parmData:
+            if 'VALUE' not in parmData:
                 raise ValueError('Field value is required!')
             parmData['VALUE'] = parmData['VALUE']
 
@@ -684,13 +842,14 @@ class G2CmdShell(cmd.Cmd, object):
 # ===== data Source commands =====
 
     def do_listDataSources(self, arg):
-        '\n\tlistDataSources\n'
+        '\n\tlistDataSources [search_value]\n'
 
         print()
-        for dsrcRecord in sorted(self.getRecordList('CFG_DSRC'), key = lambda k: k['DSRC_ID']):
+        for dsrcRecord in sorted(self.getRecordList('CFG_DSRC'), key=lambda k: k['DSRC_ID']):
+            if arg and arg.lower() not in str(dsrcRecord).lower():
+                continue
             print('{"id": %i, "dataSource": "%s"}' % (dsrcRecord['DSRC_ID'], dsrcRecord['DSRC_CODE']))
         print()
-
 
     def do_addDataSource(self, arg):
         '\n\taddDataSource {"dataSource": "<dataSource_name>"}\n'
@@ -731,7 +890,6 @@ class G2CmdShell(cmd.Cmd, object):
             if self.doDebug:
                 debug(newRecord)
 
-
     def do_deleteDataSource(self, arg):
         '\n\tdeleteDataSource {"dataSource": "<dataSource_name>"}\n'
 
@@ -746,7 +904,7 @@ class G2CmdShell(cmd.Cmd, object):
         else:
 
             if parmData['DATASOURCE'] == 'SEARCH':
-                printWithNewLine('Can\'t delete the SEARCH data source!')
+                printWithNewLines('Can\'t delete the SEARCH data source!', 'B')
                 return
 
             deleteCnt = 0
@@ -755,6 +913,7 @@ class G2CmdShell(cmd.Cmd, object):
                     del self.cfgData['G2_CONFIG']['CFG_DSRC'][i]
                     deleteCnt += 1
                     self.configUpdated = True
+
             if deleteCnt == 0:
                 printWithNewLines('Record not found!', 'B')
             else:
@@ -764,16 +923,18 @@ class G2CmdShell(cmd.Cmd, object):
 # ===== entity class commands =====
 
     def do_listEntityClasses(self, arg):
-        '\n\tlistEntityClasses\n'
+        '\n\tlistEntityClasses [search_value]\n'
 
         print()
-        for eclassRecord in sorted(self.getRecordList('CFG_ECLASS'), key = lambda k: k['ECLASS_ID']):
+        for eclassRecord in sorted(self.getRecordList('CFG_ECLASS'), key=lambda k: k['ECLASS_ID']):
+            if arg and arg.lower() not in str(eclassRecord).lower():
+                continue
             print('{"id": %i, "entityClass": "%s"}' % (eclassRecord['ECLASS_ID'], eclassRecord['ECLASS_CODE']))
         print()
 
     ## ----------------------------
     #def do_addEntityClass(self ,arg):
-        '\n\taddEntityClass {"entityClass": "<entityClass_value>"}\n'
+    #    '\n\taddEntityClass {"entityClass": "<entityClass_value>"}\n'
     #
     #    if not argCheck('addEntityClass', arg, self.do_addEntityClass.__doc__):
     #        return
@@ -844,14 +1005,15 @@ class G2CmdShell(cmd.Cmd, object):
 # ===== entity type commands =====
 
     def do_listEntityTypes(self, arg):
-        '\n\tlistEntityTypes\n'
+        '\n\tlistEntityTypes [search_value]\n'
 
         print()
-        for etypeRecord in sorted(self.getRecordList('CFG_ETYPE'), key = lambda k: k['ETYPE_ID']):
+        for etypeRecord in sorted(self.getRecordList('CFG_ETYPE'), key=lambda k: k['ETYPE_ID']):
+            if arg and arg.lower() not in str(etypeRecord).lower():
+                continue
             eclassRecord = self.getRecord('CFG_ECLASS', 'ECLASS_ID', etypeRecord['ECLASS_ID'])
             print('{"id": %i, "entityType":"%s", "class": "%s"}' % (etypeRecord['ETYPE_ID'], etypeRecord['ETYPE_CODE'], ('unknown' if not eclassRecord else eclassRecord['ECLASS_CODE'])))
         print()
-
 
     def do_addEntityType(self, arg):
         '\n\taddEntityType {"entityType": "<entityType_value>"}\n'
@@ -901,7 +1063,6 @@ class G2CmdShell(cmd.Cmd, object):
             if self.doDebug:
                 debug(newRecord)
 
-
     def do_deleteEntityType(self, arg):
         '\n\tdeleteEntityType {"entityType": "<entityType_value>"}\n'
 
@@ -929,45 +1090,50 @@ class G2CmdShell(cmd.Cmd, object):
 
 # ===== feature commands =====
 
-
     def do_listFunctions(self, arg):
-        '\n\tlistFunctions\n'
+        '\n\tlistFunctions [search_value]\n'
 
         print()
         for funcRecord in sorted(self.getRecordList('CFG_SFUNC'), key = lambda k: k['SFUNC_ID']):
-            print('{"type": "Standardization", "function": "%s"}' % (funcRecord['SFUNC_CODE']))
+            if arg and arg.lower() not in str(funcRecord).lower():
+                continue
+            print(f'{{"id": "{funcRecord["SFUNC_ID"]}", type": "Standardization", "function": "{funcRecord["SFUNC_CODE"]}"}}')
+
         print()
         for funcRecord in sorted(self.getRecordList('CFG_EFUNC'), key = lambda k: k['EFUNC_ID']):
-            print('{"type": "Expression", "function": "%s"}' % (funcRecord['EFUNC_CODE']))
+            if arg and arg.lower() not in str(funcRecord).lower():
+                continue
+            print(f'{{"id": "{funcRecord["EFUNC_ID"]}", type": "Expression", "function": "{funcRecord["EFUNC_CODE"]}"}}')
+
         print()
         for funcRecord in sorted(self.getRecordList('CFG_CFUNC'), key = lambda k: k['CFUNC_ID']):
-            print('{"type": "Comparison", "function": "%s"}' % (funcRecord['CFUNC_CODE']))
-        print()
+            if arg and arg.lower() not in str(funcRecord).lower():
+                continue
+            print(f'{{"id": "{funcRecord["CFUNC_ID"]}", type": "Comparison", "function": "{funcRecord["CFUNC_CODE"]}"}}')
 
+        print()
 
     def do_listFeatureClasses(self, arg):
-        '\n\tlistFeatureClasses\n'
+        '\n\tlistFeatureClasses [search_value]\n'
 
         print()
-        for fclassRecord in sorted(self.getRecordList('CFG_FCLASS'), key = lambda k: k['FCLASS_ID']):
+        for fclassRecord in sorted(self.getRecordList('CFG_FCLASS'), key=lambda k: k['FCLASS_ID']):
+            if arg and arg.lower() not in str(fclassRecord).lower():
+                continue
             print('{"id": %i, "class":"%s"}' % (fclassRecord['FCLASS_ID'], fclassRecord['FCLASS_CODE']))
         print()
 
-
     def do_listFeatures(self, arg):
-        '\n\tlistFeatures\n'
+        '\n\tlistFeatures [search_value]\n'
         #'\n\tlistFeatures\t\t(displays all features)\n' #\
         #'listFeatures -n\t\t(to display new features only)\n'
 
         print()
-        for ftypeRecord in sorted(self.getRecordList('CFG_FTYPE'), key = lambda k: k['FTYPE_ID']):
-            if arg != '-n' or ftypeRecord['FTYPE_ID'] >=  1000:
-                featureJson = self.getFeatureJson(ftypeRecord)
-                print(featureJson)
-                if 'ERROR:' in featureJson:
-                    print('Corrupted config!  Delete this feature and re-add.')
+        for ftypeRecord in sorted(self.getRecordList('CFG_FTYPE'), key=lambda k: k['FTYPE_ID']):
+            if arg and arg.lower() not in str(ftypeRecord).lower():
+                continue
+            printWithNewLines(self.getFeatureJson(ftypeRecord), 'E')
         print()
-
 
     def do_getFeature(self, arg):
         '\n\tgetFeature {"feature": "<feature_name>"}\n'
@@ -986,8 +1152,7 @@ class G2CmdShell(cmd.Cmd, object):
             if not ftypeRecord:
                 printWithNewLines('Feature %s not found!' % parmData['FEATURE'], 'B')
             else:
-                printWithNewLines(self.getFeatureJson(ftypeRecord), 'B')
-
+                self.printJsonResponse(self.getFeatureJson(ftypeRecord))
 
     def do_addFeatureComparisonElement(self, arg):
         '\n\taddFeatureComparisonElement {"feature": "<feature_name>", "element": "<element_name>"}\n'
@@ -1050,7 +1215,6 @@ class G2CmdShell(cmd.Cmd, object):
             self.configUpdated = True
             printWithNewLines('Successfully added!', 'B')
 
-
     def do_addFeatureDistinctCallElement(self, arg):
         '\n\taddFeatureDistinctCallElement {"feature": "<feature_name>", "element": "<element_name>"}\n'
 
@@ -1112,7 +1276,6 @@ class G2CmdShell(cmd.Cmd, object):
             self.configUpdated = True
             printWithNewLines('Successfully added!', 'B')
 
-
     def do_addFeatureComparison(self, arg):
         '\n\taddFeatureComparison {"feature": "<feature_name>", "comparison": "<comparison_function>", "elementList": ["<element_detail(s)"]}' \
         '\n\n\taddFeatureComparison {"feature":"testFeat", "comparison":"exact_comp", "elementlist": [{"element": "test"}]}\n'
@@ -1123,7 +1286,7 @@ class G2CmdShell(cmd.Cmd, object):
         try:
             parmData = dictKeysUpper(json.loads(arg))
             parmData['FEATURE'] = parmData['FEATURE'].upper()
-            if not 'ELEMENTLIST' in parmData or len(parmData['ELEMENTLIST']) == 0:
+            if 'ELEMENTLIST' not in parmData or len(parmData['ELEMENTLIST']) == 0:
                 raise ValueError('Element list is required!')
             if type(parmData['ELEMENTLIST']) is not list:
                 raise ValueError('Element list should be specified as: "elementlist": ["<values>"]\n\n\tNote the [ and ]')
@@ -1138,7 +1301,7 @@ class G2CmdShell(cmd.Cmd, object):
                 return
             ftypeID = ftypeRecord['FTYPE_ID']
 
-            cfuncID = 0  #--comparison function
+            cfuncID = 0  # --comparison function
             if 'COMPARISON' not in parmData or len(parmData['COMPARISON']) == 0:
                 printWithNewLines('Comparison function not specified!', 'B')
                 return
@@ -1211,7 +1374,6 @@ class G2CmdShell(cmd.Cmd, object):
             self.configUpdated = True
             printWithNewLines('Successfully added!', 'B')
 
-
     def do_deleteFeatureComparisonElement(self, arg):
         '\n\tdeleteFeatureComparisonElement {"feature": "<feature_name>", "element": "<element_name>"}\n'
 
@@ -1239,7 +1401,7 @@ class G2CmdShell(cmd.Cmd, object):
                 return
 
             deleteCnt = 0
-            for i in range(len(self.cfgData['G2_CONFIG']['CFG_FTYPE'])-1, -1, -1):
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_FTYPE']) -1, -1, -1):
                 if self.cfgData['G2_CONFIG']['CFG_FTYPE'][i]['FTYPE_CODE'] == parmData['FEATURE']:
                     for i1 in range(len(self.cfgData['G2_CONFIG']['CFG_CFCALL'])-1, -1, -1):
                         if self.cfgData['G2_CONFIG']['CFG_CFCALL'][i1]['FTYPE_ID'] == ftypeRecord['FTYPE_ID']:
@@ -1254,7 +1416,6 @@ class G2CmdShell(cmd.Cmd, object):
             else:
                 printWithNewLines('%s rows deleted!' % deleteCnt, 'B')
 
-
     def do_deleteFeatureComparison(self, arg):
         '\n\tdeleteFeatureComparison {"feature": "<feature_name>"}\n'
 
@@ -1262,7 +1423,7 @@ class G2CmdShell(cmd.Cmd, object):
             return
 
         try:
-            parmData = dictKeysUpper(json.loads(arg))
+            parmData = dictKeysUpper(json.loads(arg)) if arg.startswith('{') else {"FEATURE": arg}
             parmData['FEATURE'] = parmData['FEATURE'].upper()
         except (ValueError, KeyError) as e:
             argError(arg, e)
@@ -1294,7 +1455,6 @@ class G2CmdShell(cmd.Cmd, object):
             else:
                 printWithNewLines('%s rows deleted!' % deleteCnt, 'B')
 
-
     def do_deleteFeatureDistinctCall(self, arg):
         '\n\tdeleteFeatureDistinctCall {"feature": "<feature_name>"}\n'
 
@@ -1302,7 +1462,7 @@ class G2CmdShell(cmd.Cmd, object):
             return
 
         try:
-            parmData = dictKeysUpper(json.loads(arg))
+            parmData = dictKeysUpper(json.loads(arg)) if arg.startswith('{') else {"FEATURE": arg}
             parmData['FEATURE'] = parmData['FEATURE'].upper()
         except (ValueError, KeyError) as e:
             argError(arg, e)
@@ -1334,7 +1494,6 @@ class G2CmdShell(cmd.Cmd, object):
             else:
                 printWithNewLines('%s rows deleted!' % deleteCnt, 'B')
 
-
     def do_deleteFeature(self, arg):
         '\n\tdeleteFeature {"feature": "<feature_name>"}\n'
 
@@ -1349,7 +1508,7 @@ class G2CmdShell(cmd.Cmd, object):
         else:
 
             if parmData['FEATURE'] in ('NAME',):
-                printWithNewLines('Can\'t delete feature %s!' %  parmData['FEATURE'], 'B')
+                printWithNewLines('Can\'t delete feature %s!' % parmData['FEATURE'], 'B')
                 return
 
             deleteCnt = 0
@@ -1417,7 +1576,6 @@ class G2CmdShell(cmd.Cmd, object):
             else:
                 printWithNewLines('%s rows deleted!' % deleteCnt, 'B')
 
-
     def do_setFeature(self, arg):
         '\n\tsetFeature {"feature": "<feature_name>", "behavior": "<behavior_type>"}' \
         '\n\tsetFeature {"feature": "<feature_name>", "comparison": "<comparison_function>"}\n'
@@ -1466,7 +1624,7 @@ class G2CmdShell(cmd.Cmd, object):
                         printWithNewLines('Invalid behavior: %s' % parmData['BEHAVIOR'])
 
                 elif parmCode == 'ANONYMIZE':
-                    if parmData['ANONYMIZE'].upper() in ('YES', 'Y', 'NO','N'):
+                    if parmData['ANONYMIZE'].upper() in ('YES', 'Y', 'NO', 'N'):
                         self.cfgData['G2_CONFIG']['CFG_FTYPE'][listID]['ANONYMIZE'] = 'Yes' if parmData['ANONYMIZE'].upper() in ('YES', 'Y') else 'No'
                         printWithNewLines('Anonymize setting updated!')
                         self.configUpdated = True
@@ -1474,7 +1632,7 @@ class G2CmdShell(cmd.Cmd, object):
                         printWithNewLines('Invalid anonymize setting: %s' % parmData['ANONYMIZE'])
 
                 elif parmCode == 'CANDIDATES':
-                    if parmData['CANDIDATES'].upper() in ('YES', 'Y', 'NO','N'):
+                    if parmData['CANDIDATES'].upper() in ('YES', 'Y', 'NO', 'N'):
                         self.cfgData['G2_CONFIG']['CFG_FTYPE'][listID]['USED_FOR_CAND'] = 'Yes' if parmData['CANDIDATES'].upper() in ('YES', 'Y') else 'No'
                         printWithNewLines('Candidates setting updated!')
                         self.configUpdated = True
@@ -1537,7 +1695,6 @@ class G2CmdShell(cmd.Cmd, object):
 
             print()
 
-
     def do_addFeature(self, arg):
         '\n\taddFeature {"feature": "<feature_name>", "behavior": "<behavior_code>", "elementList": ["<element_detail(s)"]}' \
         '\n\n\taddFeature {"feature":"testFeat", "behavior":"FM", "comparison":"exact_comp", "elementlist": [{"compared": "Yes", "expressed": "No", "element": "test"}]}' \
@@ -1549,7 +1706,7 @@ class G2CmdShell(cmd.Cmd, object):
         try:
             parmData = dictKeysUpper(json.loads(arg))
             parmData['FEATURE'] = parmData['FEATURE'].upper()
-            if not 'ELEMENTLIST' in parmData or len(parmData['ELEMENTLIST']) == 0:
+            if 'ELEMENTLIST' not in parmData or len(parmData['ELEMENTLIST']) == 0:
                 raise ValueError('Element list is required!')
             if type(parmData['ELEMENTLIST']) is not list:
                 raise ValueError('Element list should be specified as: "elementlist": ["<values>"]\n\n\tNote the [ and ]')
@@ -1572,7 +1729,7 @@ class G2CmdShell(cmd.Cmd, object):
             if 'ID' in parmData:
                 ftypeID = int(parmData['ID'])
             else:
-                ftypeID = maxID + 1 if maxID >=1000 else 1000
+                ftypeID = maxID + 1 if maxID >= 1000 else 1000
 
             #--default for missing values
             parmData['ID'] = ftypeID
@@ -1597,7 +1754,7 @@ class G2CmdShell(cmd.Cmd, object):
             else:
                 fclassID = fclassRecord['FCLASS_ID']
 
-            sfuncID = 0  #--standardization function
+            sfuncID = 0  # --standardization function
             if 'STANDARDIZE' in parmData and len(parmData['STANDARDIZE']) != 0:
                 parmData['STANDARDIZE'] = parmData['STANDARDIZE'].upper()
                 sfuncRecord = self.getRecord('CFG_SFUNC', 'SFUNC_CODE', parmData['STANDARDIZE'])
@@ -1607,7 +1764,7 @@ class G2CmdShell(cmd.Cmd, object):
                     printWithNewLines('Invalid standardization code: %s' % parmData['STANDARDIZE'], 'B')
                     return
 
-            efuncID = 0  #--expression function
+            efuncID = 0  # --expression function
             if 'EXPRESSION' in parmData and len(parmData['EXPRESSION']) != 0:
                 parmData['EXPRESSION'] = parmData['EXPRESSION'].upper()
                 efuncRecord = self.getRecord('CFG_EFUNC', 'EFUNC_CODE', parmData['EXPRESSION'])
@@ -1617,7 +1774,7 @@ class G2CmdShell(cmd.Cmd, object):
                     printWithNewLines('Invalid expression code: %s' % parmData['EXPRESSION'], 'B')
                     return
 
-            cfuncID = 0  #--comparison function
+            cfuncID = 0  # --comparison function
             if 'COMPARISON' in parmData and len(parmData['COMPARISON']) != 0:
                 parmData['COMPARISON'] = parmData['COMPARISON'].upper()
                 cfuncRecord = self.getRecord('CFG_CFUNC', 'CFUNC_CODE', parmData['COMPARISON'])
@@ -1683,7 +1840,7 @@ class G2CmdShell(cmd.Cmd, object):
 
             #--add the distinct value call (not supported through here yet)
             dfcallID = 0
-            dfuncID = 0  #--more efficent to leave it null
+            dfuncID = 0  # --more efficent to leave it null
             if dfuncID > 0:
                 for i in range(len(self.cfgData['G2_CONFIG']['CFG_DFCALL'])):
                     if self.cfgData['G2_CONFIG']['CFG_DFCALL'][i]['DFCALL_ID'] > dfcallID:
@@ -1761,7 +1918,7 @@ class G2CmdShell(cmd.Cmd, object):
 
                 #--add if not found
                 if felemID == 0:
-                    felemID = maxID + 1 if maxID >=1000 else 1000
+                    felemID = maxID + 1 if maxID >= 1000 else 1000
                     newRecord = {}
                     newRecord['FELEM_ID'] = felemID
                     newRecord['FELEM_CODE'] = elementRecord['ELEMENT']
@@ -1827,7 +1984,6 @@ class G2CmdShell(cmd.Cmd, object):
             self.configUpdated = True
             printWithNewLines('Successfully added!', 'B')
 
-
     def getFeatureJson(self, ftypeRecord):
 
         fclassRecord = self.getRecord('CFG_FCLASS', 'FCLASS_ID', ftypeRecord['FCLASS_ID'])
@@ -1863,7 +2019,7 @@ class G2CmdShell(cmd.Cmd, object):
                     elementRecord['element'] = felemRecord['FELEM_CODE']
                     elementRecord['expressed'] = 'No' if not efcallRecord or not self.getRecord('CFG_EFBOM', ['EFCALL_ID', 'FTYPE_ID', 'FELEM_ID'],  [efcallRecord['EFCALL_ID'], fbomRecord['FTYPE_ID'], fbomRecord['FELEM_ID']]) else 'Yes'
                     elementRecord['compared'] = 'No' if not cfcallRecord or not self.getRecord('CFG_CFBOM', ['CFCALL_ID', 'FTYPE_ID', 'FELEM_ID'],  [cfcallRecord['CFCALL_ID'], fbomRecord['FTYPE_ID'], fbomRecord['FELEM_ID']]) else 'Yes'
-                    elementRecord['display'] = 'No' if fbomRecord['DISPLAY_LEVEL'] == 0 else 'Yes' 
+                    elementRecord['display'] = 'No' if fbomRecord['DISPLAY_LEVEL'] == 0 else 'Yes'
                     elementList.append(elementRecord)
                 else:
                     elementList.append(felemRecord['FELEM_CODE'])
@@ -1872,7 +2028,6 @@ class G2CmdShell(cmd.Cmd, object):
         jsonString += '}'
 
         return jsonString
-
 
     def do_addToNamehash(self, arg):
         '\n\taddToNamehash {"feature": "<feature>", "element": "<element>"}\n'
@@ -1888,7 +2043,7 @@ class G2CmdShell(cmd.Cmd, object):
         try:
             nameHasher_efuncID = self.getRecord('CFG_EFUNC', 'EFUNC_CODE', 'NAME_HASHER')['EFUNC_ID']
             nameHasher_efcallID = self.getRecord('CFG_EFCALL', 'EFUNC_ID', nameHasher_efuncID)['EFCALL_ID']
-        except:
+        except Exception:
             nameHasher_efcallID = 0
         if not nameHasher_efcallID:
             printWithNewLines('Name hasher function not found!', 'B')
@@ -1917,7 +2072,7 @@ class G2CmdShell(cmd.Cmd, object):
 
         if ftypeID != -1:
             if not self.getRecord('CFG_FBOM', ['FTYPE_ID', 'FELEM_ID'], [ftypeID, felemID]):
-                printWithNewLines('%s is not an element of feature %s'% (parmData['ELEMENT'], parmData['FEATURE']), 'B')
+                printWithNewLines('%s is not an element of feature %s' % (parmData['ELEMENT'], parmData['FEATURE']), 'B')
                 return
 
         nameHasher_execOrder = 0
@@ -1942,7 +2097,6 @@ class G2CmdShell(cmd.Cmd, object):
         self.configUpdated = True
         printWithNewLines('Successfully added!', 'B')
 
-
     def do_deleteFromNamehash(self, arg):
         '\n\tdeleteFromNamehash {"feature": "<feature>", "element": "<element>"}\n'
 
@@ -1957,7 +2111,7 @@ class G2CmdShell(cmd.Cmd, object):
         try:
             nameHasher_efuncID = self.getRecord('CFG_EFUNC', 'EFUNC_CODE', 'NAME_HASHER')['EFUNC_ID']
             nameHasher_efcallID = self.getRecord('CFG_EFCALL', 'EFUNC_ID', nameHasher_efuncID)['EFCALL_ID']
-        except:
+        except Exception:
             nameHasher_efcallID = 0
         if not nameHasher_efcallID:
             printWithNewLines('Name hasher function not found!', 'B')
@@ -1991,7 +2145,6 @@ class G2CmdShell(cmd.Cmd, object):
             printWithNewLines('Record not found!', 'B')
         printWithNewLines('%s rows deleted!' % deleteCnt, 'B')
 
-
     def do_addToNameSSNLast4hash(self, arg):
         '\n\taddToNameSSNLast4hash {"feature": "<feature>", "element": "<element>"}\n'
 
@@ -2009,7 +2162,7 @@ class G2CmdShell(cmd.Cmd, object):
             for i in range(len(self.cfgData['G2_CONFIG']['CFG_EFCALL'])-1, -1, -1):
                 if self.cfgData['G2_CONFIG']['CFG_EFCALL'][i]['EFUNC_ID'] == ssnLast4Hasher_efuncID and self.cfgData['G2_CONFIG']['CFG_EFCALL'][i]['FTYPE_ID'] == self.getRecord('CFG_FTYPE', 'FTYPE_CODE', 'SSN_LAST4')['FTYPE_ID']:
                     ssnLast4Hasher_efcallID = self.cfgData['G2_CONFIG']['CFG_EFCALL'][i]['EFCALL_ID']
-        except:
+        except Exception:
             ssnLast4Hasher_efcallID = 0
         if not ssnLast4Hasher_efcallID:
             printWithNewLines('SSNLast4 hasher function not found!', 'B')
@@ -2038,7 +2191,7 @@ class G2CmdShell(cmd.Cmd, object):
 
         if ftypeID != -1:
             if not self.getRecord('CFG_FBOM', ['FTYPE_ID', 'FELEM_ID'], [ftypeID, felemID]):
-                printWithNewLines('%s is not an element of feature %s'% (parmData['ELEMENT'], parmData['FEATURE']), 'B')
+                printWithNewLines('%s is not an element of feature %s' % (parmData['ELEMENT'], parmData['FEATURE']), 'B')
                 return
 
         ssnLast4Hasher_execOrder = 0
@@ -2063,7 +2216,6 @@ class G2CmdShell(cmd.Cmd, object):
         self.configUpdated = True
         printWithNewLines('Successfully added!', 'B')
 
-
     def do_deleteFromSSNLast4hash(self, arg):
         '\n\tdeleteFromSSNLast4hash {"feature": "<feature>", "element": "<element>"}\n'
 
@@ -2081,7 +2233,7 @@ class G2CmdShell(cmd.Cmd, object):
             for i in range(len(self.cfgData['G2_CONFIG']['CFG_EFCALL'])-1, -1, -1):
                 if self.cfgData['G2_CONFIG']['CFG_EFCALL'][i]['EFUNC_ID'] == ssnLast4Hasher_efuncID and self.cfgData['G2_CONFIG']['CFG_EFCALL'][i]['FTYPE_ID'] == self.getRecord('CFG_FTYPE', 'FTYPE_CODE', 'SSN_LAST4')['FTYPE_ID']:
                     ssnLast4Hasher_efcallID = self.cfgData['G2_CONFIG']['CFG_EFCALL'][i]['EFCALL_ID']
-        except:
+        except Exception:
             ssnLast4Hasher_efcallID = 0
         if not ssnLast4Hasher_efcallID:
             printWithNewLines('SSNLast4 hasher function not found!', 'B')
@@ -2119,22 +2271,24 @@ class G2CmdShell(cmd.Cmd, object):
 # ===== attribute commands =====
 
     def do_listAttributes(self, arg):
-        '\n\tlistAttributes\n'
+        '\n\tlistAttributes [search_value]\n'
 
         print()
-        for attrRecord in sorted(self.getRecordList('CFG_ATTR'), key = lambda k: k['ATTR_ID']):
-            print(self.getAttributeJson(attrRecord))
+        for attrRecord in sorted(self.getRecordList('CFG_ATTR'), key=lambda k: k['ATTR_ID']):
+            if arg and arg.lower() not in str(attrRecord).lower():
+                continue
+            printWithNewLines(self.getAttributeJson(attrRecord), 'E')
         print()
-
 
     def do_listAttributeClasses(self, arg):
-        '\n\tlistAttributeClasses\n'
+        '\n\tlistAttributeClasses [search_value]\n'
 
         print()
         for attrClass in self.attributeClassList:
+            if arg and arg.lower() not in str(attrClass).lower():
+                continue
             print('{"attributeClass": "%s"}' % attrClass)
         print()
-
 
     def do_getAttribute(self, arg):
         '\n\tgetAttribute {"attribute": "<attribute_name>"}' \
@@ -2164,11 +2318,8 @@ class G2CmdShell(cmd.Cmd, object):
             if not attrRecords:
                 printWithNewLines('Record not found!', 'B')
             else:
-                print()
-                for attrRecord in sorted(attrRecords, key = lambda k: k['ATTR_ID']):
-                    print(self.getAttributeJson(attrRecord))
-                print()
-
+                for attrRecord in sorted(attrRecords, key=lambda k: k['ATTR_ID']):
+                    self.printJsonResponse(self.getAttributeJson(attrRecord))
 
     def do_deleteAttribute(self, arg):
         '\n\tdeleteAttribute {"attribute": "<attribute_name>"}' \
@@ -2204,7 +2355,6 @@ class G2CmdShell(cmd.Cmd, object):
                 printWithNewLines('Record not found!', 'B')
             printWithNewLines('%s rows deleted!' % deleteCnt, 'B')
 
-
     def do_addEntityScore(self, arg):
         '\n\taddEntityScore {"behavior": "<behavior code>", "grouperFeat": "<yes/no>", "richnessScore": "<richness score>", "exclusivityScore": "<exclusivity score>"}\n'
 
@@ -2236,7 +2386,6 @@ class G2CmdShell(cmd.Cmd, object):
             printWithNewLines('Successfully added!', 'B')
             if self.doDebug:
                 debug(newRecord)
-
 
     def do_addAttribute(self, arg):
         '\n\taddAttribute {"attribute": "<attribute_name>"}' \
@@ -2281,7 +2430,7 @@ class G2CmdShell(cmd.Cmd, object):
                         return
                     else:
                         if not self.getRecord('CFG_FBOM', ['FTYPE_ID', 'FELEM_ID'], [ftypeRecord['FTYPE_ID'], felemRecord['FELEM_ID']]):
-                            printWithNewLines('%s is not an element of feature %s'% (parmData['ELEMENT'], parmData['FEATURE']), 'B')
+                            printWithNewLines('%s is not an element of feature %s' % (parmData['ELEMENT'], parmData['FEATURE']), 'B')
                             return
             else:
                 parmData['ELEMENT'] = None
@@ -2335,7 +2484,6 @@ class G2CmdShell(cmd.Cmd, object):
             if self.doDebug:
                 debug(newRecord)
 
-
     def getAttributeJson(self, attributeRecord):
 
         if 'ADVANCED' not in attributeRecord:
@@ -2361,13 +2509,14 @@ class G2CmdShell(cmd.Cmd, object):
 # ===== element commands =====
 
     def do_listElements(self, arg):
-        '\n\tlistElements\n'
+        '\n\tlistElements [search_value]\n'
 
         print()
-        for elemRecord in sorted(self.getRecordList('CFG_FELEM'), key = lambda k: k['FELEM_ID']):
+        for elemRecord in sorted(self.getRecordList('CFG_FELEM'), key=lambda k: k['FELEM_ID']):
+            if arg and arg.lower() not in str(elemRecord).lower():
+                continue
             print('{"id": %i, "code": "%s", "tokenize": "%s", "datatype": "%s"}' % (elemRecord['FELEM_ID'], elemRecord['FELEM_CODE'], elemRecord['TOKENIZE'], elemRecord['DATA_TYPE']))
         print()
-
 
     def do_getElement(self, arg):
         '\n\tgetElement {"element": "<element_name>"}\n'
@@ -2386,8 +2535,7 @@ class G2CmdShell(cmd.Cmd, object):
             if not felemRecord:
                 printWithNewLines('Element %s not found!' % parmData['ELEMENT'], 'B')
             else:
-                printWithNewLines('{"id": %s, "code": %s, "datatype": %s, "tokenize": %s}' % (felemRecord['FELEM_ID'], felemRecord['FELEM_CODE'], felemRecord['DATA_TYPE'], felemRecord['TOKENIZE']), 'B')
-
+                self.printJsonResponse('{"id": %s, "code": "%s", "datatype": "%s", "tokenize": "%s"}' % (felemRecord['FELEM_ID'], felemRecord['FELEM_CODE'], felemRecord['DATA_TYPE'], felemRecord['TOKENIZE']))
 
     def do_addStandardizeFunc(self, arg):
         '\n\taddStandardizeFunc {"function":"<function_name>", "connectStr":"<plugin_base_name>"}' \
@@ -2426,7 +2574,7 @@ class G2CmdShell(cmd.Cmd, object):
                 if 'ID' in parmData:
                     sfuncID = int(parmData['ID'])
                 else:
-                    sfuncID = max(maxID) + 1 if max(maxID) >=1000 else 1000
+                    sfuncID = max(maxID) + 1 if max(maxID) >= 1000 else 1000
 
                 newRecord = {}
                 newRecord['SFUNC_ID'] = sfuncID
@@ -2441,7 +2589,6 @@ class G2CmdShell(cmd.Cmd, object):
                 if self.doDebug:
                     debug(newRecord)
 
-
     def do_addStandardizeCall(self, arg):
         '\n\taddStandardizeCall {"element":"<element_name>", "function":"<function_name>", "execOrder":<exec_order>}' \
         '\n\n\taddStandardizeCall {"element":"COUNTRY", "function":"STANDARDIZE_COUNTRY", "execOrder":100}\n'
@@ -2455,33 +2602,33 @@ class G2CmdShell(cmd.Cmd, object):
             argError(arg, e)
         else:
 
-            featureIsSpecified = False;
+            featureIsSpecified = False
             ftypeID = -1
-            if 'FEATURE' in parmData and len(parmData['FEATURE']) != 0 :
+            if 'FEATURE' in parmData and len(parmData['FEATURE']) != 0:
                 parmData['FEATURE'] = parmData['FEATURE'].upper()
                 ftypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', parmData['FEATURE'])
                 if not ftypeRecord:
                     printWithNewLines('Invalid feature: %s.' % parmData['FEATURE'], 'B')
                     return
-                featureIsSpecified = True;
+                featureIsSpecified = True
                 ftypeID = ftypeRecord['FTYPE_ID']
 
-            elementIsSpecified = False;
+            elementIsSpecified = False
             felemID = -1
-            if 'ELEMENT' in parmData and len(parmData['ELEMENT']) != 0 :
+            if 'ELEMENT' in parmData and len(parmData['ELEMENT']) != 0:
                 parmData['ELEMENT'] = parmData['ELEMENT'].upper()
                 felemRecord = self.getRecord('CFG_FELEM', 'FELEM_CODE', parmData['ELEMENT'])
                 if not felemRecord:
                     printWithNewLines('Invalid element: %s.' % parmData['ELEMENT'], 'B')
                     return
-                elementIsSpecified = True;
+                elementIsSpecified = True
                 felemID = felemRecord['FELEM_ID']
 
-            if featureIsSpecified == False and elementIsSpecified == False :
+            if featureIsSpecified is False and elementIsSpecified is False:
                 printWithNewLines('No feature or element specified.', 'B')
                 return
 
-            if featureIsSpecified == True and elementIsSpecified == True :
+            if featureIsSpecified is True and elementIsSpecified is True:
                 printWithNewLines('Both feature and element specified.  Must only use one, not both.', 'B')
                 return
 
@@ -2501,14 +2648,14 @@ class G2CmdShell(cmd.Cmd, object):
                 return
 
             maxID = []
-            for i in range(len(self.cfgData['G2_CONFIG']['CFG_SFCALL'])) :
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_SFCALL'])):
                 maxID.append(self.cfgData['G2_CONFIG']['CFG_SFCALL'][i]['SFCALL_ID'])
 
             sfcallID = 0
             if 'ID' in parmData:
                 sfcallID = int(parmData['ID'])
             else:
-                sfcallID = max(maxID) + 1 if max(maxID) >=1000 else 1000
+                sfcallID = max(maxID) + 1 if max(maxID) >= 1000 else 1000
 
             newRecord = {}
             newRecord['SFCALL_ID'] = sfcallID
@@ -2521,7 +2668,6 @@ class G2CmdShell(cmd.Cmd, object):
             printWithNewLines('Successfully added!', 'B')
             if self.doDebug:
                 debug(newRecord)
-
 
     def do_addExpressionFunc(self, arg):
 
@@ -2553,14 +2699,14 @@ class G2CmdShell(cmd.Cmd, object):
                     return
 
                 maxID = []
-                for i in range(len(self.cfgData['G2_CONFIG']['CFG_EFUNC'])) :
+                for i in range(len(self.cfgData['G2_CONFIG']['CFG_EFUNC'])):
                     maxID.append(self.cfgData['G2_CONFIG']['CFG_EFUNC'][i]['EFUNC_ID'])
 
                 efuncID = 0
                 if 'ID' in parmData:
                     efuncID = int(parmData['ID'])
                 else:
-                    efuncID = max(maxID) + 1 if max(maxID) >=1000 else 1000
+                    efuncID = max(maxID) + 1 if max(maxID) >= 1000 else 1000
 
                 newRecord = {}
                 newRecord['EFUNC_ID'] = efuncID
@@ -2575,7 +2721,6 @@ class G2CmdShell(cmd.Cmd, object):
                 if self.doDebug:
                     debug(newRecord)
 
-
     def do_updateFeatureVersion(self, arg):
 
         '\n\tupdateFeatureVersion {"feature":"<feature_name>", "version":<version_number>}\n'
@@ -2585,9 +2730,9 @@ class G2CmdShell(cmd.Cmd, object):
 
         try:
             parmData = dictKeysUpper(json.loads(arg))
-            if not 'FEATURE' in parmData or len(parmData['FEATURE']) == 0:
+            if 'FEATURE' not in parmData or len(parmData['FEATURE']) == 0:
                 raise ValueError('Feature name is required!')
-            if not 'VERSION' in parmData:
+            if 'VERSION' not in parmData:
                 raise ValueError('Version is required!')
             parmData['FEATURE'] = parmData['FEATURE'].upper()
         except (ValueError, KeyError) as e:
@@ -2605,7 +2750,6 @@ class G2CmdShell(cmd.Cmd, object):
                 if self.doDebug:
                     debug(ftypeRecord)
 
-
     def do_updateAttributeAdvanced(self, arg):
 
         '\n\tupdateAttributeAdvanced {"attribute":"<attribute_name>", "advanced":"Yes"}\n'
@@ -2615,9 +2759,9 @@ class G2CmdShell(cmd.Cmd, object):
 
         try:
             parmData = dictKeysUpper(json.loads(arg))
-            if not 'ATTRIBUTE' in parmData or len(parmData['ATTRIBUTE']) == 0:
+            if 'ATTRIBUTE' not in parmData or len(parmData['ATTRIBUTE']) == 0:
                 raise ValueError('Attribute name is required!')
-            if not 'ADVANCED' in parmData:
+            if 'ADVANCED' not in parmData:
                 raise ValueError('Advanced value is required!')
         except (ValueError, KeyError) as e:
             argError(arg, e)
@@ -2634,7 +2778,6 @@ class G2CmdShell(cmd.Cmd, object):
                 if self.doDebug:
                     debug(attrRecord)
 
-
     def do_updateExpressionFuncVersion(self, arg):
 
         '\n\tupdateExpressionFuncVersion {"function":"<function_name>", "version":"<version_number>"}\n'
@@ -2644,9 +2787,9 @@ class G2CmdShell(cmd.Cmd, object):
 
         try:
             parmData = dictKeysUpper(json.loads(arg))
-            if not 'FUNCTION' in parmData or len(parmData['FUNCTION']) == 0:
+            if 'FUNCTION' not in parmData or len(parmData['FUNCTION']) == 0:
                 raise ValueError('Function is required!')
-            if not 'VERSION' in parmData or len(parmData['VERSION']) == 0:
+            if 'VERSION' not in parmData or len(parmData['VERSION']) == 0:
                 raise ValueError('Version is required!')
             parmData['FUNCTION'] = parmData['FUNCTION'].upper()
         except (ValueError, KeyError) as e:
@@ -2661,9 +2804,9 @@ class G2CmdShell(cmd.Cmd, object):
                 funcRecord['FUNC_VER'] = parmData['VERSION']
                 self.configUpdated = True
                 printWithNewLines('Successfully updated!', 'B')
+
                 if self.doDebug:
                     debug(funcRecord)
-
 
     def do_addComparisonFuncReturnCode(self, arg):
 
@@ -2702,7 +2845,7 @@ class G2CmdShell(cmd.Cmd, object):
             if 'ID' in parmData:
                 cfrtnID = int(parmData['ID'])
             else:
-                cfrtnID = max(maxID) + 1 if max(maxID) >=1000 else 1000
+                cfrtnID = max(maxID) + 1 if max(maxID) >= 1000 else 1000
 
             execOrder = 0
             for i in range(len(self.cfgData['G2_CONFIG']['CFG_CFRTN'])):
@@ -2726,7 +2869,6 @@ class G2CmdShell(cmd.Cmd, object):
             printWithNewLines('Successfully added!', 'B')
             if self.doDebug:
                 debug(newRecord)
-
 
     def do_addComparisonFunc(self, arg):
 
@@ -2759,14 +2901,14 @@ class G2CmdShell(cmd.Cmd, object):
                     return
 
                 maxID = []
-                for i in range(len(self.cfgData['G2_CONFIG']['CFG_CFUNC'])) :
+                for i in range(len(self.cfgData['G2_CONFIG']['CFG_CFUNC'])):
                     maxID.append(self.cfgData['G2_CONFIG']['CFG_CFUNC'][i]['CFUNC_ID'])
 
                 cfuncID = 0
                 if 'ID' in parmData:
                     cfuncID = int(parmData['ID'])
                 else:
-                    cfuncID = max(maxID) + 1 if max(maxID) >=1000 else 1000
+                    cfuncID = max(maxID) + 1 if max(maxID) >= 1000 else 1000
 
                 newRecord = {}
                 newRecord['CFUNC_ID'] = cfuncID
@@ -2782,8 +2924,6 @@ class G2CmdShell(cmd.Cmd, object):
                 if self.doDebug:
                     debug(newRecord)
 
-
-
     def do_addExpressionCall(self, arg):
 
         '\n\taddExpressionCall {"element":"<element_name>", "function":"<function_name>", "execOrder":<exec_order>, expressionFeature":<feature_name>, "virtual":"No","elementList": ["<element_detail(s)"]}' \
@@ -2795,7 +2935,7 @@ class G2CmdShell(cmd.Cmd, object):
 
         try:
             parmData = dictKeysUpper(json.loads(arg))
-            if not 'ELEMENTLIST' in parmData or len(parmData['ELEMENTLIST']) == 0:
+            if 'ELEMENTLIST' not in parmData or len(parmData['ELEMENTLIST']) == 0:
                 raise ValueError('Element list is required!')
             if type(parmData['ELEMENTLIST']) is not list:
                 raise ValueError('Element list should be specified as: "elementlist": ["<values>"]\n\n\tNote the [ and ]')
@@ -2803,33 +2943,33 @@ class G2CmdShell(cmd.Cmd, object):
             argError(arg, e)
         else:
 
-            featureIsSpecified = False;
+            featureIsSpecified = False
             ftypeID = -1
-            if 'FEATURE' in parmData and len(parmData['FEATURE']) != 0 :
+            if 'FEATURE' in parmData and len(parmData['FEATURE']) != 0:
                 parmData['FEATURE'] = parmData['FEATURE'].upper()
                 ftypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', parmData['FEATURE'])
                 if not ftypeRecord:
                     printWithNewLines('Invalid feature: %s.' % parmData['FEATURE'], 'B')
                     return
-                featureIsSpecified = True;
+                featureIsSpecified = True
                 ftypeID = ftypeRecord['FTYPE_ID']
 
-            elementIsSpecified = False;
+            elementIsSpecified = False
             felemID = -1
-            if 'ELEMENT' in parmData and len(parmData['ELEMENT']) != 0 :
+            if 'ELEMENT' in parmData and len(parmData['ELEMENT']) != 0:
                 parmData['ELEMENT'] = parmData['ELEMENT'].upper()
                 felemRecord = self.getRecord('CFG_FELEM', 'FELEM_CODE', parmData['ELEMENT'])
                 if not felemRecord:
                     printWithNewLines('Invalid element: %s.' % parmData['ELEMENT'], 'B')
                     return
-                elementIsSpecified = True;
+                elementIsSpecified = True
                 felemID = felemRecord['FELEM_ID']
 
-            if featureIsSpecified == False and elementIsSpecified == False :
+            if featureIsSpecified is False and elementIsSpecified is False:
                 printWithNewLines('No feature or element specified.', 'B')
                 return
 
-            if featureIsSpecified == True and elementIsSpecified == True :
+            if featureIsSpecified is True and elementIsSpecified is True:
                 printWithNewLines('Both feature and element specified.  Must only use one, not both.', 'B')
                 return
 
@@ -2867,12 +3007,12 @@ class G2CmdShell(cmd.Cmd, object):
             if 'ID' in parmData:
                 efcallID = int(parmData['ID'])
             else:
-                efcallID = max(maxID) + 1 if max(maxID) >=1000 else 1000
+                efcallID = max(maxID) + 1 if max(maxID) >= 1000 else 1000
 
             isVirtual = parmData['VIRTUAL'] if 'VIRTUAL' in parmData else 'No'
 
             efeatFTypeID = -1
-            if 'EXPRESSIONFEATURE' in parmData and len(parmData['EXPRESSIONFEATURE']) != 0 :
+            if 'EXPRESSIONFEATURE' in parmData and len(parmData['EXPRESSIONFEATURE']) != 0:
                 parmData['EXPRESSIONFEATURE'] = parmData['EXPRESSIONFEATURE'].upper()
                 expressionFTypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', parmData['EXPRESSIONFEATURE'])
                 if not expressionFTypeRecord:
@@ -2886,42 +3026,42 @@ class G2CmdShell(cmd.Cmd, object):
                 elementCount += 1
                 elementRecord = dictKeysUpper(element)
 
-                bomFTypeIsSpecified = False;
+                bomFTypeIsSpecified = False
                 bomFTypeID = -1
-                if 'FEATURE' in elementRecord and len(elementRecord['FEATURE']) != 0 :
+                if 'FEATURE' in elementRecord and len(elementRecord['FEATURE']) != 0:
                     elementRecord['FEATURE'] = elementRecord['FEATURE'].upper()
                     bomFTypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', elementRecord['FEATURE'])
                     if not bomFTypeRecord:
                         printWithNewLines('Invalid BOM feature: %s.' % elementRecord['FEATURE'], 'B')
                         return
-                    bomFTypeIsSpecified = True;
+                    bomFTypeIsSpecified = True
                     bomFTypeID = bomFTypeRecord['FTYPE_ID']
 
-                bomFElemIsSpecified = False;
+                bomFElemIsSpecified = False
                 bomFElemID = -1
-                if 'ELEMENT' in elementRecord and len(elementRecord['ELEMENT']) != 0 :
+                if 'ELEMENT' in elementRecord and len(elementRecord['ELEMENT']) != 0:
                     elementRecord['ELEMENT'] = elementRecord['ELEMENT'].upper()
                     bomFElemRecord = self.getRecord('CFG_FELEM', 'FELEM_CODE', elementRecord['ELEMENT'])
                     if not bomFElemRecord:
                         printWithNewLines('Invalid BOM element: %s.' % elementRecord['ELEMENT'], 'B')
                         return
-                    bomFElemIsSpecified = True;
+                    bomFElemIsSpecified = True
                     bomFElemID = bomFElemRecord['FELEM_ID']
 
-                if bomFElemIsSpecified == False :
+                if bomFElemIsSpecified is False:
                     printWithNewLines('No BOM element specified on BOM entry.', 'B')
                     return
 
-                bomFTypeFeatureLinkIsSpecified = False;
-                if 'FEATURELINK' in elementRecord and len(elementRecord['FEATURELINK']) != 0 :
+                bomFTypeFeatureLinkIsSpecified = False
+                if 'FEATURELINK' in elementRecord and len(elementRecord['FEATURELINK']) != 0:
                     elementRecord['FEATURELINK'] = elementRecord['FEATURELINK'].upper()
                     if elementRecord['FEATURELINK'] != 'PARENT':
                         printWithNewLines('Invalid feature link value: %s.  (Must use \'parent\')' % elementRecord['FEATURELINK'], 'B')
                         return
-                    bomFTypeFeatureLinkIsSpecified = True;
+                    bomFTypeFeatureLinkIsSpecified = True
                     bomFTypeID = 0
 
-                if bomFTypeIsSpecified == True and bomFTypeFeatureLinkIsSpecified == True :
+                if bomFTypeIsSpecified is True and bomFTypeFeatureLinkIsSpecified is True:
                     printWithNewLines('Cannot specify both ftype and feature-link on single function BOM entry.', 'B')
                     return
 
@@ -2949,16 +3089,16 @@ class G2CmdShell(cmd.Cmd, object):
                 elementRecord = dictKeysUpper(element)
 
                 bomFTypeID = -1
-                if 'FEATURE' in elementRecord and len(elementRecord['FEATURE']) != 0 :
+                if 'FEATURE' in elementRecord and len(elementRecord['FEATURE']) != 0:
                     bomFTypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', elementRecord['FEATURE'])
                     bomFTypeID = bomFTypeRecord['FTYPE_ID']
 
                 bomFElemID = -1
-                if 'ELEMENT' in elementRecord and len(elementRecord['ELEMENT']) != 0 :
+                if 'ELEMENT' in elementRecord and len(elementRecord['ELEMENT']) != 0:
                     bomFElemRecord = self.getRecord('CFG_FELEM', 'FELEM_CODE', elementRecord['ELEMENT'])
                     bomFElemID = bomFElemRecord['FELEM_ID']
 
-                if 'FEATURELINK' in elementRecord and len(elementRecord['FEATURELINK']) != 0 :
+                if 'FEATURELINK' in elementRecord and len(elementRecord['FEATURELINK']) != 0:
                     elementRecord['FEATURELINK'] = elementRecord['FEATURELINK'].upper()
                     bomFTypeID = 0
 
@@ -2977,7 +3117,6 @@ class G2CmdShell(cmd.Cmd, object):
 
             self.configUpdated = True
             printWithNewLines('Successfully added!', 'B')
-
 
     def do_deleteExpressionCall(self, arg):
         '\n\tdeleteExpressionCall {"id": "<id>"}\n'
@@ -3011,7 +3150,6 @@ class G2CmdShell(cmd.Cmd, object):
             for i in range(len(self.cfgData['G2_CONFIG']['CFG_EFBOM'])-1, -1, -1):
                 if self.cfgData['G2_CONFIG']['CFG_EFBOM'][i][searchField] == searchValue:
                     del self.cfgData['G2_CONFIG']['CFG_EFBOM'][i]
-
 
     def do_addElement(self, arg):
 
@@ -3051,13 +3189,13 @@ class G2CmdShell(cmd.Cmd, object):
                         return
 
                 maxID = []
-                for i in range(len(self.cfgData['G2_CONFIG']['CFG_FELEM'])) :
+                for i in range(len(self.cfgData['G2_CONFIG']['CFG_FELEM'])):
                     maxID.append(self.cfgData['G2_CONFIG']['CFG_FELEM'][i]['FELEM_ID'])
 
                 if 'ID' in parmData:
                     felemID = int(parmData['ID'])
                 else:
-                    felemID = max(maxID) + 1 if max(maxID) >=1000 else 1000
+                    felemID = max(maxID) + 1 if max(maxID) >= 1000 else 1000
 
                 newRecord = {}
                 newRecord['FELEM_ID'] = felemID
@@ -3070,7 +3208,6 @@ class G2CmdShell(cmd.Cmd, object):
                 printWithNewLines('Successfully added!', 'B')
                 if self.doDebug:
                     debug(newRecord)
-
 
     def do_addElementToFeature(self, arg):
 
@@ -3152,7 +3289,7 @@ class G2CmdShell(cmd.Cmd, object):
                 if (
                     ( parmData['DATATYPE'] and len(parmData['DATATYPE'].strip()) > 0 and parmData['DATATYPE'] != felemRecord['DATA_TYPE'] ) or
                     ( parmData['TOKENIZE'] and len(parmData['TOKENIZE'].strip()) > 0 and parmData['TOKENIZE'] != felemRecord['TOKENIZE'] )
-                   ) :
+                ):
                     printWithNewLines('Element %s already exists with conflicting parameters, check with listElement %s' % (parmData['ELEMENT'], parmData['ELEMENT']), 'B')
                     return
             else:
@@ -3169,7 +3306,7 @@ class G2CmdShell(cmd.Cmd, object):
                     if 'ID' in parmData:
                         felemID = int(parmData['ID'])
                     else:
-                        felemID = maxID + 1 if maxID >=1000 else 1000
+                        felemID = maxID + 1 if maxID >= 1000 else 1000
 
                     newRecord = {}
                     newRecord['FELEM_ID'] = felemID
@@ -3209,7 +3346,6 @@ class G2CmdShell(cmd.Cmd, object):
                 if self.doDebug:
                     debug(newRecord)
 
-
     def do_setFeatureElementDisplayLevel(self, arg):
 
         '\n\tsetFeatureElementDisplayLevel {"feature": "<feature_name>", "element": "<element_name>", "display_level": <display_level>}\n'
@@ -3223,7 +3359,7 @@ class G2CmdShell(cmd.Cmd, object):
             print('\nError with argument(s) or parsing JSON - %s \n' % e)
         else:
 
-            if 'FEATURE' in parmData and len(parmData['FEATURE']) != 0 and 'ELEMENT' in parmData and len(parmData['ELEMENT']) != 0 :
+            if 'FEATURE' in parmData and len(parmData['FEATURE']) != 0 and 'ELEMENT' in parmData and len(parmData['ELEMENT']) != 0:
 
                 parmData['FEATURE'] = parmData['FEATURE'].upper()
                 ftypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', parmData['FEATURE'])
@@ -3241,8 +3377,7 @@ class G2CmdShell(cmd.Cmd, object):
                 printWithNewLines('Both a feature and element must be specified!', 'B')
                 return
 
-
-            if 'DISPLAY_LEVEL' in parmData :
+            if 'DISPLAY_LEVEL' in parmData:
                 displayLevel = int(parmData['DISPLAY_LEVEL'])
             else:
                 printWithNewLines('Display level must be specified!', 'B')
@@ -3257,7 +3392,6 @@ class G2CmdShell(cmd.Cmd, object):
                         if self.doDebug:
                             debug(self.cfgData['G2_CONFIG']['CFG_FBOM'][i])
 
-
     def do_setFeatureElementDerived(self, arg):
 
         '\n\tsetFeatureElementDerived {"feature": "<feature_name>", "element": "<element_name>", "derived": <display_level>}\n'
@@ -3271,14 +3405,14 @@ class G2CmdShell(cmd.Cmd, object):
             print('\nError with argument(s) or parsing JSON - %s \n' % e)
         else:
 
-            if 'FEATURE' in parmData and len(parmData['FEATURE']) != 0 and 'ELEMENT' in parmData and len(parmData['ELEMENT']) != 0 :
+            if 'FEATURE' in parmData and len(parmData['FEATURE']) != 0 and 'ELEMENT' in parmData and len(parmData['ELEMENT']) != 0:
 
                 parmData['FEATURE'] = parmData['FEATURE'].upper()
                 ftypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', parmData['FEATURE'])
                 if not ftypeRecord:
                     printWithNewLines('Invalid feature: %s. Use listFeatures to see valid features.' % parmData['FEATURE'], 'B')
                     return
-    
+
                 parmData['ELEMENT'] = parmData['ELEMENT'].upper()
                 felemRecord = self.getRecord('CFG_FELEM', 'FELEM_CODE', parmData['ELEMENT'])
                 if not felemRecord:
@@ -3288,8 +3422,8 @@ class G2CmdShell(cmd.Cmd, object):
             else:
                 printWithNewLines('Both a feature and element must be specified!', 'B')
                 return
-            
-            if 'DERIVED' in parmData :
+
+            if 'DERIVED' in parmData:
                 derived = parmData['DERIVED']
             else:
                 printWithNewLines('Derived status must be specified!', 'B')
@@ -3304,7 +3438,6 @@ class G2CmdShell(cmd.Cmd, object):
                         if self.doDebug:
                             debug(self.cfgData['G2_CONFIG']['CFG_FBOM'][i])
 
-
     def do_deleteElementFromFeature(self, arg):
         '\n\tdeleteElementFromFeature {"feature": "<feature_name>", "element": "<element_name>"}\n'
 
@@ -3317,7 +3450,7 @@ class G2CmdShell(cmd.Cmd, object):
             print('\nError with argument(s) or parsing JSON - %s \n' % e)
         else:
 
-            if 'FEATURE' in parmData and len(parmData['FEATURE']) != 0 and 'ELEMENT' in parmData and len(parmData['ELEMENT']) != 0 :
+            if 'FEATURE' in parmData and len(parmData['FEATURE']) != 0 and 'ELEMENT' in parmData and len(parmData['ELEMENT']) != 0:
 
                 parmData['FEATURE'] = parmData['FEATURE'].upper()
                 ftypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', parmData['FEATURE'])
@@ -3336,7 +3469,7 @@ class G2CmdShell(cmd.Cmd, object):
                 return
 
             deleteCnt = 0
-            for i in range(len(self.cfgData['G2_CONFIG']['CFG_FBOM'])-1,-1,-1):
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_FBOM'])-1, -1, -1):
                 if int(self.cfgData['G2_CONFIG']['CFG_FBOM'][i]['FTYPE_ID']) == ftypeRecord['FTYPE_ID'] and int(self.cfgData['G2_CONFIG']['CFG_FBOM'][i]['FELEM_ID']) == felemRecord['FELEM_ID'] :
                     del self.cfgData['G2_CONFIG']['CFG_FBOM'][i]
                     deleteCnt = 1
@@ -3346,7 +3479,6 @@ class G2CmdShell(cmd.Cmd, object):
                 printWithNewLines('Record not found!', 'B')
             else:
                 printWithNewLines('%s rows deleted!' % deleteCnt, 'B')
-
 
     def do_deleteElement(self, arg):
         '\n\tdeleteElement {"feature": "<feature_name>", "element": "<element_name>"}\n'
@@ -3367,32 +3499,32 @@ class G2CmdShell(cmd.Cmd, object):
 
             usedIn = []
             for i in range(len(self.cfgData['G2_CONFIG']['CFG_FBOM'])):
-                if int(self.cfgData['G2_CONFIG']['CFG_FBOM'][i]['FELEM_ID']) == felemRecord['FELEM_ID'] :
+                if int(self.cfgData['G2_CONFIG']['CFG_FBOM'][i]['FELEM_ID']) == felemRecord['FELEM_ID']:
                     for j in range(len(self.cfgData['G2_CONFIG']['CFG_FTYPE'])):
-                        if int(self.cfgData['G2_CONFIG']['CFG_FTYPE'][j]['FTYPE_ID']) == self.cfgData['G2_CONFIG']['CFG_FBOM'][i]['FTYPE_ID'] :
+                        if int(self.cfgData['G2_CONFIG']['CFG_FTYPE'][j]['FTYPE_ID']) == self.cfgData['G2_CONFIG']['CFG_FBOM'][i]['FTYPE_ID']:
                             usedIn.append(self.cfgData['G2_CONFIG']['CFG_FTYPE'][j]['FTYPE_CODE'])
             if usedIn:
-                printWithNewLines('Can\'t delete %s, it is used in these feature(s): %s' % (parmData['ELEMENT'], usedIn) ,'B')
+                printWithNewLines('Can\'t delete %s, it is used in these feature(s): %s' % (parmData['ELEMENT'], usedIn), 'B')
                 return
             else:
                 deleteCnt = 0
                 for i in range(len(self.cfgData['G2_CONFIG']['CFG_FELEM'])):
-                    if int(self.cfgData['G2_CONFIG']['CFG_FELEM'][i]['FELEM_ID']) == felemRecord['FELEM_ID'] :
+                    if int(self.cfgData['G2_CONFIG']['CFG_FELEM'][i]['FELEM_ID']) == felemRecord['FELEM_ID']:
                         del self.cfgData['G2_CONFIG']['CFG_FELEM'][i]
                         deleteCnt = 1
                         self.configUpdated = True
+                        break
 
                 if deleteCnt == 0:
                     printWithNewLines('Record not found!', 'B')
                 else:
                     printWithNewLines('%s rows deleted!' % deleteCnt, 'B')
 
-
     def do_listExpressionCalls(self, arg):
-        '\n\tVerifies expression call configurations\n'
+        '\n\tlistExpressionCalls [search_value]\n'
 
         efcallList = []
-        for efcallRecord in sorted(self.cfgData['G2_CONFIG']['CFG_EFCALL'], key = lambda k: (k['FTYPE_ID'], k['EXEC_ORDER'])):
+        for efcallRecord in sorted(self.cfgData['G2_CONFIG']['CFG_EFCALL'], key=lambda k: (k['FTYPE_ID'], k['EXEC_ORDER'])):
             efuncRecord = self.getRecord('CFG_EFUNC', 'EFUNC_ID', efcallRecord['EFUNC_ID'])
             ftypeRecord1 = self.getRecord('CFG_FTYPE', 'FTYPE_ID', efcallRecord['FTYPE_ID'])
             ftypeRecord2 = self.getRecord('CFG_FTYPE', 'FTYPE_ID', efcallRecord['EFEAT_FTYPE_ID'])
@@ -3430,10 +3562,12 @@ class G2CmdShell(cmd.Cmd, object):
 
             efcallList.append(efcallDict)
 
-
+        print()
         for efcallDict in efcallList:
-            print(json.dumps(efcallDict))
-
+            if arg and arg.lower() not in str(efcallDict).lower():
+                continue
+            printWithNewLines(json.dumps(efcallDict), 'E')
+        print()
 
 # ===== misc commands =====
 
@@ -3483,12 +3617,15 @@ class G2CmdShell(cmd.Cmd, object):
         return
 
     def do_listGenericThresholds(self, arg):
-        '\n\tlistGenericThresholds\n'
+        '\n\tlistGenericThresholds [search_value]\n'
+
         planCode = {}
         planCode[1] = 'load'
         planCode[2] = 'search'
         print()
-        for thisRecord in sorted(self.getRecordList('CFG_GENERIC_THRESHOLD'), key = lambda k: k['GPLAN_ID']):
+        for thisRecord in sorted(self.getRecordList('CFG_GENERIC_THRESHOLD'), key=lambda k: k['GPLAN_ID']):
+            if arg and arg.lower() not in str(thisRecord).lower():
+                continue
             print('{"plan": "%s", "behavior": "%s", "candidateCap": %s, "scoringCap": %s}' % (planCode[thisRecord['GPLAN_ID']], thisRecord['BEHAVIOR'], thisRecord['CANDIDATE_CAP'], thisRecord['SCORING_CAP']))
             #{
             #    "BEHAVIOR": "NAME",
@@ -3549,49 +3686,47 @@ class G2CmdShell(cmd.Cmd, object):
         '\n\ttemplateAdd {"feature": "customer_number", "template": "global_id", "behavior": "F1E", "comparison": "exact_comp"}' \
         '\n\nType "templateAdd List" to get a list of valid templates.\n'
 
-
         validTemplates = {}
 
-        validTemplates['GLOBAL_ID'] = {'DESCRIPTION': 'globally unique identifer (like an ssn, a credit card, or a medicare_id)', 
-                                       'BEHAVIOR': ['F1', 'F1E', 'F1ES'], 
+        validTemplates['GLOBAL_ID'] = {'DESCRIPTION': 'globally unique identifer (like an ssn, a credit card, or a medicare_id)',
+                                       'BEHAVIOR': ['F1', 'F1E', 'F1ES'],
                                        'CANDIDATES': ['No'],
                                        'STANDARDIZE': ['PARSE_ID'],
                                        'EXPRESSION': ['EXPRESS_ID'],
-                                       'COMPARISON': ['ID_COMP', 'EXACT_COMP'], 
+                                       'COMPARISON': ['ID_COMP', 'EXACT_COMP'],
                                        'FEATURE_CLASS': 'ISSUED_ID',
                                        'ATTRIBUTE_CLASS': 'IDENTIFIER',
-                                       'ELEMENTS': [{'element': 'ID_NUM', 'expressed': 'No', 'compared': 'no', 'display': 'Yes'}, 
-                                                    {'element': 'ID_NUM_STD', 'expressed': 'Yes', 'compared': 'yes', 'display': 'No'}], 
+                                       'ELEMENTS': [{'element': 'ID_NUM', 'expressed': 'No', 'compared': 'no', 'display': 'Yes'},
+                                                    {'element': 'ID_NUM_STD', 'expressed': 'Yes', 'compared': 'yes', 'display': 'No'}],
                                        'ATTRIBUTES': [{'attribute': '<feature>', 'element': 'ID_NUM', 'required': 'Yes'}]}
 
         validTemplates['STATE_ID'] = {'DESCRIPTION': 'state issued identifier (like a drivers license)',
-                                      'BEHAVIOR': ['F1', 'F1E', 'F1ES'], 
+                                      'BEHAVIOR': ['F1', 'F1E', 'F1ES'],
                                       'CANDIDATES': ['No'],
                                       'STANDARDIZE': ['PARSE_ID'],
                                       'EXPRESSION': ['EXPRESS_ID'],
-                                      'COMPARISON': ['ID_COMP'], 
+                                      'COMPARISON': ['ID_COMP'],
                                       'FEATURE_CLASS': 'ISSUED_ID',
                                       'ATTRIBUTE_CLASS': 'IDENTIFIER',
-                                      'ELEMENTS': [{'element': 'ID_NUM', 'expressed': 'No', 'compared': 'no', 'display': 'Yes'}, 
-                                                   {'element': 'STATE', 'expressed': 'No', 'compared': 'yes', 'display': 'Yes'}, 
-                                                   {'element': 'ID_NUM_STD', 'expressed': 'Yes', 'compared': 'yes', 'display': 'No'}], 
+                                      'ELEMENTS': [{'element': 'ID_NUM', 'expressed': 'No', 'compared': 'no', 'display': 'Yes'},
+                                                   {'element': 'STATE', 'expressed': 'No', 'compared': 'yes', 'display': 'Yes'},
+                                                   {'element': 'ID_NUM_STD', 'expressed': 'Yes', 'compared': 'yes', 'display': 'No'}],
                                       'ATTRIBUTES': [{'attribute': '<feature>_NUMBER', 'element': 'ID_NUM', 'required': 'Yes'},
                                                      {'attribute': '<feature>_STATE', 'element': 'STATE', 'required': 'No'}]}
 
         validTemplates['COUNTRY_ID'] = {'DESCRIPTION': 'country issued identifier (like a passport)',
-                                        'BEHAVIOR': ['F1', 'F1E', 'F1ES'], 
+                                        'BEHAVIOR': ['F1', 'F1E', 'F1ES'],
                                         'CANDIDATES': ['No'],
                                         'STANDARDIZE': ['PARSE_ID'],
                                         'EXPRESSION': ['EXPRESS_ID'],
-                                        'COMPARISON': ['ID_COMP'], 
+                                        'COMPARISON': ['ID_COMP'],
                                         'FEATURE_CLASS': 'ISSUED_ID',
                                         'ATTRIBUTE_CLASS': 'IDENTIFIER',
-                                        'ELEMENTS': [{'element': 'ID_NUM', 'expressed': 'No', 'compared': 'no', 'display': 'Yes'}, 
-                                                     {'element': 'COUNTRY', 'expressed': 'No', 'compared': 'yes', 'display': 'Yes'}, 
-                                                     {'element': 'ID_NUM_STD', 'expressed': 'Yes', 'compared': 'yes', 'display': 'No'}], 
+                                        'ELEMENTS': [{'element': 'ID_NUM', 'expressed': 'No', 'compared': 'no', 'display': 'Yes'},
+                                                     {'element': 'COUNTRY', 'expressed': 'No', 'compared': 'yes', 'display': 'Yes'},
+                                                     {'element': 'ID_NUM_STD', 'expressed': 'Yes', 'compared': 'yes', 'display': 'No'}],
                                         'ATTRIBUTES': [{'attribute': '<feature>_NUMBER', 'element': 'ID_NUM', 'required': 'Yes'},
                                                        {'attribute': '<feature>_COUNTRY', 'element': 'COUNTRY', 'required': 'No'}]}
-
 
         if arg and arg.upper() == 'LIST':
             print()
@@ -3600,7 +3735,7 @@ class G2CmdShell(cmd.Cmd, object):
                 print('\t\tbehaviors:', validTemplates[template]['BEHAVIOR'])
                 print('\t\tcomparisons:', validTemplates[template]['COMPARISON'])
                 print()
-            return    
+            return
 
         if not argCheck('templateAdd', arg, self.do_templateAdd.__doc__):
             return
@@ -3702,9 +3837,9 @@ class G2CmdShell(cmd.Cmd, object):
 
             attributeData = {'attribute': attributeDict['attribute'].upper(),
                              'class': attributeClass,
-                             'feature': feature, 
-                             'element': attributeDict['element'].upper(), 
-                             'required': attributeDict['required']} 
+                             'feature': feature,
+                             'element': attributeDict['element'].upper(),
+                             'required': attributeDict['required']}
 
             attributeParm = json.dumps(attributeData)
             printWithNewLines('addAttribute %s' % attributeParm, 'S')
@@ -3724,15 +3859,15 @@ class G2CmdShell(cmd.Cmd, object):
                f'"depends": "{record["ERFRAG_DEPENDS"]}"' \
                f'}}'
 
-
     def do_listFragments(self, arg):
-        '\n\tlistFragments\n'
+        '\n\tlistFragments [search_value]\n'
 
         print()
-        for thisRecord in sorted(self.getRecordList('CFG_ERFRAG'), key = lambda k: k['ERFRAG_ID']):
-            print(self.getFragmentJson(thisRecord))
+        for thisRecord in sorted(self.getRecordList('CFG_ERFRAG'), key=lambda k: k['ERFRAG_ID']):
+            if arg and arg.lower() not in str(thisRecord).lower():
+                continue
+            printWithNewLines(self.getFragmentJson(thisRecord), 'E')
         print()
-
 
     def do_getFragment(self, arg):
         '\n\tgetFragment {"id": "<fragment_id>"}' \
@@ -3765,10 +3900,9 @@ class G2CmdShell(cmd.Cmd, object):
                 printWithNewLines('Record not found!', 'B')
             else:
                 print()
-                for thisRecord in sorted(foundRecords, key = lambda k: k['ERFRAG_ID']):
-                    print(self.getFragmentJson(thisRecord))
+                for thisRecord in sorted(foundRecords, key=lambda k: k['ERFRAG_ID']):
+                    self.printJsonResponse(self.getFragmentJson(thisRecord))
                 print()
-
 
     def do_deleteFragment(self, arg):
         '\n\tdeleteFragment {"id": "<fragment_id>"}' \
@@ -3805,7 +3939,6 @@ class G2CmdShell(cmd.Cmd, object):
             if deleteCnt == 0:
                 printWithNewLines('Record not found!', 'B')
             printWithNewLines('%s rows deleted!' % deleteCnt, 'B')
-
 
     def do_setFragment(self, arg):
         '\n\tsetFragment {"id": "<fragment_id>", "fragment": "<fragment_code>", "source": "<fragment_source>"}\n'
@@ -3886,7 +4019,6 @@ class G2CmdShell(cmd.Cmd, object):
 
             print()
 
-
     def do_addFragment(self, arg):
         '\n\taddFragment {"id": "<fragment_id>", "fragment": "<fragment_code>", "source": "<fragment_source>"}' \
         '\n\n\tFor additional example structures, use getFragment or listFragments\n'
@@ -3917,7 +4049,7 @@ class G2CmdShell(cmd.Cmd, object):
 
             #--must have a source field
             if 'SOURCE' not in parmData:
-                printWithNewLines( 'A fragment source field is required!', 'B')
+                printWithNewLines('A fragment source field is required!', 'B')
                 return
 
             #--compute dependencies from source
@@ -3966,30 +4098,31 @@ class G2CmdShell(cmd.Cmd, object):
 
 # ===== rule commands =====
 
-    # -----------------------------
     def getRuleJson(self, record):
 
-        return f'{{' \
-               f'"id": "{record["ERRULE_ID"]}", ' \
-               f'"rule": "{record["ERRULE_CODE"]}", ' \
-               f'"tier": "{showNullableJsonNumeric(record["ERRULE_TIER"])}", ' \
-               f'"resolve": "{record["RESOLVE"]}", ' \
-               f'"relate": "{record["RELATE"]}", ' \
-               f'"ref_score": "{record["REF_SCORE"]}", ' \
-               f'"fragment": "{record["QUAL_ERFRAG_CODE"]}", ' \
-               f'"disqualifier": "{showNullableJsonNumeric(record["DISQ_ERFRAG_CODE"])}", ' \
-               f'"rtype_id": "{showNullableJsonNumeric(record["RTYPE_ID"])}"' \
-               f'}}'
-
+        return (
+            f'{{'
+            f'"id": {record["ERRULE_ID"]}, '
+            f'"rule": "{record["ERRULE_CODE"]}", '
+            f'"desc": "{record["ERRULE_DESC"]}", '
+            f'"resolve": "{record["RESOLVE"]}", '
+            f'"relate": "{record["RELATE"]}", '
+            f'"ref_score": {record["REF_SCORE"]}, '
+            f'"fragment": "{record["QUAL_ERFRAG_CODE"]}", '
+            f'"disqualifier": "{showNullableJsonNumeric(record["DISQ_ERFRAG_CODE"])}", '
+            f'"rtype_id": {showNullableJsonNumeric(record["RTYPE_ID"])}, '
+            f'"tier": {showNullableJsonNumeric(record["ERRULE_TIER"])}'
+            f'}}'
+        )
 
     def do_listRules(self, arg):
-        '\n\tlistRules\n'
+        '\n\tlistRules [search_value]\n'
 
         print()
-        for thisRecord in sorted(self.getRecordList('CFG_ERRULE'), key = lambda k: k['ERRULE_ID']):
-            print(self.getRuleJson(thisRecord))
-        print()
-
+        for ruleRecord in sorted(self.getRecordList('CFG_ERRULE'), key=lambda k: k['ERRULE_ID']):
+            if arg and arg.lower() not in str(ruleRecord).lower():
+                continue
+            printWithNewLines(self.getRuleJson(ruleRecord), 'E')
 
     def do_getRule(self, arg):
         '\n\tgetRule {"id": "<rule_id>"}\n'
@@ -4004,6 +4137,7 @@ class G2CmdShell(cmd.Cmd, object):
                 parmData = {"ID": arg}
             else:
                 parmData = {"RULE": arg}
+
             if 'RULE' in parmData and len(parmData['RULE'].strip()) != 0:
                 searchField = 'ERRULE_CODE'
                 searchValue = parmData['RULE'].upper()
@@ -4021,10 +4155,9 @@ class G2CmdShell(cmd.Cmd, object):
                 printWithNewLines('Record not found!', 'B')
             else:
                 print()
-                for thisRecord in sorted(foundRecords, key = lambda k: k['ERRULE_ID']):
-                    print(self.getRuleJson(thisRecord))
+                for thisRecord in sorted(foundRecords, key=lambda k: k['ERRULE_ID']):
+                    self.printJsonResponse(self.getRuleJson(thisRecord))
                 print()
-
 
     def do_deleteRule(self, arg):
         '\n\tdeleteRule {"id": "<rule_id>"}\n'
@@ -4039,9 +4172,10 @@ class G2CmdShell(cmd.Cmd, object):
                 parmData = {"ID": arg}
             else:
                 parmData = {"RULE": arg}
+
             if 'RULE' in parmData and len(parmData['RULE'].strip()) != 0:
                 searchField = 'ERRULE_CODE'
-                searchValue = parmData['FRAGMENT'].upper()
+                searchValue = arg.upper()
             elif 'ID' in parmData and int(parmData['ID']) != 0:
                 searchField = 'ERRULE_ID'
                 searchValue = int(parmData['ID'])
@@ -4058,18 +4192,27 @@ class G2CmdShell(cmd.Cmd, object):
                     deleteCnt += 1
                     self.configUpdated = True
             if deleteCnt == 0:
-                printWithNewLines('Record not found!', 'B')
+                printWithNewLines('Record not found!', 'S')
             printWithNewLines('%s rows deleted!' % deleteCnt, 'B')
 
 
     def do_setRule(self, arg):
-        '\n\tsetRule {"id": "<rule_id>", "rule": "<rule_name>", "desc": "<description>", "fragment": "<fragment_name>", "disqualifier": "<disqualifier_name>"}\n'
+        '\n\tsetRule {"id": <rule_id>, "rule": "<rule_name>", "desc": "<description>", "fragment": "<fragment_name>", "disqualifier": "<disqualifier_name>"}\n'
 
         if not argCheck('setRule', arg, self.do_setRule.__doc__):
             return
 
         try:
             parmData = dictKeysUpper(json.loads(arg))
+            if not isinstance(parmData['ID'], int):
+                parmData['ID'] = int(parmData['ID'])
+            if parmData['RESOLVE'] and parmData['RESOLVE'].upper() not in ('YES', 'NO'):
+                printWithNewLines('ERROR: Resolve should be Yes or No', 'B')
+                return
+            if parmData['RELATE'] and parmData['RELATE'].upper() not in ('YES', 'NO'):
+                printWithNewLines('ERROR: Relate should be Yes or No', 'B')
+                return
+
         except (ValueError, KeyError) as e:
             argError(arg, e)
         else:
@@ -4109,8 +4252,17 @@ class G2CmdShell(cmd.Cmd, object):
                     printWithNewLines('Rule disqualifier updated!')
                     self.configUpdated = True
 
-            print()
+                elif parmCode == 'RESOLVE':
+                    self.cfgData['G2_CONFIG']['CFG_ERRULE'][listID]['RESOLVE'] = parmData['RESOLVE'].capitalize()
+                    printWithNewLines('Rule resolve updated!')
+                    self.configUpdated = True
 
+                elif parmCode == 'RELATE':
+                    self.cfgData['G2_CONFIG']['CFG_ERRULE'][listID]['RELATE'] = parmData['RELATE'].capitalize()
+                    printWithNewLines('Rule relate updated!')
+                    self.configUpdated = True
+
+            print()
 
     def do_addRule(self, arg):
         '\n\taddRule {"id": 130, "rule": "SF1_CNAME", "tier": 30, "resolve": "Yes", "relate": "No", "ref_score": 8, "fragment": "SF1_CNAME", "disqualifier": "DIFF_EXCL", "rtype_id": 1}' \
@@ -4142,7 +4294,7 @@ class G2CmdShell(cmd.Cmd, object):
 
             #--must have a valid fragment field
             if 'FRAGMENT' not in parmData:
-                printWithNewLines( 'A fragment source field is required!', 'B')
+                printWithNewLines('A fragment source field is required!', 'B')
                 return
             else:
                 #--lookup the fragment code
@@ -4165,25 +4317,33 @@ class G2CmdShell(cmd.Cmd, object):
                     printWithNewLines('Invalid disqualifer reference: %s' % parmData['DISQUALIFIER'], 'B')
                     return
 
+            if 'TIER' not in parmData or not parmData['TIER']:
+                parmData['TIER'] = None
+            else:
+                if not isinstance(parmData['TIER'], int) and parmData['TIER'].lower() != 'null':
+                    try:
+                        parmData['TIER'] = int(parmData['TIER'])
+                    except ValueError:
+                        printWithNewLines(f'Invalid TIER value ({parmData["TIER"]}), should be an integer', 'B')
+                        return
+
             newRecord = {}
             newRecord['ERRULE_ID'] = int(parmData['ID'])
             newRecord['ERRULE_CODE'] = parmData['RULE']
-            newRecord['ERRULE_DESC'] = parmData['RULE']
+            newRecord['ERRULE_DESC'] = parmData['DESC'] if 'DESC' in parmData and parmData['DESC'] else parmData['RULE']
             newRecord['RESOLVE'] = parmData['RESOLVE']
             newRecord['RELATE'] = parmData['RELATE']
             newRecord['REF_SCORE'] = int(parmData['REF_SCORE'])
             newRecord['RTYPE_ID'] = int(parmData['RTYPE_ID'])
             newRecord['QUAL_ERFRAG_CODE'] = parmData['FRAGMENT']
             newRecord['DISQ_ERFRAG_CODE'] = storeNullableJsonString(parmData['DISQUALIFIER'])
-            newRecord['ERRULE_TIER'] = storeNullableJsonNumeric(parmData['TIER'])
-
+            newRecord['ERRULE_TIER'] = parmData['TIER']
 
             self.cfgData['G2_CONFIG']['CFG_ERRULE'].append(newRecord)
             self.configUpdated = True
             printWithNewLines('Successfully added!', 'B')
             if self.doDebug:
                 debug(newRecord)
-
 
 # ===== system parameters  =====
 
@@ -4195,7 +4355,6 @@ class G2CmdShell(cmd.Cmd, object):
                 print(f'\n{{"relationshipsBreakMatches": "{i["BREAK_RES"]}"}}\n')
                 break
 
-
     def do_setSystemParameter(self, arg):
         '\n\tsetSystemParameter {"parameter": "<value>"}\n'
 
@@ -4203,7 +4362,7 @@ class G2CmdShell(cmd.Cmd, object):
         if not argCheck('templateAdd', arg, self.do_setSystemParameter.__doc__):
             return
         try:
-            parmData = json.loads(arg)  #--don't want these upper
+            parmData = json.loads(arg)  # --don't want these upper
         except (ValueError, KeyError) as e:
             argError(arg, e)
             return
@@ -4213,7 +4372,7 @@ class G2CmdShell(cmd.Cmd, object):
             parameterValue = parmData[parameterCode]
 
             if parameterCode not in validParameters:
-                printWithNewLines( '%s is an invalid system parameter' % parameterCode, 'B')
+                printWithNewLines('%s is an invalid system parameter' % parameterCode, 'B')
 
             #--set all disclosed relationship types to break or not break matches
             elif parameterCode == 'relationshipsBreakMatches':
@@ -4222,14 +4381,13 @@ class G2CmdShell(cmd.Cmd, object):
                 elif parameterValue.upper() in ('NO', 'N'):
                     breakRes = 0
                 else:
-                    printWithNewLines( '%s is an invalid parameter for %s' % (parameterValue, parameterCode), 'B')
+                    printWithNewLines('%s is an invalid parameter for %s' % (parameterValue, parameterCode), 'B')
                     return
 
                 for i in range(len(self.cfgData['G2_CONFIG']['CFG_RTYPE'])):
                     if self.cfgData['G2_CONFIG']['CFG_RTYPE'][i]['RCLASS_ID'] == 2:
                         self.cfgData['G2_CONFIG']['CFG_RTYPE'][i]['BREAK_RES'] = breakRes
                         self.configUpdated = True
-
 
     def do_touch(self, arg):
         '\n\tMarks configuration object as modified when no configuration changes have been applied yet.\n'
@@ -4238,446 +4396,56 @@ class G2CmdShell(cmd.Cmd, object):
         self.configUpdated = True
         print()
 
+# ===== match levels  =====
 
-# ===== database functions =====
+    def do_listMatchLevels(self, arg):
+        '\n\tlistMatchLevels [search_value]\n'
 
-
-    def do_updateDatabase(self, arg):
-        '\n\tInternal Senzing use!\n'
-
-        if not self.g2Dbo:
-            printWithNewLines('ERROR: Database connectivity isn\'t available.', 'S')
-            printWithNewLines(f'       Error from G2Database: {dbErr}', 'E')
-            return
-
-        if self.configUpdated and not self.forceMode:
-            printWithNewLines('WARN: Configuration has been updated but not saved. Please save first to avoid inconsistencies!' ,'B')
-            return
-
-        print(f'\nUpdating attributes...')
-
-        if self.getRecordList('CFG_ATTR'):
-            cols = ['ATTR_ID', 'ATTR_CODE', 'ATTR_CLASS', 'FTYPE_CODE', 'FELEM_CODE', 'FELEM_REQ', 'DEFAULT_VALUE', 'ADVANCED', 'INTERNAL']
-            insertSql = f'insert into CFG_ATTR ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_ATTR'), key = lambda k: k['ATTR_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-    
-            try:
-                g2Dbo.sqlExec('delete from CFG_ATTR')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                cols = ['ATTR_ID', 'ATTR_CODE', 'ATTR_CLASS', 'FTYPE_CODE', 'FELEM_CODE', 'FELEM_REQ', 'DEFAULT_VALUE', 'ADVANCED']
-                insertSql = f'insert into CFG_ATTR ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?, ?, ?)'
-                insertRecords = []
-                for jsonRecord in sorted(self.getRecordList('CFG_ATTR'), key = lambda k: k['ATTR_ID']):
-                    [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-                try:
-                    g2Dbo.sqlExec('delete from CFG_ATTR')
-                    g2Dbo.execMany(insertSql, insertRecords)
-                except G2Exception.G2DBException as err:
-                    printWithNewLines(f'ERROR: CFG_ATTR hasn\'t been updated: {err}', 'B')
-
-
-        print('Updating data sources...')
-
-        if self.getRecordList('CFG_DSRC_INTEREST'):
-            cols = ['DSRC_ID', 'DSRC_CODE', 'DSRC_DESC', 'DSRC_RELY', 'RETENTION_LEVEL', 'CONVERSATIONAL']
-            insertSql = f'insert into CFG_DSRC ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_DSRC'), key = lambda k: k['DSRC_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_DSRC')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_DSRC hasn\'t been updated: {err}', 'B')
-
-        if self.getRecordList('CFG_DSRC_INTEREST'):
-            cols = ['DSRC_ID', 'MAX_DEGREE', 'INTEREST_FLAG']
-            insertSql = f'insert into CFG_DSRC_INTEREST ({", ".join(map(str, cols))}) values (?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_DSRC_INTEREST'), key = lambda k: k['DSRC_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_DSRC_INTEREST')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_DSRC_INTEREST hasn\'t been updated: {err}', 'B')
-
-
-        print('Updating entity classes...')
-
-        if self.getRecordList('CFG_ECLASS'):
-            cols = ['ECLASS_ID', 'ECLASS_CODE', 'ECLASS_DESC', 'RESOLVE']
-            insertSql = f'insert into CFG_ECLASS ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_ECLASS'), key = lambda k: k['ECLASS_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_ECLASS')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_ECLASS hasn\'t been updated: {err}', 'B')
-
-
-        print('Updating entity types...')
-
-        if self.getRecordList('CFG_ETYPE'):
-            cols = ['ETYPE_ID', 'ETYPE_CODE', 'ETYPE_DESC', 'ECLASS_ID']
-            insertSql = f'insert into CFG_ETYPE ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_ETYPE'), key = lambda k: k['ETYPE_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_ETYPE')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_ETYPE hasn\'t been updated: {err}', 'B')
-
-        if self.getRecordList('CFG_EBOM'):
-            cols = ['ETYPE_ID', 'EXEC_ORDER', 'FTYPE_ID', 'UTYPE_CODE']
-            insertSql = f'insert into CFG_EBOM ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_EBOM'), key = lambda k: k['ETYPE_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_EBOM')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_EBOM hasn\'t been updated: {err}', 'B')
-
-
-        print('Updating features...')
-
-        if self.getRecordList('CFG_FTYPE'):
-            cols = ['FTYPE_ID', 'FTYPE_CODE', 'FTYPE_DESC', 'FCLASS_ID', 'FTYPE_FREQ', 'FTYPE_STAB', 'FTYPE_EXCL', 'ANONYMIZE', 'DERIVED', 'USED_FOR_CAND', 'PERSIST_HISTORY', 'RTYPE_ID', 'VERSION']
-            insertSql = f'insert into CFG_FTYPE ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_FTYPE'), key = lambda k: k['FTYPE_ID']):
-                if not 'FTYPE_DESC' in jsonRecord:
-                    jsonRecord['FTYPE_DESC'] = jsonRecord['FTYPE_CODE']
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_FTYPE')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_FTYPE hasn\'t been updated: {err}', 'B')
-
-        if self.getRecordList('CFG_FBOM'):
-            cols = ['FTYPE_ID', 'FELEM_ID', 'EXEC_ORDER', 'DISPLAY_DELIM', 'DISPLAY_LEVEL', 'DERIVED']
-            insertSql = f'insert into CFG_FBOM ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_FBOM'), key = lambda k: k['FTYPE_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_FBOM')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_FBOM hasn\'t been updated: {err}', 'B')
-
-        if self.getRecordList('CFG_FELEM'):
-            cols = ['FELEM_ID', 'FELEM_CODE', 'TOKENIZE', 'DATA_TYPE']
-            insertSql = f'insert into CFG_FELEM ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_FELEM'), key = lambda k: k['FELEM_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_FELEM')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_FELEM hasn\'t been updated: {err}', 'B')
-
-        if self.getRecordList('CFG_SFCALL'):
-            cols = ['SFCALL_ID', 'SFUNC_ID', 'EXEC_ORDER', 'FTYPE_ID', 'FELEM_ID']
-            insertSql = f'insert into CFG_SFCALL ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_SFCALL'), key = lambda k: k['SFCALL_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_SFCALL')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_SFCALL hasn\'t been updated: {err}', 'B')
-
-        if self.getRecordList('CFG_SFUNC'):
-            cols = ['SFUNC_ID', 'SFUNC_CODE', 'SFUNC_DESC', 'FUNC_LIB', 'FUNC_VER', 'CONNECT_STR']
-            insertSql = f'insert into CFG_SFUNC ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_SFUNC'), key = lambda k: k['SFUNC_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_SFUNC')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_SFUNC hasn\'t been updated: {err}', 'B')
-
-        if self.getRecordList('CFG_EFCALL'):
-            cols = ['EFCALL_ID', 'EFUNC_ID', 'EXEC_ORDER', 'FTYPE_ID', 'FELEM_ID', 'EFEAT_FTYPE_ID', 'IS_VIRTUAL']
-            insertSql = f'insert into CFG_EFCALL ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_EFCALL'), key = lambda k: k['EFCALL_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_EFCALL')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_EFCALL hasn\'t been updated: {err}', 'B')
-
-        if self.getRecordList('CFG_EFUNC'):
-            cols = ['EFUNC_ID', 'EFUNC_CODE', 'EFUNC_DESC', 'FUNC_LIB', 'FUNC_VER', 'CONNECT_STR']
-            insertSql = f'insert into CFG_EFUNC ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_EFUNC'), key = lambda k: k['EFUNC_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_EFUNC')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_EFUNC hasn\'t been updated: {err}', 'B')
-
-        if self.getRecordList('CFG_EFBOM'):
-            cols = ['EFCALL_ID', 'EXEC_ORDER', 'FTYPE_ID', 'FELEM_ID', 'FELEM_REQ']
-            insertSql = f'insert into CFG_EFBOM ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_EFBOM'), key = lambda k: k['EFCALL_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_EFBOM')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_EFBOM hasn\'t been updated: {err}', 'B')
-
-        if self.getRecordList('CFG_CFCALL'):
-            cols = ['CFCALL_ID', 'CFUNC_ID', 'EXEC_ORDER', 'FTYPE_ID']
-            insertSql = f'insert into CFG_CFCALL ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_CFCALL'), key = lambda k: k['CFCALL_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_CFCALL')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_CFCALL hasn\'t been updated: {err}', 'B')
-
-        if self.getRecordList('CFG_CFBOM'):
-            cols = ['CFCALL_ID', 'EXEC_ORDER', 'FTYPE_ID', 'FELEM_ID']
-            insertSql = f'insert into CFG_CFBOM ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_CFBOM'), key = lambda k: k['CFCALL_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_CFBOM')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_CFBOM hasn\'t been updated: {err}', 'B')
-
-        if self.getRecordList('CFG_FBOVR'):
-            cols = ['FTYPE_ID', 'ECLASS_ID', 'UTYPE_CODE', 'FTYPE_FREQ', 'FTYPE_EXCL', 'FTYPE_STAB']
-            insertSql = f'insert into CFG_FBOVR ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_FBOVR'), key = lambda k: k['FTYPE_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_FBOVR')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_FBOVR hasn\'t been updated: {err}', 'B')
-
-
-        print('Updating feature classes...')
-
-        if self.getRecordList('CFG_FCLASS'):
-            cols = ['FCLASS_ID', 'FCLASS_CODE', 'FCLASS_DESC']
-            insertSql = f'insert into CFG_FCLASS ({", ".join(map(str, cols))}) values (?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_FCLASS'), key = lambda k: k['FCLASS_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_FCLASS')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_FCLASS hasn\'t been updated: {err}', 'B')
-
-
-        print('Updating relationships...')
-
-        if self.getRecordList('CFG_RTYPE'):
-            cols = ['RTYPE_ID', 'RTYPE_CODE', 'RCLASS_ID', 'REL_STRENGTH', 'BREAK_RES']
-            insertSql = f'insert into CFG_RTYPE ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_RTYPE'), key = lambda k: k['RTYPE_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_RTYPE')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_RTYPE hasn\'t been updated: {err}', 'B')
-
-        if self.getRecordList('CFG_RCLASS'):
-            cols = ['RCLASS_ID', 'RCLASS_CODE', 'RCLASS_DESC', 'IS_DISCLOSED']
-            insertSql = f'insert into CFG_RCLASS ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_RCLASS'), key = lambda k: k['RCLASS_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_RCLASS')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_RCLASS hasn\'t been updated: {err}', 'B')
-
-
-        print('Updating resolution rules...')
-
-        if self.getRecordList('CFG_ERFRAG'):
-            cols = ['ERFRAG_ID', 'ERFRAG_CODE', 'ERFRAG_DESC', 'ERFRAG_SOURCE', 'ERFRAG_DEPENDS']
-            insertSql = f'insert into CFG_ERFRAG ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_ERFRAG'), key = lambda k: k['ERFRAG_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_ERFRAG')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_ERFRAG hasn\'t been updated: {err}', 'B')
-
-        if self.getRecordList('CFG_ERRULE'):
-            cols = ['ERRULE_ID', 'ERRULE_CODE', 'ERRULE_DESC', 'RESOLVE', 'RELATE', 'REF_SCORE', 'RTYPE_ID', 'QUAL_ERFRAG_CODE', 'DISQ_ERFRAG_CODE', 'ERRULE_TIER']
-            insertSql = f'insert into CFG_ERRULE ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_ERRULE'), key = lambda k: k['ERRULE_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_ERRULE')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_ERRULE hasn\'t been updated: {err}', 'B')
-
-
-        print('Updating comps...')
-
-        if self.getRecordList('CFG_CFUNC'):
-            cols = ['ANON_SUPPORT', 'CFUNC_CODE', 'CFUNC_DESC', 'CFUNC_ID', 'CONNECT_STR', 'FUNC_LIB', 'FUNC_VER']
-            insertSql = f'insert into CFG_CFUNC ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_CFUNC'), key = lambda k: k['CFUNC_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_CFUNC')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_CFUNC hasn\'t been updated: {err}', 'B')
-
-        if self.getRecordList('CFG_CFRTN'):
-            cols = ['CFRTN_ID', 'CFUNC_ID', 'CFUNC_RTNVAL', 'EXEC_ORDER', 'SAME_SCORE', 'CLOSE_SCORE', 'LIKELY_SCORE', 'PLAUSIBLE_SCORE', 'UN_LIKELY_SCORE']
-            insertSql = f'insert into CFG_CFRTN ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_CFRTN'), key = lambda k: k['CFRTN_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_CFRTN')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_CFRTN hasn\'t been updated: {err}', 'B')
-
-
-        print('Updating distict...')
-
-        if self.getRecordList('CFG_DFCALL'):
-            cols = ['DFCALL_ID', 'FTYPE_ID', 'DFUNC_ID', 'EXEC_ORDER']
-            insertSql = f'insert into CFG_DFCALL ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_DFCALL'), key = lambda k: k['DFCALL_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_DFCALL')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_DFCALL hasn\'t been updated: {err}', 'B')
-
-        if self.getRecordList('CFG_DFUNC'):
-            cols = ['DFUNC_ID', 'DFUNC_CODE', 'DFUNC_DESC', 'FUNC_LIB', 'FUNC_VER', 'CONNECT_STR','ANON_SUPPORT']
-            insertSql = f'insert into CFG_DFUNC ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_DFUNC'), key = lambda k: k['DFUNC_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_DFUNC')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_DFUNC hasn\'t been updated: {err}', 'B')
-
-        if self.getRecordList('CFG_DFBOM'):
-            cols = ['DFCALL_ID', 'FTYPE_ID', 'FELEM_ID', 'EXEC_ORDER']
-            insertSql = f'insert into CFG_DFBOM ({", ".join(map(str, cols))}) values (?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_DFBOM'), key = lambda k: k['DFCALL_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_DFBOM')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_DFBOM hasn\'t been updated: {err}', 'B')
-
-
-        print('Updating generics...')
-
-        if self.getRecordList('CFG_GENERIC_THRESHOLD'):
-            cols = ['GPLAN_ID', 'BEHAVIOR', 'FTYPE_ID', 'CANDIDATE_CAP', 'SCORING_CAP', 'SEND_TO_REDO']
-            insertSql = f'insert into CFG_GENERIC_THRESHOLD ({", ".join(map(str, cols))}) values (?, ?, ?, ?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_GENERIC_THRESHOLD'), key = lambda k: k['GPLAN_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_GENERIC_THRESHOLD')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_GENERIC_THRESHOLD hasn\'t been updated: {err}', 'B')
-    
-        if self.getRecordList('CFG_GPLAN'):
-            cols = ['GPLAN_ID', 'GPLAN_CODE', 'GPLAN_DESC']
-            insertSql = f'insert into CFG_GPLAN ({", ".join(map(str, cols))}) values (?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_GPLAN'), key = lambda k: k['GPLAN_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_GPLAN')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_GPLAN hasn\'t been updated: {err}', 'B')
-
-
-        print('Updating lens...')
-
-        if self.getRecordList('CFG_LENS'):
-            cols = ['LENS_ID', 'LENS_CODE', 'LENS_DESC']
-            insertSql = f'insert into CFG_LENS ({", ".join(map(str, cols))}) values (?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_LENS'), key = lambda k: k['LENS_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_LENS')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_LENS hasn\'t been updated: {err}', 'B')
-
-        if self.getRecordList('CFG_DSRC_INTEREST'):
-            cols = ['LENS_ID', 'ERRULE_ID', 'EXEC_ORDER']
-            insertSql = f'insert into CFG_LENSRL ({", ".join(map(str, cols))}) values (?, ?, ?)'
-            insertRecords = []
-            for jsonRecord in sorted(self.getRecordList('CFG_LENSRL'), key = lambda k: k['LENS_ID']):
-                [ insertRecords.append([jsonRecord[k] for k in cols]) ]
-            try:
-                g2Dbo.sqlExec('delete from CFG_LENSRL')
-                g2Dbo.execMany(insertSql, insertRecords)
-            except G2Exception.G2DBException as err:
-                printWithNewLines(f'ERROR: CFG_LENSRL hasn\'t been updated: {err}', 'B')
-
+        print()
+        for rtypeRecord in sorted(self.getRecordList('CFG_RTYPE'), key=lambda k: k['RTYPE_ID']):
+            if arg and arg.lower() not in str(rtypeRecord).lower():
+                continue
+            print(f'{{"level": {rtypeRecord["RTYPE_ID"]}, "code": "{rtypeRecord["RTYPE_CODE"]}", "class": "{self.getRecord("CFG_RCLASS", "RCLASS_ID", rtypeRecord["RCLASS_ID"])["RCLASS_DESC"]}"}}')
         print()
 
 
+# ===== Class Utils =====
+
+    def printResponse(self, response):
+
+        if response:
+            self.jsonOutput(response.decode().rstrip())
+        else:
+            printWithNewLines('Empty response!', 'B')
+
+    def printJsonResponse(self, response):
+        '''  '''
+
+        if response:
+            response = response.decode() if isinstance(response, bytearray) else response
+
+            if self.pygmentsInstalled:
+                if self.prettyPrint:
+                    print('\n' + highlight(json.dumps(json.loads(response), indent=2), lexers.JsonLexer(), formatters.TerminalFormatter()))
+                    return
+            else:
+                if self.prettyPrint:
+                    print(f'\n {json.dumps(json.loads(response), indent=2)} \n')
+                    return
+
+            printWithNewLines(f'{response}', 'B')
+            return
+
+        printWithNewLines('Empty response!', 'B')
+
 
 # ===== Utility functions =====
+
+def parse(argumentString):
+    'Parses an argument list into a logical set of argument strings'
+
+    return shlex.split(argumentString)
+
 
 def getFeatureBehavior(feature):
 
@@ -4724,21 +4492,31 @@ def argError(errorArg, error):
 def printWithNewLines(ln, pos=''):
 
     pos = pos.upper()
-    if pos == 'S' or pos == 'START' :
+    if pos == 'S' or pos == 'START':
         print(f'\n{ln}')
-    elif pos == 'E' or pos == 'END' :
+    elif pos == 'E' or pos == 'END':
         print(f'{ln}\n')
-    elif pos == 'B' or pos == 'BOTH' :
+    elif pos == 'B' or pos == 'BOTH':
         print(f'\n{ln}\n')
     else:
         print(f'{ln}')
+
+
+def printResponse(response):
+
+    if response:
+        response = response.decode() if isinstance(response, bytearray) else response
+        print(f'\n{response}\n')
+        return
+
+    printWithNewLines('Empty response!', 'B')
 
 
 def dictKeysUpper(dictionary):
     if isinstance(dictionary, list):
         return [v.upper() for v in dictionary]
     elif isinstance(dictionary, dict):
-        return {k.upper():v for k,v in dictionary.items()}
+        return {k.upper(): v for k, v in dictionary.items()}
     else:
         return dictionary
 
@@ -4749,17 +4527,20 @@ def showNullableJsonString(val):
     else:
         return '"%s"' % val
 
+
 def showNullableJsonNumeric(val):
     if not val:
         return 'null'
     else:
         return '%s' % val
 
+
 def storeNullableJsonString(val):
     if not val or val == 'null':
         return None
     else:
         return val
+
 
 def storeNullableJsonNumeric(val):
     if not val or val == 'null':
@@ -4779,43 +4560,32 @@ def debug(data, loc=''):
     '''), 'E')
 
 
-
-# ===== The main function =====
 if __name__ == '__main__':
 
     argParser = argparse.ArgumentParser()
     argParser.add_argument("fileToProcess", default=None, nargs='?')
-    argParser.add_argument('-c', '--ini-file-name', dest='ini_file_name', default=None, help='name of the g2.ini file')
+    argParser.add_argument('-c', '--ini-file-name', dest='ini_file_name', default=None, help='name of a G2Module.ini file to use')
     argParser.add_argument('-f', '--force', dest='forceMode', default=False, action='store_true', help='when reading from a file, execute each command without prompts')
     argParser.add_argument('-H', '--histDisable', dest='histDisable', action='store_true', default=False, help='disable history file usage')
     args = argParser.parse_args()
 
-    iniFileName = G2Paths.get_G2Module_ini_path() if not args.ini_file_name else args.ini_file_name
+    # If ini file isn't specified try and locate it with G2Paths
+    ini_file_name = pathlib.Path(G2Paths.get_G2Module_ini_path()) if not args.ini_file_name else pathlib.Path(args.ini_file_name).resolve()
+    G2Paths.check_file_exists_and_readable(ini_file_name)
 
-    if not os.path.exists(iniFileName):
-        raise FileNotFoundError(f'INI file {iniFileName} not found')
-
+    # Warn if using out dated parms
     g2health = G2Health()
-    g2health.checkIniParams(iniFileName)
+    g2health.checkIniParams(ini_file_name)
 
     # Older Senzing using G2CONFIGFILE, e.g, G2CONFIGFILE=/opt/senzing/g2/python/g2config.json
     iniParamCreator = G2IniParams()
-    g2ConfigFile = iniParamCreator.getINIParam(iniFileName,'SQL','G2CONFIGFILE')
+    g2ConfigFile = iniParamCreator.getINIParam(ini_file_name, 'SQL', 'G2CONFIGFILE')
 
-    # Is there database support?
-    g2dbUri = iniParamCreator.getINIParam(iniFileName,'SQL','CONNECTION')
+    # Get the INI paramaters to use
+    g2module_params = iniParamCreator.getJsonINIParams(ini_file_name)
 
-    if not g2dbUri:
-        printWithNewLines(f'CONNECTION parameter not found in [SQL] section of {iniFileName} file')
-        sys.exit(1)
-    else:
-        try:
-            g2Dbo = G2Database(g2dbUri)
-        except Exception as err: 
-            g2Dbo = False
-            dbErr = err
+    cmd_obj = G2CmdShell(g2ConfigFile, args.histDisable, args.forceMode, args.fileToProcess, ini_file_name)
 
-    cmd_obj = G2CmdShell(g2ConfigFile, args.histDisable, args.forceMode, args.fileToProcess, iniFileName, g2Dbo)
     if args.fileToProcess:
         cmd_obj.fileloop()
     else:

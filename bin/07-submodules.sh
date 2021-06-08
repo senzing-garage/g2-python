@@ -22,7 +22,7 @@ SUBMODULES=(
     "g2health;1.1.0;G2Health.py"
     "g2hasher;1.5.0;G2Hasher.py"
     "g2iniparams;1.1.0;G2IniParams.py"
-    "g2loader;1.18.0;G2Loader.py"
+    "g2loader;1.18.1;G2Loader.py"
     "g2paths;1.3.0;G2Paths.py"
     "g2product;1.6.0;G2Product.py"
     "g2project;1.11.0;G2Project.py"

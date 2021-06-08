@@ -61,7 +61,6 @@ class Governor:
 
         return
 
-
 #---------------------------------------------------------------------
 # G2Loader
 #---------------------------------------------------------------------
@@ -232,7 +231,7 @@ def redoFeed(q, debugTrace, redoMode, redoModeInterval):
     return
 
 
-def check_resources_and_startup(thread_count, doPurge, doLicense=True):
+def check_resources_and_startup(returnQueue, thread_count, doPurge, doLicense=True):
     ''' Check system resources, calculate a safe number of threads when argument not specified on command line '''
 
     try:
@@ -241,14 +240,16 @@ def check_resources_and_startup(thread_count, doPurge, doLicense=True):
     except G2ModuleException as ex:
         print('\nERROR: Could not start G2Diagnostic for check_resources_and_startup()')
         print(f'       {ex}')
-        sys.exit(1)
+        returnQueue.put(-1)
+        return
 
     try:
         g2_engine = init_engine('pyG2StartSetup', g2module_params, args.debugTrace, prime_engine=False)
     except G2ModuleException as ex:
         print('ERROR: Could not start the G2 engine for check_resources_and_startup()')
         print(f'       {ex}')
-        sys.exit(1)
+        returnQueue.put(-1)
+        return
 
     try:
         g2_configmgr = G2ConfigMgr()
@@ -256,7 +257,8 @@ def check_resources_and_startup(thread_count, doPurge, doLicense=True):
     except G2ModuleException as ex:
         print('ERROR: Could not start G2ConfigMgr for check_resources_and_startup()')
         print(f'       {ex}')
-        sys.exit(1)
+        returnQueue.put(-1)
+        return
 
     try:
         g2_product = G2Product()
@@ -264,7 +266,8 @@ def check_resources_and_startup(thread_count, doPurge, doLicense=True):
     except G2ModuleException as ex:
         print('ERROR: Could not start G2Product for check_resources_and_startup()')
         print(f'       {ex}\n')
-        sys.exit(1)
+        returnQueue.put(-1)
+        return
 
     licInfo = json.loads(g2_product.license())
     verInfo = json.loads(g2_product.version())
@@ -277,7 +280,8 @@ def check_resources_and_startup(thread_count, doPurge, doLicense=True):
     except G2Exception.G2Exception as ex:
         print('ERROR: Could not get config list in check_resources_and_startup()')
         print(f'       {ex}')
-        sys.exit(1)
+        returnQueue.put(-1)
+        return
 
     # Get the active config ID
     try:
@@ -287,7 +291,8 @@ def check_resources_and_startup(thread_count, doPurge, doLicense=True):
     except G2Exception.G2Exception as ex:
         print('ERROR: Could not get the active config in check_resources_and_startup()')
         print(f'       {ex}')
-        sys.exit(1)
+        returnQueue.put(-1)
+        return
 
     # Get details for the currently active ID
     active_cfg_details = [details for details in config_list['CONFIGS'] if details['CONFIG_ID'] == active_cfg_id]
@@ -465,20 +470,21 @@ def check_resources_and_startup(thread_count, doPurge, doLicense=True):
         print('\nPurging Senzing database...')
         g2_engine.purgeRepository(False)
 
-    # Clean up
-    g2_engine.destroy()
-    del g2_engine
+    # Clean up (in reverse order of initialization)
+    g2_product.destroy()
+    del g2_product
 
     g2_configmgr.destroy()
     del g2_configmgr
 
-    g2_product.destroy()
-    del g2_product
+    g2_engine.destroy()
+    del g2_engine
 
     diag.destroy()
     del diag
 
-    return thread_count
+    # Return values are put in a queue
+    returnQueue.put(thread_count)
 
 
 def perform_load():
@@ -490,22 +496,32 @@ def perform_load():
 
     # Prepare the G2 configuration
     g2ConfigJson = bytearray()
-    if not getInitialG2Config(g2module_params, g2ConfigJson):
+    tempQueue = Queue()
+    getInitialG2ConfigProcess = Process(target=getInitialG2Config_processWrapper, args=(tempQueue,g2module_params, g2ConfigJson))
+    getInitialG2ConfigProcess.start()
+    g2ConfigJson = tempQueue.get(block=True)
+    resultOfGetInitialG2Config = tempQueue.get(block=True)
+    getInitialG2ConfigProcess.join()
+
+    if not resultOfGetInitialG2Config:
         return 1
 
     g2ConfigTables = G2ConfigTables(g2ConfigJson)
 
-    g2Project = G2Project(g2ConfigTables, args.projectFileName, args.projectFileSpec, args.tmpPath)
+    g2Project = G2Project(g2ConfigTables, dsrcAction, args.projectFileName, args.projectFileSpec, args.tmpPath)
     if not g2Project.success:
         return 1
 
     # Enhance the G2 configuration, by adding data sources and entity types
-    if not enhanceG2Config(g2Project, g2module_params, g2ConfigJson, args.configuredDatasourcesOnly):
-        return 1
-
-    # Purge log files created by g2 from prior runs
-    # for filename in glob('pyG2*'):
-    #    os.remove(filename)
+    if not args.testMode:
+        tempQueue = Queue()
+        enhanceG2ConfigProcess = Process(target=enhanceG2Config_processWrapper, args=(tempQueue, g2Project, g2module_params, g2ConfigJson, args.configuredDatasourcesOnly))
+        enhanceG2ConfigProcess.start()
+        g2ConfigJson = tempQueue.get(block=True)
+        resultOfEnhanceG2Config = tempQueue.get(block=True)
+        enhanceG2ConfigProcess.join()
+        if not resultOfEnhanceG2Config:
+            return 1
 
     # Start loading
     for sourceDict in g2Project.sourceList:
@@ -517,25 +533,15 @@ def perform_load():
         cntRows = cntBadParse = cntBadUmf = cntGoodUmf = 0
         g2Project.clearStatPack()
 
-        if not args.testMode:
+        if args.testMode:
+            print(f'\nTesting {filePath}, CTRL-C to end test at any time...\n')
+        else:
             if dsrcAction == 'D':
                 print(f'\n{"-"*30}  Deleting  {"-"*30}\n')
             elif dsrcAction == 'X':
                 print(f'\n{"-"*30}  Reevaluating  {"-"*30}\n')
             else:
                 print(f'\n{"-"*30}  Loading  {"-"*30}\n')
-        else:
-            if not args.createJsonOnly:
-                print(f'\nTesting {filePath}, CTRL-C to end test at any time...\n')
-            else:
-                file_path_json = f'{filePath}.json'
-                print(f'\nCreating {file_path_json}...\n')
-                try:
-                    outputFile = open(file_path_json, 'w', encoding='utf-8', newline='')
-                except IOError as ex:
-                    print(f'\nERROR: Could not create output file {file_path_json}: {ex}')
-                    exitCode = 1
-                    return
 
         # Drop to a single thread for files under 500k
         if os.path.getsize(filePath) < (100000 if isCompressedFile(filePath) else 500000):
@@ -685,31 +691,16 @@ def perform_load():
                     rowData['DATA_SOURCE'] = sourceDict['DATA_SOURCE']
                 if 'ENTITY_TYPE' not in rowData and 'ENTITY_TYPE' in sourceDict:
                     rowData['ENTITY_TYPE'] = sourceDict['ENTITY_TYPE']
-                if 'LOAD_ID' not in rowData:
-                    rowData['LOAD_ID'] = sourceDict['FILE_NAME']
-
-                # Update with file defaults
-                if sourceDict['MAPPING_FILE']:
-                    rowData['_MAPPING_FILE'] = sourceDict['MAPPING_FILE']
 
                 if args.testMode:
-                    if '_MAPPING_FILE' not in rowData:
-                        recordList = [rowData]
-                    else:
-                        recordList, errorCount = g2Project.csvMapper(rowData)
-                        if errorCount:
-                            cntBadParse += 1
-                            recordList = []
+                    mappingResponse = g2Project.testJsonRecord(rowData, cntRows, sourceDict)
+                    if mappingResponse[0]:
+                        cntBadUmf += 1
+                        okToContinue = False
 
-                    for rowData in recordList:
-                        mappingResponse = g2Project.mapJsonRecord(rowData)
-                        if mappingResponse[0]:
-                            cntBadUmf += 1
-                            okToContinue = False
-                            for mappingError in mappingResponse[0]:
-                                print('  WARNING: mapping error in row %s (%s)' % (cntRows, mappingError))
-                        elif args.createJsonOnly:
-                            outputFile.write(json.dumps(rowData, sort_keys=True) + '\n')
+                #--only add force a load_id if not in test mode (why do we do this??)
+                if 'LOAD_ID' not in rowData:
+                    rowData['LOAD_ID'] = sourceDict['FILE_NAME']
 
             # Put the record on the queue
             if okToContinue:
@@ -795,10 +786,6 @@ def perform_load():
             print(" Removing temporary file created by S3 download " + filePath)
             os.remove(filePath)
 
-        # Close output file if created json
-        if args.createJsonOnly:
-            outputFile.close()
-
         # Remove shuffled file unless run with -snd or prior shuffle detected and not small file/low thread count
         if not args.shuffleNoDelete \
            and not shuf_detected \
@@ -812,7 +799,7 @@ def perform_load():
         # Stop processes and threads
         stopLoaderProcessAndThreads(threadList, workQueue)
 
-        # Print load stats if not error or no ctrl-c
+        # Print load stats if not error or ctrl-c
         if exitCode in (0, 9):
             elapsedSecs = time.time() - fileStartTime
             elapsedMins = round(elapsedSecs / 60, 1)
@@ -849,21 +836,6 @@ def perform_load():
                         Time paused in governor(s):     {round(time_governing.value / 60, 1)} mins
                         Records per second:             {fileTps}
                 '''))
-            statPack = g2Project.getStatPack()
-            if statPack['FEATURES']:
-                print(' Features:')
-                for stat in statPack['FEATURES']:
-                    print(('  ' + stat['FEATURE'] + ' ' + '.' * 25)[0:25] + ' ' + (str(stat['COUNT']) + ' ' * 12)[0:12] + ' (' + str(stat['PERCENT']) + '%)')
-            if statPack['UNMAPPED']:
-                print(' Unmapped:')
-                for stat in statPack['UNMAPPED']:
-                    print(('  ' + stat['ATTRIBUTE'] + ' ' + '.' * 25)[0:25] + ' ' + (str(stat['COUNT']) + ' ' * 12)[0:12] + ' (' + str(stat['PERCENT']) + '%)')
-
-            # Governor called for each source
-            try:
-                source_governor.govern()
-            except Exception as err:
-                shutdown(f'\nERROR: Calling per source governor: {err}')
 
         # Don't process next source file if errors
         if exitCode:
@@ -896,6 +868,29 @@ def perform_load():
                         ./G2Loader.py -R {'-c ' + str(iniFileName) if args.iniFile else ''}
 
                     '''))
+
+    if args.testMode:
+
+        report = g2Project.getTestResults('F')
+        report += '\nPress (s)ave to file or (q)uit when reviewing is complete\n'
+
+        less = subprocess.Popen(["less", "-FMXSR"], stdin=subprocess.PIPE)
+
+        # Less returns BrokenPipe if hitting q to exit earlier than end of report
+        try:
+            less.stdin.write(report.encode('utf-8'))
+        except IOError:
+            pass
+
+        less.stdin.close()
+        less.wait()
+
+    # Governor called for each source
+    try:
+        source_governor.govern()
+    except Exception as err:
+        shutdown(f'\nERROR: Calling per source governor: {err}')
+
     return exitCode
 
 
@@ -1001,6 +996,13 @@ def addEntityType(g2ConfigModule, configDoc, entityType, configuredDatasourcesOn
     return returnCode
 
 
+def getInitialG2Config_processWrapper(returnQueue, g2module_params, g2ConfigJson):
+    result = getInitialG2Config(g2module_params, g2ConfigJson)
+    # Return values are put in a queue
+    returnQueue.put(g2ConfigJson)
+    returnQueue.put(result)
+
+
 def getInitialG2Config(g2module_params, g2ConfigJson):
 
     # Get the configuration from the ini parms, this is deprecated and G2Health reports this
@@ -1031,8 +1033,16 @@ def getInitialG2Config(g2module_params, g2ConfigJson):
         g2ConfigJson[::] = b''
         g2ConfigJson += defaultConfigDoc
         g2ConfigMgr.destroy()
+        del g2ConfigMgr
 
     return True
+
+
+def enhanceG2Config_processWrapper(returnQueue, g2Project, g2module_params, g2ConfigJson, configuredDatasourcesOnly):
+    result = enhanceG2Config(g2Project, g2module_params, g2ConfigJson, configuredDatasourcesOnly)
+    # Return values are put in a queue
+    returnQueue.put(g2ConfigJson)
+    returnQueue.put(result)
 
 
 def enhanceG2Config(g2Project, g2module_params, g2ConfigJson, configuredDatasourcesOnly):
@@ -1085,8 +1095,10 @@ def enhanceG2Config(g2Project, g2module_params, g2ConfigJson, configuredDatasour
                 print("Error:  Failed to set new config as default")
                 return False
             g2ConfigMgr.destroy()
+            del g2ConfigMgr
 
     g2Config.destroy()
+    del g2Config
 
     return True
 
@@ -1153,6 +1165,7 @@ def sendToG2(threadId_, workQueue_, numThreads_, debugTrace, threadStop, workloa
 
     try:
         g2_engine.destroy()
+        del g2_engine
     except Exception:
         pass
 
@@ -1179,52 +1192,38 @@ def g2Thread(threadId_, workQueue_, g2Engine_, threadStop, workloadStats, dsrcAc
             row = None
             continue
 
-        # Perform mapping if necessary
+        dataSource = recordID = ''
+        # Only umf is not a dict (csv and json are)
         if type(row) == dict:
-            if '_MAPPING_FILE' not in row:
-                rowList = [row]
-            else:
-                rowList, errorCount = G2Project.csvMapper(row)
-                if errorCount:
-                    rowList = []
-        else:
-            rowList = [row]
+            if dsrcAction in ('D', 'X'):  # strip deletes and reprocess (x) messages down to key only
+                newRow = {}
+                dataSource = newRow['DATA_SOURCE'] = row['DATA_SOURCE']
+                newRow['DSRC_ACTION'] = dsrcAction
+                if 'ENTITY_TYPE' in row:
+                    newRow['ENTITY_TYPE'] = row['ENTITY_TYPE']
+                if 'ENTITY_KEY' in row:
+                    newRow['ENTITY_KEY'] = row['ENTITY_KEY']
+                if 'RECORD_ID' in row:
+                    recordID = newRow['RECORD_ID'] = row['RECORD_ID']
+                newRow['DSRC_ACTION'] = dsrcAction
+                #print ('-'* 25)
+                #print(json.dumps(newRow, indent=4))
+                row = newRow
+            row = json.dumps(row, sort_keys=True)
 
-        # Call g2engine
-        for row in rowList:
+        numProcessed += 1
+        if (workloadStats and (numProcessed % (args.max_threads_per_process * args.loadOutputFrequency)) == 0):
+            dump_workload_stats(g2Engine_)
 
-            dataSource = recordID = ''
-            # Only umf is not a dict (csv and json are)
-            if type(row) == dict:
-                if dsrcAction in ('D', 'X'):  # strip deletes and reprocess (x) messages down to key only
-                    newRow = {}
-                    dataSource = newRow['DATA_SOURCE'] = row['DATA_SOURCE']
-                    newRow['DSRC_ACTION'] = dsrcAction
-                    if 'ENTITY_TYPE' in row:
-                        newRow['ENTITY_TYPE'] = row['ENTITY_TYPE']
-                    if 'ENTITY_KEY' in row:
-                        newRow['ENTITY_KEY'] = row['ENTITY_KEY']
-                    if 'RECORD_ID' in row:
-                        recordID = newRow['RECORD_ID'] = row['RECORD_ID']
-                    newRow['DSRC_ACTION'] = dsrcAction
-                    #print ('-'* 25)
-                    #print(json.dumps(newRow, indent=4))
-                    row = newRow
-                row = json.dumps(row, sort_keys=True)
-
-            numProcessed += 1
-            if (workloadStats and (numProcessed % (args.max_threads_per_process * args.loadOutputFrequency)) == 0):
-                dump_workload_stats(g2Engine_)
-
-            try:
-                # Temp fix for distinguising between X messages that are either JSON or UMF.
-                row_is_json = type(row) == dict
+        try:
+            # Temp fix for distinguising between X messages that are either JSON or UMF.
+            row_is_json = type(row) == dict
 
 # <-ExampleQ-Remove->
-                if row_is_json and dsrcAction == 'X':
-                    g2Engine_.reevaluateRecord(dataSource, recordID, 0)
-                else:
-                    g2Engine_.process(row)
+            if row_is_json and dsrcAction == 'X':
+                g2Engine_.reevaluateRecord(dataSource, recordID, 0)
+            else:
+                g2Engine_.process(row)
 # <-ExampleQ-Remove->
 
 # <-ExampleQ-> response = bytearray()
@@ -1242,18 +1241,18 @@ def g2Thread(threadId_, workQueue_, g2Engine_, threadStop, workloadStats, dsrcAc
 # <-ExampleQ->  if message != '':
 # <-ExampleQ->    channel.basic_publish(exchange='', routing_key=args.queueName, body=message)
 
-            except G2ModuleLicenseException as ex:
-                print('ERROR: G2Engine licensing error!')
-                print(f'     {ex}')
-                with threadStop.get_lock():
-                    threadStop.value = 1
-                return
-            except G2ModuleException as ex:
-                print(f'ERROR: {ex}')
-                print(f'       {row}')
-            except Exception as ex:
-                print(f'ERROR: {ex}')
-                print(f'       {row}')
+        except G2ModuleLicenseException as ex:
+            print('ERROR: G2Engine licensing error!')
+            print(f'     {ex}')
+            with threadStop.get_lock():
+                threadStop.value = 1
+            return
+        except G2ModuleException as ex:
+            print(f'ERROR: {ex}')
+            print(f'       {row}')
+        except Exception as ex:
+            print(f'ERROR: {ex}')
+            print(f'       {row}')
     return
 
 
@@ -1289,7 +1288,6 @@ def time_now(add_secs=False):
         fmt_string = '%I:%M:%S%p'
 
     return datetime.now().strftime(fmt_string).lower()
-
 
 def signal_int(signal, frame):
     ''' Signal interupt handler '''
@@ -1422,7 +1420,6 @@ if __name__ == '__main__':
     g2load_parser.add_argument('-n', '--noRedo', dest='noRedo', action='store_true', default=False, help='disable redo processing')
     g2load_parser.add_argument('-i', '--redoModeInterval', dest='redoModeInterval', type=int, default=60, help='time in secs to wait between redo processing checks, only used in redo mode')
     g2load_parser.add_argument('-k', '--knownDatasourcesOnly', dest='configuredDatasourcesOnly', action='store_true', default=False, help='only accepts configured and known data sources')
-    g2load_parser.add_argument('-j', '--createJsonOnly', dest='createJsonOnly', action='store_true', default=False, help='only create JSON files from mapped CSV files')
     g2load_parser.add_argument('-mtp', '--maxThreadsPerProcess', dest='max_threads_per_process', default=16, type=int, help='maximum threads per process, default=%(default)s')
     g2load_parser.add_argument('-g', '--governor', dest='governor', default=None, help='user supplied governor to load and call during processing', nargs=1)
     g2load_parser.add_argument('-gpd', '--governorDisable', dest='governorDisable', action='store_true', default=False, help='disable default Postgres governor, when repository is Postgres')
@@ -1559,11 +1556,26 @@ if __name__ == '__main__':
         ''')) == "YESPURGE":
             sys.exit(0)
 
+    # test mode settings
+    if args.testMode:
+        defaultThreadCount = 1
+        args.loadOutputFrequency = 10000 if args.loadOutputFrequency == 1000 else args.loadOutputFrequency
+
     # Check resources and acquire num threads
-    defaultThreadCount = check_resources_and_startup(thread_count=args.thread_count,
-                                                     doPurge=(args.purgeFirst or args.forcePurge) and not (args.testMode or args.redoMode),
-                                                     doLicense=True,
-                                                     )
+    else:
+        tempQueue = Queue()
+        checkResourcesProcess = Process(target=check_resources_and_startup,
+                                        args=(tempQueue,
+                                              args.thread_count,
+                                              (args.purgeFirst or args.forcePurge) and not (args.testMode or args.redoMode),
+                                              True))
+        checkResourcesProcess.start()
+        checkResourcesProcess.join()
+        defaultThreadCount = tempQueue.get()
+
+        # Exit if checkResourcesProcess failed to start an engine
+        if defaultThreadCount == -1:
+            sys.exit(1)
 
     # -w has been deprecated and the default is now output workload stats, noWorkloadStats is checked in place of
     # workloadStats. -w will be removed in future updates.
@@ -1577,9 +1589,6 @@ if __name__ == '__main__':
         '''))
         args.shuffleNoDelete = True
         time.sleep(5)
-
-    if args.createJsonOnly:
-        args.testMode = True
 
     # Setup the governor(s)
     governor_setup()

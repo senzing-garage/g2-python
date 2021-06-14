@@ -198,7 +198,7 @@ class G2Project:
                         elif mappedAttributeList[i]['FELEM_CODE'].upper() not in ('USED_FROM_DT', 'USED_THRU_DT'):
                             if len(str(mappedAttributeList[i]['ATTR_VALUE'])) if mappedAttributeList[i]['ATTR_VALUE'] != None else 0: #--can't count null values
                                 attrList.append(attrCode)
-                                featureDesc += ' ' + mappedAttributeList[i]['ATTR_VALUE']
+                                featureDesc += ' ' + str(mappedAttributeList[i]['ATTR_VALUE'])
                                 if mappedAttributeList[i]['FELEM_REQ'].upper() in ('YES', 'ANY'):
                                     completeFeature = True
                         i += 1

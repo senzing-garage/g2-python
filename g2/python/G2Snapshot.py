@@ -545,7 +545,7 @@ if __name__ == '__main__':
     argParser.add_argument('-o', '--output_file_root', dest='output_file_root', default=outputFileRoot, help='root name for files created such as "/project/snapshots/snapshot1"')
     argParser.add_argument('-s', '--sample_size', dest='sample_size', type=int, default=sampleSize, help='defaults to %s' % sampleSize)
     argParser.add_argument('-f', '--relationship_filter', dest='relationship_filter', type=int, default=relationshipFilter, help='filter options 1=No Relationships, 2=Include possible matches, 3=Include possibly related and disclosed. Defaults to %s' % relationshipFilter)
-    argParser.add_argument('-x', '--export_csv', dest='export_csv', action='store_true', default=False, help='also export the full csv')
+    argParser.add_argument('-a', '--for_audit', dest='export_csv', action='store_true', default=False, help='export csv file for audit')
     argParser.add_argument('-D', '--debug', dest='debug', action='store_true', default=False, help='print debug statements')
 
     args = argParser.parse_args()

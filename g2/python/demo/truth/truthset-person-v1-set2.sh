@@ -4,7 +4,7 @@ G2Loader.py \
 
 G2Snapshot.py \
     --output_file_root truthset-person-v1-set2-snapshot \
-    --export_csv
+    --for_audit
 
 G2Audit.py \
     --newer_csv_file truthset-person-v1-set2-snapshot.csv \

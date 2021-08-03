@@ -24,7 +24,7 @@ do
     cd ${GIT_ACCOUNT_DIR}/${SUBMODULE_NAME}
     git checkout main
     git pull
-    git checkout ${GIT_SUBMODULE_BRANCH}
-    git merge origin/main
-    git push
+    # git checkout ${GIT_SUBMODULE_BRANCH}
+    # git merge origin/main
+    # git push
 done

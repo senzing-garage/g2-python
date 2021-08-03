@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 
-SENZING_VERSION=2.7.0
+SENZING_VERSION=2.8.0
 
 SOURCE_PYTHON_DIR=/opt/senzing-${SENZING_VERSION}/g2/python
 
 export GITHUB_ACCESS_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
-GIT_ACCOUNT_DIR=~/senzing-g2.git
+GIT_ACCOUNT_DIR=~/senzing.git
 TARGET_PYTHON_DIR=${GIT_ACCOUNT_DIR}/g2-python/g2/python
 
 GITHUB_UTIL_DIR=~/senzing.git/github-util
-GIT_REPOSITORY_DIR=~/senzing-g2.git/g2-python
+GIT_REPOSITORY_DIR=~/senzing.git/g2-python
 GIT_REPOSITORY_BRANCH=issue-2.dockter.2
-GIT_SUBMODULE_BRANCH=issue-3.dockter.1
+GIT_SUBMODULE_BRANCH=main
 
 BIN_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" > /dev/null 2>&1 && pwd )"

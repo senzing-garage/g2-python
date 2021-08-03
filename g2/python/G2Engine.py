@@ -125,6 +125,7 @@ class G2Engine(object):
 	
     # flag for including search result information
     G2_SEARCH_INCLUDE_FEATURE_SCORES = ( 1 << 26 )
+    G2_SEARCH_INCLUDE_STATS = ( 1 << 27 )
 
     # flags for exporting entity data
     G2_SEARCH_INCLUDE_RESOLVED = G2_EXPORT_INCLUDE_RESOLVED

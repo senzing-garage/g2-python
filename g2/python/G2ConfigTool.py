@@ -1374,6 +1374,52 @@ class G2CmdShell(cmd.Cmd, object):
             self.configUpdated = True
             printWithNewLines('Successfully added!', 'B')
 
+    def do_setFeatureComparison(self, arg):
+        '\n\tsetFeatureComparison {"feature": "<feature_name>", "comparison": "<comparison_function>"}\n'
+
+        if not argCheck('setFeatureComparison', arg, self.do_setFeatureComparison.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+            parmData['FEATURE'] = parmData['FEATURE'].upper()
+        except (ValueError, KeyError) as e:
+            argError(arg, e)
+        else:
+
+            #--lookup feature and error if it doesn't exist
+            ftypeRecord = self.getRecord('CFG_FTYPE', 'FTYPE_CODE', parmData['FEATURE'])
+            if not ftypeRecord:
+                printWithNewLines('Feature %s not found!' % parmData['FEATURE'], 'B')
+                return
+            ftypeID = ftypeRecord['FTYPE_ID']
+
+            cfuncID = 0  # --comparison function
+            if 'COMPARISON' not in parmData or len(parmData['COMPARISON']) == 0:
+                printWithNewLines('Comparison function not specified!', 'B')
+                return
+            parmData['COMPARISON'] = parmData['COMPARISON'].upper()
+            cfuncRecord = self.getRecord('CFG_CFUNC', 'CFUNC_CODE', parmData['COMPARISON'])
+            if cfuncRecord:
+                cfuncID = cfuncRecord['CFUNC_ID']
+            else:
+                printWithNewLines('Invalid comparison function code: %s' % parmData['COMPARISON'], 'B')
+                return
+
+            #--set the comparison call
+            modificationMade = False
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_CFCALL'])):
+                if self.cfgData['G2_CONFIG']['CFG_CFCALL'][i]['FTYPE_ID'] == ftypeID:
+                    self.cfgData['G2_CONFIG']['CFG_CFCALL'][i]['CFUNC_ID'] = cfuncID
+                    modificationMade = True
+            if modificationMade == False:
+                printWithNewLines('No previous comparison method for \'%s\' exists.  Use \'addFeatureComparison\' instead.' % parmData['FEATURE'], 'B')
+                return
+
+            #--we made it!
+            self.configUpdated = True
+            printWithNewLines('Successfully added!', 'B')
+
     def do_deleteFeatureComparisonElement(self, arg):
         '\n\tdeleteFeatureComparisonElement {"feature": "<feature_name>", "element": "<element_name>"}\n'
 
@@ -2854,16 +2900,33 @@ class G2CmdShell(cmd.Cmd, object):
                         execOrder = self.cfgData['G2_CONFIG']['CFG_CFRTN'][i]['EXEC_ORDER']
             execOrder = execOrder + 1
 
+            sameScore=100
+            closeScore=90
+            likelyScore=80
+            plausibleScore=70
+            unlikelyScore=60
+
+            if 'SAMESCORE' in parmData:
+                sameScore = int(parmData['SAMESCORE'])
+            if 'CLOSESCORE' in parmData:
+                closeScore = int(parmData['CLOSESCORE'])
+            if 'LIKELYSCORE' in parmData:
+                likelyScore = int(parmData['LIKELYSCORE'])
+            if 'PLAUSIBLESCORE' in parmData:
+                plausibleScore = int(parmData['PLAUSIBLESCORE'])
+            if 'UNLIKELYSCORE' in parmData:
+                unlikelyScore = int(parmData['UNLIKELYSCORE'])
+
             newRecord = {}
             newRecord['CFRTN_ID'] = cfrtnID
             newRecord['CFUNC_ID'] = cfuncID
             newRecord['CFUNC_RTNVAL'] = parmData['SCORENAME']
             newRecord['EXEC_ORDER'] = execOrder
-            newRecord['SAME_SCORE'] = 100
-            newRecord['CLOSE_SCORE'] = 90
-            newRecord['LIKELY_SCORE'] = 80
-            newRecord['PLAUSIBLE_SCORE'] = 70
-            newRecord['UN_LIKELY_SCORE'] = 60
+            newRecord['SAME_SCORE'] = sameScore
+            newRecord['CLOSE_SCORE'] = closeScore
+            newRecord['LIKELY_SCORE'] = likelyScore
+            newRecord['PLAUSIBLE_SCORE'] = plausibleScore
+            newRecord['UN_LIKELY_SCORE'] = unlikelyScore
             self.cfgData['G2_CONFIG']['CFG_CFRTN'].append(newRecord)
             self.configUpdated = True
             printWithNewLines('Successfully added!', 'B')
@@ -2918,6 +2981,8 @@ class G2CmdShell(cmd.Cmd, object):
                 newRecord['FUNC_VER'] = parmData['VERSION']
                 newRecord['CONNECT_STR'] = parmData['CONNECTSTR']
                 newRecord['ANON_SUPPORT'] = 'Yes'
+                newRecord['LANGUAGE'] = parmData['LANGUAGE']
+                newRecord['JAVA_CLASS_NAME'] = parmData['JAVACLASSNAME']
                 self.cfgData['G2_CONFIG']['CFG_CFUNC'].append(newRecord)
                 self.configUpdated = True
                 printWithNewLines('Successfully added!', 'B')
@@ -4094,6 +4159,53 @@ class G2CmdShell(cmd.Cmd, object):
             printWithNewLines('Successfully added!', 'B')
             if self.doDebug:
                 debug(newRecord)
+
+
+    def do_copyFragment(self, arg):
+        '\n\tcopyFragment {"currentFragment": "<fragment_code>", "newID": "<fragment_id>", "newFragment": "<fragment_code>"}\n'
+
+        if not argCheck('copyFragment', arg, self.do_copyFragment.__doc__):
+            return
+
+        try:
+            parmData = dictKeysUpper(json.loads(arg))
+            parmData['CURRENTFRAGMENT'] = parmData['CURRENTFRAGMENT'].upper()
+            parmData['NEWFRAGMENT'] = parmData['NEWFRAGMENT'].upper()
+        except (ValueError, KeyError) as e:
+            print('\nError with argument(s) or parsing JSON - %s \n' % e)
+        else:
+
+            #--lookup fragment and error if doesn't exist
+            currentFragmentID = -1
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_ERFRAG'])-1, -1, -1):
+                if self.cfgData['G2_CONFIG']['CFG_ERFRAG'][i]['ERFRAG_CODE'] == parmData['CURRENTFRAGMENT']:
+                    currentFragmentID = i
+            if currentFragmentID == -1:
+                printWithNewLines('Fragment %s does not exist!' % parmData['CURRENTFRAGMENT'], 'B')
+                return
+
+            maxID = 0
+            for i in range(len(self.cfgData['G2_CONFIG']['CFG_ERFRAG'])):
+                if self.cfgData['G2_CONFIG']['CFG_ERFRAG'][i]['ERFRAG_CODE'] == parmData['NEWFRAGMENT']:
+                    printWithNewLines('Fragment %s already exists!' % parmData['NEWFRAGMENT'], 'B')
+                    return
+                if 'NEWID' in parmData and int(self.cfgData['G2_CONFIG']['CFG_ERFRAG'][i]['ERFRAG_ID']) == int(parmData['NEWID']):
+                    printWithNewLines('Fragment ID %s already exists!' % parmData['NEWID'], 'B')
+                    return
+                if self.cfgData['G2_CONFIG']['CFG_ERFRAG'][i]['ERFRAG_ID'] > maxID:
+                    maxID = self.cfgData['G2_CONFIG']['CFG_ERFRAG'][i]['ERFRAG_ID']
+
+            if 'NEWID' not in parmData:
+                parmData['NEWID'] = maxID + 1 if maxID >= 1000 else 1000
+
+            fragmentCopy = self.cfgData['G2_CONFIG']['CFG_ERFRAG'][currentFragmentID].copy()
+            fragmentCopy['ERFRAG_ID'] = int(parmData['NEWID'])
+            fragmentCopy['ERFRAG_CODE'] = parmData['NEWFRAGMENT']
+            self.cfgData['G2_CONFIG']['CFG_ERFRAG'].append(fragmentCopy)
+            self.configUpdated = True
+            printWithNewLines('Successfully copied!', 'B')
+            if self.doDebug:
+                debug(fragmentCopy)
 
 
 # ===== rule commands =====

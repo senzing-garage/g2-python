@@ -233,6 +233,9 @@ class G2CmdShell(cmd.Cmd, object):
         getEntitySizeBreakdown_parser.add_argument('-m', '--minimumEntitySize', required=True, type=int)
         getEntitySizeBreakdown_parser.add_argument('-d', '--includeInternalFeatures', action='store_true', required=False, default=False)
 
+        getFeature_parser = self.subparsers.add_parser('getFeature', usage=argparse.SUPPRESS)
+        getFeature_parser.add_argument('-f', '--featureID', required=True, type=int)
+
         getEntityResume_parser = self.subparsers.add_parser('getEntityResume', usage=argparse.SUPPRESS)
         getEntityResume_parser.add_argument('entityID', type=int)
 
@@ -2183,6 +2186,23 @@ class G2CmdShell(cmd.Cmd, object):
         try:
             response = bytearray()
             self.g2_diagnostic_module.getEntitySizeBreakdown(args.minimumEntitySize,args.includeInternalFeatures,response)
+            print('{}'.format(response.decode()))
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
+    def do_getFeature(self,arg):
+        '\nGet information of a feature:  getFeature [-f <featureID>]\n'
+
+        try:
+            args = self.parser.parse_args(['getFeature'] + parse(arg))
+        except SystemExit:
+            print(self.do_getFeature.__doc__)
+            return
+
+        try:
+            response = bytearray()
+            self.g2_diagnostic_module.getFeature(args.featureID,response)
             print('{}'.format(response.decode()))
         except G2Exception.G2Exception as err:
             print(err)

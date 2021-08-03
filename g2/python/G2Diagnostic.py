@@ -475,6 +475,33 @@ class G2Diagnostic(object):
 
         response += tls_var.buf.value
 
+
+    def getFeature(self,libFeatID,response):
+        # type: () -> object
+        """ Retrieve feature information.
+        Args:
+            libFeatID: the feature ID to report on
+        """
+
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2Diagnostic_getFeature.restype = c_int
+        self._lib_handle.G2Diagnostic_getFeature.argtypes = [c_longlong, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2Diagnostic_getFeature(
+                                             libFeatID,
+                                             pointer(responseBuf),
+                                             pointer(responseSize),
+                                             self._resize_func)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+        response += tls_var.buf.value
+
+
     def getResolutionStatistics(self,response):
         # type: () -> object
         """ Retrieve resolution statistics.

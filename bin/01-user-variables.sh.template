@@ -6,7 +6,6 @@ SOURCE_PYTHON_DIR=/opt/senzing-${SENZING_VERSION}/g2/python
 
 export GITHUB_ACCESS_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
-
 GIT_ACCOUNT_DIR=~/senzing.git
 TARGET_PYTHON_DIR=${GIT_ACCOUNT_DIR}/g2-python/g2/python
 

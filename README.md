@@ -66,6 +66,7 @@ These files are packaged in `senzingapi-M.m.P-00000.x86_64.rpm` and `senzingapi-
 1. [Preamble](#preamble)
     1. [Legend](#legend)
 1. [Tips](#tips)
+    1. [View a specific release of g2/python](#view-a-specific-release-of-g2python)
     1. [Compare releases](#compare-releases)
 1. [Develop](#develop)
     1. [Prerequisites for development](#prerequisites-for-development)

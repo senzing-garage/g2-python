@@ -27,7 +27,8 @@ __version__ = "1.0.0"  # See https://www.python.org/dev/peps/pep-0396/
 __date__ = '2021-08-14'
 __updated__ = '2021-08-04'
 
-SENZING_PRODUCT_ID = "5023"  # See https://github.com/Senzing/knowledge-base/blob/master/lists/senzing-product-ids.md
+# See https://github.com/Senzing/knowledge-base/blob/master/lists/senzing-product-ids.md
+SENZING_PRODUCT_ID = "5023"
 log_format = '%(asctime)s %(message)s'
 
 # The "configuration_locator" describes where configuration variables are in:
@@ -199,8 +200,10 @@ def get_parser():
                 for argument, argument_value in arguments.items():
                     subcommands[subcommand]['arguments'][argument] = argument_value
 
-    parser = argparse.ArgumentParser(description="Reports from GitHub. For more information, see https://github.com/Senzing/github-util")
-    subparsers = parser.add_subparsers(dest='subcommand', help='Subcommands (SENZING_SUBCOMMAND):')
+    parser = argparse.ArgumentParser(
+        description="Reports from GitHub. For more information, see https://github.com/Senzing/github-util")
+    subparsers = parser.add_subparsers(
+        dest='subcommand', help='Subcommands (SENZING_SUBCOMMAND):')
 
     for subcommand_key, subcommand_values in subcommands.items():
         subcommand_help = subcommand_values.get('help', "")
@@ -258,7 +261,8 @@ message_dictionary = {
 
 def message(index, *args):
     index_string = str(index)
-    template = message_dictionary.get(index_string, "No message for index {0}.".format(index_string))
+    template = message_dictionary.get(
+        index_string, "No message for index {0}.".format(index_string))
     return template.format(*args)
 
 

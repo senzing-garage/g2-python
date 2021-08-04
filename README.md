@@ -148,7 +148,7 @@ see [Environment Variables](https://github.com/Senzing/knowledge-base/blob/maste
    Example:
 
     ```console
-    export GITHUB_BRANCH=my-test-branch
+    export GIT_BRANCH=my-test-branch
     ```
 
 1. Checkout branch.
@@ -158,13 +158,15 @@ see [Environment Variables](https://github.com/Senzing/knowledge-base/blob/maste
     cd ${GIT_REPOSITORY_DIR}
     git checkout main
     git pull
-    git checkout ${GITHUB_BRANCH}
+    git checkout ${GIT_BRANCH}
     ```
 
 ### Update files from submodules
 
 1. :pencil2: Set `GITHUB_ACCESS_TOKEN`.
    This is needed to access GitHub above the "public" limit.
+   For information on how to obtain an access token, see
+   [Creating a personal access token](https://docs.github.com/en/github/authenticating-to-github/keeping-your-account-and-data-secure/creating-a-personal-access-token).
 
     ```console
     export GITHUB_ACCESS_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -174,5 +176,6 @@ see [Environment Variables](https://github.com/Senzing/knowledge-base/blob/maste
    Example:
 
     ```console
-    ${GIT_REPOSITORY_DIR}/bin/update-submodules.sh
+    cd ${GIT_REPOSITORY_DIR}/bin
+    ./update-submodules.sh
     ```

@@ -65,33 +65,15 @@ These files are packaged in `senzingapi-M.m.P-00000.x86_64.rpm` and `senzingapi-
 
 1. [Preamble](#preamble)
     1. [Legend](#legend)
-1. [Related artifacts](#related-artifacts)
-1. [Expectations](#expectations)
-1. [Demonstrate using Command Line Interface](#demonstrate-using-command-line-interface)
-    1. [Prerequisites for CLI](#prerequisites-for-cli)
-    1. [Download](#download)
-    1. [Environment variables for CLI](#environment-variables-for-cli)
-    1. [Run command](#run-command)
-1. [Demonstrate using Docker](#demonstrate-using-docker)
-    1. [Prerequisites for Docker](#prerequisites-for-docker)
-    1. [Docker volumes](#docker-volumes)
-    1. [Docker network](#docker-network)
-    1. [Docker user](#docker-user)
-    1. [Database support](#database-support)
-    1. [External database](#external-database)
-    1. [Run Docker container](#run-docker-container)
-1. [Directives](#directives)
 1. [Develop](#develop)
     1. [Prerequisites for development](#prerequisites-for-development)
     1. [Clone repository](#clone-repository)
-    1. [Build Docker image](#build-docker-image)
-1. [Examples](#examples)
-    1. [Examples of CLI](#examples-of-cli)
-    1. [Examples of Docker](#examples-of-docker)
-1. [Advanced](#advanced)
-    1. [Configuration](#configuration)
-1. [Errors](#errors)
-1. [References](#references)
+    1. [Create branch](#create-branch)
+    1. [Update files from submodules](#update-files-from-submodules)
+    1. [Update CHANGELOG.md](#update-changelog.md)
+    1. [Verify changes](#verify-changes)
+    1. [Pull branch into main](#pull-branch-into-main)
+    1. [Create versioned release](#crate-versioned-release)
 
 ## Preamble
 
@@ -179,3 +161,30 @@ see [Environment Variables](https://github.com/Senzing/knowledge-base/blob/maste
     cd ${GIT_REPOSITORY_DIR}/bin
     ./update-submodules.sh
     ```
+
+### Update CHANGELOG.md
+
+1. Update `CHANGELOG.md` to reflect the new version of Senzing.
+
+### Verify changes
+
+1. If a new version of Senzing is installed into `/opt/senzing/g2`, then files can be compared.
+   Example:
+
+    ```console
+    diff -r /opt/senzing/g2/python ${GIT_REPOSITORY_DIR}/g2/python
+    ```
+
+1. Opening, but not creating, pull request can be made for the `GIT_BRANCH` branch to determine if the changes are expected.
+
+### Pull branch into main
+
+1. Follow a standard process for pulling into main branch.
+   Example:
+    1. Create a Pull Request for the `GIT_BRANCH` branch.
+    1. Have Pull Request approved.
+    1. Merge Pull request into "main" branch.
+
+### Create versioned release
+
+1. [Create a new release](https://github.com/Senzing/g2-python/releases) that matches the `senzingapi` release.

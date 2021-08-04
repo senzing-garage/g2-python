@@ -41,7 +41,3 @@ do
     cp ${SUBMODULE_ARTIFACT} ${TARGET_PYTHON_DIR}/
 
 done
-
-
-
-

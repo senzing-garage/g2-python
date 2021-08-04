@@ -2,7 +2,7 @@
 
 ## Synopsis
 
-The aggregation of repositories that comprise `g2/python`.
+The aggregation of repositories that comprise `g2/python` in the Senzing SDK API.
 
 ## Overview
 
@@ -10,7 +10,7 @@ The aggregated files look like this:
 
 ```console
 $ tree g2/python
-/opt/my-senzing/g2/python
+
 ├── CompressedFile.py
 ├── demo
 │   ├── sample
@@ -103,7 +103,7 @@ describing where we can improve.   Now on with the show...
 ### View a specific release of g2/python
 
 1. Visit [github.com/Senzing/g2-python](https://github.com/Senzing/g2-python)
-1. In upper-left dropdown currently set to "main", select the dropdown and choose the "Tags" tab.
+1. In upper-left dropdown, probably set to "main", select the dropdown and choose the "Tags" tab.
 1. Choose the Senzing SDK API version of interest.
 1. The new URL will look like [https://github.com/Senzing/g2-python/tree/2.8.0](https://github.com/Senzing/g2-python/tree/2.8.0),
    where `2.8.0` is the version of Senzing SDK API.

@@ -59,7 +59,7 @@ $ tree g2/python
 └── governor_postgres_xid.py
 ```
 
-These files are packaged in `senzingapi-M.m.P-00000.x86_64.rpm` and `senzingapi-M.m.P-00000.x86_64.deb`.
+These files are packaged in `senzingapi-M.m.P-00000.x86_64.rpm` and `senzingapi_M.m.P-00000_amd64.deb`
 
 ### Contents
 
@@ -107,7 +107,8 @@ describing where we can improve.   Now on with the show...
 1. Choose the Senzing SDK API version of interest.
 1. The new URL will look like [https://github.com/Senzing/g2-python/tree/2.8.0](https://github.com/Senzing/g2-python/tree/2.8.0),
    where `2.8.0` is the version of Senzing SDK API.
-1. In addition to the `g2/python` directory being at the specified Senzing SDK API version, the GitHub submodule references should also be at that version.
+1. In addition to the `g2/python` directory being at the specified Senzing SDK API version,
+   the GitHub submodule references will also be at that version.
 
 ### Compare releases
 

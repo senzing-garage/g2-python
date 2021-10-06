@@ -5,7 +5,7 @@
 SUBMODULES=(
     "compressedfile;1.3.0;CompressedFile.py"
     "dumpstack;1.0.0;DumpStack.py"
-    "g2audit;1.9.0;G2Audit.py"
+    "g2audit;1.10.0;G2Audit.py"
     "g2command;1.19.0;G2Command.py"
     "g2config;1.10.0;G2Config.py"
     "g2configmgr;1.5.0;G2ConfigMgr.py"
@@ -17,7 +17,7 @@ SUBMODULES=(
     "g2diagnostic;1.10.0;G2Diagnostic.py"
     "g2engine;1.16.0;G2Engine.py"
     "g2exception;1.2.0;G2Exception.py"
-    "g2explorer;1.7.0;G2Explorer.py"
+    "g2explorer;1.8.0;G2Explorer.py"
     "g2export;1.13.0;G2Export.py"
     "g2health;1.1.0;G2Health.py"
     "g2hasher;1.5.0;G2Hasher.py"
@@ -28,6 +28,6 @@ SUBMODULES=(
     "g2project;1.13.0;G2Project.py"
     "g2s3;1.0.0;G2S3.py"
     "g2setupconfig;1.2.0;G2SetupConfig.py"
-    "g2snapshot;1.2.0;G2Snapshot.py"
+    "g2snapshot;1.3.0;G2Snapshot.py"
     "g2updateproject;1.7.0;G2UpdateProject.py"
 )

@@ -5,7 +5,7 @@ In https://github.com/Senzing/g2-python:
 1. Create a Pull Request with the title:
 
 ```console
-SenzingAPI 2.8.0
+SenzingAPI 2.8.1
 ```
 
 1. Create a new version that matches SenzingAPI version

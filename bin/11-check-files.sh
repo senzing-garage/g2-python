@@ -4,4 +4,4 @@
 
 source 01-user-variables.sh
 
-diff -r /opt/senzing-${SENZING_VERSION}/g2/python ${TARGET_PYTHON_DIR}
+diff -r ${SOURCE_PYTHON_DIR} ${TARGET_PYTHON_DIR}

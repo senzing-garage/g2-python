@@ -205,9 +205,9 @@ class G2CmdShell(cmd.Cmd, object):
             printWithNewLines('Initializing Senzing engines...', 'B')
 
         try:
-            self.g2_module.initV2('pyG2E', g2module_params, False)
-            self.g2_configmgr.initV2('pyG2ConfigMgr', g2module_params, False)
-            self.g2_config.initV2('pyG2Config', g2module_params, False)
+            self.g2_module.init('pyG2E', g2module_params, False)
+            self.g2_configmgr.init('pyG2ConfigMgr', g2module_params, False)
+            self.g2_config.init('pyG2Config', g2module_params, False)
         except G2Exception.G2Exception as ex:
             printWithNewLines(f'ERROR: {ex}', 'B')
             # Clean up before exiting

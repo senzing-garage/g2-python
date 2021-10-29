@@ -105,7 +105,7 @@ if __name__ == '__main__':
     shutil.copyfile(senzing_path.joinpath('resources', 'templates', 'G2C.db'), target_path.joinpath('var', 'sqlite', 'G2C.db'))
 
     # Soft link data
-    target_path.joinpath('data').symlink_to(senz_install_root.joinpath('data', '2.0.0'))
+    target_path.joinpath('data').symlink_to(senz_install_root.joinpath('data', '3.0.0'))
 
     # Files & strings to modify in new project
     files_to_update = [
@@ -125,4 +125,4 @@ if __name__ == '__main__':
         for p in senzing_path_subs:
             find_replace_in_file(f, p[0], str(p[1]))
 
-    print('Succesfully created.')
+    print('Successfully created.')

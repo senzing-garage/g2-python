@@ -400,7 +400,7 @@ if __name__ == '__main__':
         try:
             print('\nStarting Senzing engine...', file=msg_output_handle)
             g2_engine = G2Engine()
-            g2_engine.initV2('pyG2Export', g2module_params, False)
+            g2_engine.init('pyG2Export', g2module_params, False)
         except G2ModuleException as ex:
             print_error_msg(f'Error: Could not start the G2 engine using {iniFileName}', ex, exit=True)
 
@@ -435,7 +435,7 @@ if __name__ == '__main__':
             # Create CSV or JSON export handle to fetch from
             try:
                 if args.outputFormat == 'CSV':
-                    export_handle = g2_engine.exportCSVEntityReportV2(csvFields, exportFlags)
+                    export_handle = g2_engine.exportCSVEntityReport(csvFields, exportFlags)
                 else:
                     # For JSON output amend the engine flags to obtain additional data
                     # JSON output to match similar CSV ouput will include additional items, CSV unions flags & csvFields to determine output

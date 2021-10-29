@@ -4,9 +4,7 @@ import fnmatch
 import glob
 import io
 import json
-import optparse
 import os
-import sys
 import textwrap
 from contextlib import redirect_stdout
 from operator import itemgetter
@@ -48,7 +46,6 @@ class G2Project:
             self.loadProjectFile(projectFileName)
         elif self.success and projectFileUri:
             self.loadProjectUri(projectFileUri)
-
         return
 
     #-----------------------------
@@ -60,7 +57,7 @@ class G2Project:
         ''' determine if a valid config attribute '''
         attrName = attrName.upper()
         if attrName in self.mappingCache:
-            attrMapping = dict(self.mappingCache[attrName]) #--dict() to create a new instance!
+            attrMapping = dict(self.mappingCache[attrName])  # dict() to create a new instance!
         else:
             usageType = ''
             configMapping = None
@@ -73,9 +70,9 @@ class G2Project:
                     configMapping = self.attributeDict[tryColumn]
                 else:
 
-                   usageType = attrName[attrName.rfind('_') + 1:]
-                   tryColumn = attrName[0:attrName.rfind('_')]
-                   if tryColumn in self.attributeDict:
+                    usageType = attrName[attrName.rfind('_') + 1:]
+                    tryColumn = attrName[0:attrName.rfind('_')]
+                    if tryColumn in self.attributeDict:
                         configMapping = self.attributeDict[tryColumn]
 
             attrMapping = {}
@@ -133,7 +130,7 @@ class G2Project:
                         break
                     else:
                         for childColumn in childRow:
-                            if type(jsonDict[columnName][childRowNum][childColumn]) not in (dict, list): #--safeguard:
+                            if type(jsonDict[columnName][childRowNum][childColumn]) not in (dict, list):  # safeguard:
                                 mappedAttribute = self.mapAttribute(childColumn, jsonDict[columnName][childRowNum][childColumn])
                                 if mappedAttribute:
                                     mappedAttribute['ATTR_LEVEL'] = columnName + '#' + str(childRowNum)
@@ -142,7 +139,7 @@ class G2Project:
                                 mappingErrors.append('unexpected records under %s of %s' % (childColumn, columnName))
                                 break
 
-            elif type(jsonDict[columnName]) != dict: #--safeguard
+            elif type(jsonDict[columnName]) != dict:  # safeguard
                 mappedAttribute = self.mapAttribute(columnName, jsonDict[columnName])
                 if mappedAttribute:
                     mappedAttribute['ATTR_LEVEL'] = 'ROOT'
@@ -184,7 +181,7 @@ class G2Project:
                     featureKey = mappedAttributeList[i]['FEATURE_KEY']
                     ftypeClass = mappedAttributeList[i]['ATTR_CLASS']
                     ftypeCode = mappedAttributeList[i]['FTYPE_CODE']
-                    utypeCode = mappedAttributeList[i]['UTYPE_CODE']
+                    usageType = mappedAttributeList[i]['UTYPE_CODE']
                     featureDesc = ''
                     attrList = []
                     completeFeature = False
@@ -192,11 +189,11 @@ class G2Project:
                         attrCode = mappedAttributeList[i]['ATTR_CODE']
                         attrValue = mappedAttributeList[i]['ATTR_VALUE']
                         if attrCode != ftypeCode:
-                            self.updateStatPack('MAPPED', f'{ftypeCode}|{utypeCode}|{attrCode}', attrValue)
+                            self.updateStatPack('MAPPED', f'{ftypeCode}|{usageType}|{attrCode}', attrValue)
                         if mappedAttributeList[i]['FELEM_CODE'] == 'USAGE_TYPE':
-                            utypeCode = mappedAttributeList[i]['ATTR_VALUE']
+                            usageType = mappedAttributeList[i]['ATTR_VALUE']
                         elif mappedAttributeList[i]['FELEM_CODE'].upper() not in ('USED_FROM_DT', 'USED_THRU_DT'):
-                            if len(str(mappedAttributeList[i]['ATTR_VALUE'])) if mappedAttributeList[i]['ATTR_VALUE'] != None else 0: #--can't count null values
+                            if len(str(mappedAttributeList[i]['ATTR_VALUE'])) if mappedAttributeList[i]['ATTR_VALUE'] is not None else 0:  # can't count null values
                                 attrList.append(attrCode)
                                 featureDesc += ' ' + str(mappedAttributeList[i]['ATTR_VALUE'])
                                 if mappedAttributeList[i]['FELEM_REQ'].upper() in ('YES', 'ANY'):
@@ -206,11 +203,11 @@ class G2Project:
                     if not completeFeature:
                         self.updateStatPack('INFO', f'Incomplete {ftypeCode}', f'row {self.recordCount}')
                     else:
-                        self.updateStatPack('MAPPED', f'{ftypeCode}|{utypeCode}|n/a', featureDesc.strip())
+                        self.updateStatPack('MAPPED', f'{ftypeCode}|{usageType}|n/a', featureDesc.strip())
                         featureCount += 1
 
                         #--update mapping stats
-                        statCode = ftypeCode + ('-' + utypeCode if utypeCode else '')
+                        statCode = ftypeCode + ('-' + usageType if usageType else '')
                         if statCode in self.featureStats:
                             self.featureStats[statCode] += 1
                         else:
@@ -222,7 +219,7 @@ class G2Project:
                             entityName = featureDesc
 
                         #--capture feature stats for validation
-                        validationData = {'USAGE_TYPE': utypeCode, 'ATTR_LIST': attrList}
+                        validationData = {'USAGE_TYPE': usageType, 'ATTR_LIST': attrList}
                         if ftypeCode not in mappedFeatures:
                             mappedFeatures[ftypeCode] = [validationData]
                         else:
@@ -246,7 +243,7 @@ class G2Project:
                     elif mappedAttributeList[i]['ATTR_CLASS'] == 'OBSERVATION':
                         attrCode = mappedAttributeList[i]['ATTR_NAME']
                         attrValue = mappedAttributeList[i]['ATTR_VALUE']
-                        self.updateStatPack('MAPPED', 'n/a||' + attrCode, attrValue)  #--"n/a||"" to give same structure as an actual feature
+                        self.updateStatPack('MAPPED', 'n/a||' + attrCode, attrValue)  # "n/a||"" to give same structure as an actual feature
 
                     i += 1
 
@@ -310,7 +307,7 @@ class G2Project:
                     messageList.append(['INFO', 'Use of other_id feature'])
 
             for message in messageList:
-                self.updateStatPack(message[0], message[1], 'row: ' + str(rowNum) + (', record_id: ' + record_id if record_id else ''))
+                self.updateStatPack(message[0], message[1], 'row: ' + str(rowNum) + (', record_id: ' + str(record_id) if record_id else ''))
                 mappingErrors.append(message)
 
         return [mappingErrors, mappedAttributeList, entityName]
@@ -340,6 +337,7 @@ class G2Project:
                 self.statPack[cat1][cat2]['VALUES'][value] = 1
             else:
                 self.statPack[cat1][cat2]['VALUES'][value] += 1
+
         return
 
     #---------------------------------------
@@ -382,15 +380,15 @@ class G2Project:
                     itemDict['frequency'] = self.featureDict[cat2parts[0]]['FTYPE_FREQ']
                     if itemDict['frequency'] == 'F1' and itemDict['uniquePercent'] < .8:
                         itemDict['warning'] = True
-                        msg = itemDict['feature'] + ' is only ' + str(round(itemDict['uniquePercent'] * 100, 0)) +'% unique'
+                        msg = itemDict['feature'] + ' is only ' + str(round(itemDict['uniquePercent'] * 100, 0)) + '% unique'
                         fileWarnings.append({'type': 'WARNING', 'message': msg, 'recordCount': itemDict['uniqueCount'], 'recordPercent': itemDict['uniquePercent']})
                     if itemDict['frequency'] == 'NAME' and itemDict['uniquePercent'] < .7:
                         itemDict['warning'] = True
-                        msg = itemDict['feature'] + ' is only ' + str(round(itemDict['uniquePercent'] * 100, 0)) +'% unique'
+                        msg = itemDict['feature'] + ' is only ' + str(round(itemDict['uniquePercent'] * 100, 0)) + '% unique'
                         fileWarnings.append({'type': 'WARNING', 'message': msg, 'recordCount': itemDict['uniqueCount'], 'recordPercent': itemDict['uniquePercent']})
                     if itemDict['frequency'] == 'FF' and itemDict['uniquePercent'] < .7:
                         itemDict['warning'] = True
-                        msg = itemDict['feature'] + ' is only ' + str(round(itemDict['uniquePercent'] * 100, 0)) +'% unique'
+                        msg = itemDict['feature'] + ' is only ' + str(round(itemDict['uniquePercent'] * 100, 0)) + '% unique'
                         fileWarnings.append({'type': 'WARNING', 'message': msg, 'recordCount': itemDict['uniqueCount'], 'recordPercent': itemDict['uniquePercent']})
 
                 #--reclass prevalent informational messages to warnings
@@ -413,7 +411,7 @@ class G2Project:
             elif cat1 == 'UNMAPPED':
                 statPack[cat1] = sorted(itemList, key=lambda x: x['attribute'])
             else:
-                statPack[cat1] = sorted(itemList, key=lambda x: x['recordCount'], reverse = True)
+                statPack[cat1] = sorted(itemList, key=lambda x: x['recordCount'], reverse=True)
 
         if fileWarnings and 'WARNING' not in statPack:
             statPack['WARNING'] = []
@@ -444,7 +442,7 @@ class G2Project:
                 for parm in parmList:
                     if '=' in parm:
                         parmType = parm.split('=')[0].strip().upper()
-                        parmValue = parm.split('=')[1].strip().replace('"','').replace("'",'').upper()
+                        parmValue = parm.split('=')[1].strip().replace('"', '').replace("'", '').upper()
                         parmDict[parmType] = parmValue
             # If not additional parameters use file to enable easy file globbing where fileSpec would otherwise be a list and file isn't
             # fileSpec is a str when /? is present but a list when it isn't present this addresses that
@@ -528,6 +526,7 @@ class G2Project:
             self.projectFileName = projectFileName
             self.projectFilePath = os.path.dirname(os.path.abspath(projectFileName))
             fileName, fileExtension = os.path.splitext(projectFileName)
+
             if fileExtension.upper() == '.JSON':
                 self.projectFileFormat = 'JSON'
             elif fileExtension.upper() in ('.CSV', '.TSV', '.TAB', '.PIPE'):
@@ -605,7 +604,7 @@ class G2Project:
         if not(fileData['HEADER_ROW']):
             print('ERROR: project file does not contain a header row!')
             self.success = False
-        elif not 'FILE_NAME' in fileData['HEADER_ROW']:
+        elif 'FILE_NAME' not in fileData['HEADER_ROW']:
             print('ERROR: project file does not contain a column for FILE_NAME!')
             self.success = False
         else:
@@ -648,7 +647,7 @@ class G2Project:
             else:
                 sourceDict['FILE_FORMAT'] = sourceDict['FILE_FORMAT'].upper()
 
-            if sourceDict['FILE_FORMAT'] not in ('JSON', 'CSV', 'TSV', 'TAB', 'PIPE'):
+            if sourceDict['FILE_FORMAT'] not in ('JSON', 'CSV', 'TSV', 'TAB', 'PIPE', 'UMF'):
                 print('ERROR: project file entry ' + str(sourceRow) + ' does not contain a valid file format!')
                 self.success = False
 
@@ -703,11 +702,11 @@ class G2Project:
                     sourceDict['FILE_PATH'] = sourceDict['FILE_NAME']
                     sourceDict['FILE_NAME'] = os.path.basename(sourceDict['FILE_PATH'])
                     sourceDict['FILE_SOURCE'] = 'local'
-                else:  #--append the project file path
+                else:  # append the project file path
                     sourceDict['FILE_PATH'] = self.projectFilePath + os.path.sep + sourceDict['FILE_NAME']
                     sourceDict['FILE_SOURCE'] = 'local'
 
-                print('Validating %s ...' % sourceDict['FILE_PATH'])
+                print(f'\nValidating {sourceDict["FILE_PATH"]}...')
 
                 if not os.path.exists(sourceDict['FILE_PATH']):
                     print(' ERROR: File does not exist!')
@@ -738,7 +737,7 @@ class G2Project:
                             if not (rowData.upper().startswith('<UMF_DOC') and rowData.upper().endswith('/UMF_DOC>')):
                                 print('WARNING: invalid UMF in row %s (%s)' % (rowCnt, rowData[0:50]))
                                 badCnt += 1
-                        else: #--test json or csv record
+                        else:  # test json or csv record
                             mappingResponse = self.testJsonRecord(rowData, rowCnt, sourceDict)
                             errors = False
                             for mappingError in mappingResponse[0]:
@@ -780,7 +779,7 @@ class G2Project:
         statPack = self.getStatPack()
         with io.StringIO() as buf, redirect_stdout(buf):
 
-            print ('\nTEST RESULTS')
+            print('\nTEST RESULTS')
 
             if 'MAPPED' in statPack:
                 tableInfo = [{'header': 'MAPPED FEATURES', 'width': 40, 'just': '<'},

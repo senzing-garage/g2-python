@@ -2,6 +2,9 @@ from ctypes import *
 import threading
 import json
 import os
+import functools
+import warnings
+
 
 class MyBuffer(threading.local):
   def __init__(self):
@@ -39,6 +42,23 @@ def resize_return_buffer(buf_, size_):
   return addressof(tls_var.buf)
 
 
+SENZING_PRODUCT_ID = "5027"  # See https://github.com/Senzing/knowledge-base/blob/master/lists/senzing-product-ids.md
+
+def deprecated(instance):
+    def the_decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            warnings.simplefilter('always', DeprecationWarning)  # turn off filter
+            warnings.warn(
+                "senzing-{0}{1:04d}W Call to deprecated function {2}.".format(SENZING_PRODUCT_ID, instance, func.__name__),
+                category=DeprecationWarning,
+                stacklevel=2)
+            warnings.simplefilter('default', DeprecationWarning)  # reset filter
+            return func(*args, **kwargs)
+        return wrapper
+    return the_decorator
+
+
 
 class G2Diagnostic(object):
     """G2 diagnostic module access library
@@ -51,7 +71,11 @@ class G2Diagnostic(object):
         _ini_file_name: name and location of .ini file
     """
 
+    @deprecated(1201)
     def initV2(self, module_name_, ini_params_, debug_=False):
+        self.init(module_name_,ini_params_,debug_)
+
+    def init(self, module_name_, ini_params_, debug_=False):
 
         self._module_name = self.prepareStringArgument(module_name_)
         self._ini_params = self.prepareStringArgument(ini_params_)
@@ -60,8 +84,8 @@ class G2Diagnostic(object):
         if self._debug:
             print("Initializing G2 diagnostic module")
 
-        self._lib_handle.G2Diagnostic_init_V2.argtypes = [c_char_p, c_char_p, c_int]
-        ret_code = self._lib_handle.G2Diagnostic_init_V2(self._module_name,
+        self._lib_handle.G2Diagnostic_init.argtypes = [c_char_p, c_char_p, c_int]
+        ret_code = self._lib_handle.G2Diagnostic_init(self._module_name,
                                  self._ini_params,
                                  self._debug)
 
@@ -69,13 +93,17 @@ class G2Diagnostic(object):
             print("Initialization Status: " + str(ret_code))
 
         if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Diagnostic has not been successfully initialized')
         elif ret_code < 0:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
 
 
+    @deprecated(1202)
     def initWithConfigIDV2(self, engine_name_, ini_params_, initConfigID_, debug_):
+        self.initWithConfigID(engine_name_,ini_params_,initConfigID_,debug_)
+
+    def initWithConfigID(self, engine_name_, ini_params_, initConfigID_, debug_):
 
         configIDValue = self.prepareIntArgument(initConfigID_)
 
@@ -85,8 +113,8 @@ class G2Diagnostic(object):
         if self._debug:
             print("Initializing G2 diagnostic module")
 
-        self._lib_handle.G2Diagnostic_initWithConfigID_V2.argtypes = [ c_char_p, c_char_p, c_longlong, c_int ]
-        ret_code = self._lib_handle.G2Diagnostic_initWithConfigID_V2(self._engine_name,
+        self._lib_handle.G2Diagnostic_initWithConfigID.argtypes = [ c_char_p, c_char_p, c_longlong, c_int ]
+        ret_code = self._lib_handle.G2Diagnostic_initWithConfigID(self._engine_name,
                                  self._ini_params,
                                  configIDValue,
                                  self._debug)
@@ -95,20 +123,24 @@ class G2Diagnostic(object):
             print("Initialization Status: " + str(ret_code))
 
         if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Diagnostic has not been successfully initialized')
         elif ret_code < 0:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
 
-    def reinitV2(self, initConfigID):
+    @deprecated(1203)
+    def reinitV2(self, initConfigID_):
+        self.reinit(initConfigID_)
+
+    def reinit(self, initConfigID):
 
         configIDValue = int(self.prepareStringArgument(initConfigID))
 
-        self._lib_handle.G2Diagnostic_reinit_V2.argtypes = [ c_longlong ]
-        ret_code = self._lib_handle.G2Diagnostic_reinit_V2(configIDValue)
+        self._lib_handle.G2Diagnostic_reinit.argtypes = [ c_longlong ]
+        ret_code = self._lib_handle.G2Diagnostic_reinit(configIDValue)
 
         if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Diagnostic has not been successfully initialized')
         elif ret_code < 0:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
@@ -194,7 +226,7 @@ class G2Diagnostic(object):
                                                                  self._resize_func)
 
         if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Diagnostic has not been successfully initialized')
         elif ret_code < 0:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
@@ -219,7 +251,7 @@ class G2Diagnostic(object):
                                                                  self._resize_func)
 
         if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Diagnostic has not been successfully initialized')
         elif ret_code < 0:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
@@ -242,7 +274,7 @@ class G2Diagnostic(object):
                                                                  self._resize_func)
 
         if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Diagnostic has not been successfully initialized')
         elif ret_code < 0:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
@@ -256,23 +288,28 @@ class G2Diagnostic(object):
         Args:
             entitySize: The size of the resolved entity (observed entity count)
         """
-        self._lib_handle.G2Diagnostic_getEntityListBySize.restype = c_void_p
-        self._lib_handle.G2Diagnostic_getEntityListBySize.argtypes = [c_ulonglong]
-        sizedEntityHandle = self._lib_handle.G2Diagnostic_getEntityListBySize(entitySize)
-        if sizedEntityHandle == None:
+        self._lib_handle.G2Diagnostic_getEntityListBySize.restype = c_int
+        self._lib_handle.G2Diagnostic_getEntityListBySize.argtypes = [c_ulonglong,POINTER(c_void_p)]
+        sizedEntityHandle = c_void_p(0)
+        ret_code = self._lib_handle.G2Diagnostic_getEntityListBySize(entitySize,byref(sizedEntityHandle))
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Diagnostic has not been successfully initialized')
+        elif ret_code < 0:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
-        return sizedEntityHandle
+
+        return sizedEntityHandle.value
 
     def fetchNextEntityBySize(self, sizedEntityHandle,response):
         response[::]=b''
-        self._lib_handle.G2Diagnostic_fetchNextEntityBySize.restype = c_longlong
+        self._lib_handle.G2Diagnostic_fetchNextEntityBySize.restype = c_int
         self._lib_handle.G2Diagnostic_fetchNextEntityBySize.argtypes = [c_void_p, c_char_p, c_size_t]
         resultValue = self._lib_handle.G2Diagnostic_fetchNextEntityBySize(c_void_p(sizedEntityHandle),tls_var.buf,sizeof(tls_var.buf))
         while resultValue != 0:
 
             if resultValue == -1:
-                raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
+                raise G2ModuleNotInitialized('G2Diagnostic has not been successfully initialized')
             elif resultValue < 0:
                 self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
                 raise TranslateG2ModuleException(tls_var.buf.value)
@@ -285,55 +322,9 @@ class G2Diagnostic(object):
         return response
 
     def closeEntityListBySize(self, sizedEntityHandle):
-        self._lib_handle.G2Diagnostic_closeEntityListBySize.restype = None
+        self._lib_handle.G2Diagnostic_closeEntityListBySize.restype = c_int
         self._lib_handle.G2Diagnostic_closeEntityListBySize.argtypes = [c_void_p]
         self._lib_handle.G2Diagnostic_closeEntityListBySize(c_void_p(sizedEntityHandle))
-
-
-
-    def getEntityListBySizeV2(self,entitySize):
-        """ Generate a list of resolved entities of a particular size
-
-        Args:
-            entitySize: The size of the resolved entity (observed entity count)
-        """
-        self._lib_handle.G2Diagnostic_getEntityListBySize_V2.restype = c_int
-        self._lib_handle.G2Diagnostic_getEntityListBySize_V2.argtypes = [c_ulonglong,POINTER(c_void_p)]
-        sizedEntityHandle = c_void_p(0)
-        ret_code = self._lib_handle.G2Diagnostic_getEntityListBySize_V2(entitySize,byref(sizedEntityHandle))
-
-        if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
-        elif ret_code < 0:
-            self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
-            raise TranslateG2ModuleException(tls_var.buf.value)
-
-        return sizedEntityHandle.value
-
-    def fetchNextEntityBySizeV2(self, sizedEntityHandle,response):
-        response[::]=b''
-        self._lib_handle.G2Diagnostic_fetchNextEntityBySize_V2.restype = c_int
-        self._lib_handle.G2Diagnostic_fetchNextEntityBySize_V2.argtypes = [c_void_p, c_char_p, c_size_t]
-        resultValue = self._lib_handle.G2Diagnostic_fetchNextEntityBySize_V2(c_void_p(sizedEntityHandle),tls_var.buf,sizeof(tls_var.buf))
-        while resultValue != 0:
-
-            if resultValue == -1:
-                raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
-            elif resultValue < 0:
-                self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
-                raise TranslateG2ModuleException(tls_var.buf.value)
-
-            response += tls_var.buf.value
-            if (response.decode())[-1] == '\n':
-                break
-            else:
-                resultValue = self._lib_handle.G2Diagnostic_fetchNextEntityBySize(c_void_p(sizedEntityHandle),tls_var.buf,sizeof(tls_var.buf))
-        return response
-
-    def closeEntityListBySizeV2(self, sizedEntityHandle):
-        self._lib_handle.G2Diagnostic_closeEntityListBySize_V2.restype = c_int
-        self._lib_handle.G2Diagnostic_closeEntityListBySize_V2.argtypes = [c_void_p]
-        self._lib_handle.G2Diagnostic_closeEntityListBySize_V2(c_void_p(sizedEntityHandle))
 
 
     def checkDBPerf(self,secondsToRun,response):
@@ -349,7 +340,7 @@ class G2Diagnostic(object):
                                              self._resize_func)
 
         if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Diagnostic has not been successfully initialized')
         elif ret_code < 0:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
@@ -369,7 +360,7 @@ class G2Diagnostic(object):
                                              self._resize_func)
 
         if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Diagnostic has not been successfully initialized')
         elif ret_code < 0:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
@@ -389,7 +380,7 @@ class G2Diagnostic(object):
                                              self._resize_func)
 
         if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Diagnostic has not been successfully initialized')
         elif ret_code < 0:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
@@ -414,7 +405,7 @@ class G2Diagnostic(object):
                                              self._resize_func)
 
         if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Diagnostic has not been successfully initialized')
         elif ret_code < 0:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
@@ -441,7 +432,7 @@ class G2Diagnostic(object):
                                              self._resize_func)
 
         if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Diagnostic has not been successfully initialized')
         elif ret_code < 0:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
@@ -468,7 +459,7 @@ class G2Diagnostic(object):
                                              self._resize_func)
 
         if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Diagnostic has not been successfully initialized')
         elif ret_code < 0:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
@@ -494,7 +485,7 @@ class G2Diagnostic(object):
                                              self._resize_func)
 
         if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Diagnostic has not been successfully initialized')
         elif ret_code < 0:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
@@ -515,7 +506,7 @@ class G2Diagnostic(object):
                                              self._resize_func)
 
         if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Diagnostic has not been successfully initialized')
         elif ret_code < 0:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
@@ -625,7 +616,7 @@ class G2Diagnostic(object):
                                              self._resize_func)
 
         if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Diagnostic has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Diagnostic has not been successfully initialized')
         elif ret_code < 0:
             self._lib_handle.G2Diagnostic_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)

@@ -30,7 +30,7 @@ def setupConfig(iniFileName,autoMode):
 
     # Connect to the needed API
     g2ConfigMgr = G2ConfigMgr()
-    g2ConfigMgr.initV2("g2ConfigMgr", iniParams, False)
+    g2ConfigMgr.init("g2ConfigMgr", iniParams, False)
 
     # Determine if a default/initial G2 configuration already exists.
     default_config_id = bytearray()
@@ -85,7 +85,7 @@ def setupConfig(iniFileName,autoMode):
             print('Error:  Will not migrate config from file to database.')
             return -1
         g2Config = G2Config()
-        g2Config.initV2("g2Config", iniParams, False)
+        g2Config.init("g2Config", iniParams, False)
         config_handle = g2Config.create()
         if config_handle == None:
             print('Error:  Could not get template config.')

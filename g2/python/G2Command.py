@@ -109,6 +109,9 @@ class G2CmdShell(cmd.Cmd, object):
         validateLicenseFile_parser = self.subparsers.add_parser('validateLicenseFile', usage=argparse.SUPPRESS)
         validateLicenseFile_parser.add_argument('licenseFilePath')
 
+        validateLicenseStringBase64_parser = self.subparsers.add_parser('validateLicenseStringBase64', usage=argparse.SUPPRESS)
+        validateLicenseStringBase64_parser.add_argument('licenseString')
+
         inputFile_parser = self.subparsers.add_parser('inputFile', usage=argparse.SUPPRESS)
         inputFile_parser.add_argument('inputFile')
         inputFile_parser.add_argument('-o', '--outputFile', required=False)
@@ -121,15 +124,11 @@ class G2CmdShell(cmd.Cmd, object):
         exportEntityReport_parser.add_argument('-f', '--flags', required=True, default=0, type=int)
         exportEntityReport_parser.add_argument('-o', '--outputFile', required=False)
 
-        exportEntityCsvV2_parser = self.subparsers.add_parser('exportEntityCsvV2', usage=argparse.SUPPRESS)
-        exportEntityCsvV2_parser.add_argument('-t', '--headersForCSV', required=False)
-        exportEntityCsvV2_parser.add_argument('-f', '--flags', required=True, default=0, type=int)
-        exportEntityCsvV2_parser.add_argument('-o', '--outputFile', required=False)
-
-        exportEntityCsvV3_parser = self.subparsers.add_parser('exportEntityCsvV3', usage=argparse.SUPPRESS)
-        exportEntityCsvV3_parser.add_argument('-t', '--headersForCSV', required=False)
-        exportEntityCsvV3_parser.add_argument('-f', '--flags', required=True, default=0, type=int)
-        exportEntityCsvV3_parser.add_argument('-o', '--outputFile', required=False)
+        exportEntityCsv_parser = self.subparsers.add_parser('exportEntityCsv', usage=argparse.SUPPRESS)
+        exportEntityCsv_parser.add_argument('-t', '--headersForCSV', required=False)
+        exportEntityCsv_parser.add_argument('-f', '--flags', required=True, default=0, type=int)
+        exportEntityCsv_parser.add_argument('-o', '--outputFile', required=False)
+        
         recordModify_parser = self.subparsers.add_parser('recordModify', usage=argparse.SUPPRESS)
         recordModify_parser.add_argument('dataSourceCode')
         recordModify_parser.add_argument('recordID')
@@ -188,7 +187,13 @@ class G2CmdShell(cmd.Cmd, object):
         findPathExcludingByEntityID_parser.add_argument('endEntityID', type=int)
         findPathExcludingByEntityID_parser.add_argument('maxDegree', type=int)
         findPathExcludingByEntityID_parser.add_argument('excludedEntities')
-        findPathExcludingByEntityID_parser.add_argument('flags', type=int)
+
+        findPathExcludingByEntityIDV2_parser = self.subparsers.add_parser('findPathExcludingByEntityIDV2', usage=argparse.SUPPRESS)
+        findPathExcludingByEntityIDV2_parser.add_argument('startEntityID', type=int)
+        findPathExcludingByEntityIDV2_parser.add_argument('endEntityID', type=int)
+        findPathExcludingByEntityIDV2_parser.add_argument('maxDegree', type=int)
+        findPathExcludingByEntityIDV2_parser.add_argument('excludedEntities')
+        findPathExcludingByEntityIDV2_parser.add_argument('flags', type=int)
 
         findPathIncludingSourceByEntityID_parser = self.subparsers.add_parser('findPathIncludingSourceByEntityID', usage=argparse.SUPPRESS)
         findPathIncludingSourceByEntityID_parser.add_argument('startEntityID', type=int)
@@ -196,7 +201,14 @@ class G2CmdShell(cmd.Cmd, object):
         findPathIncludingSourceByEntityID_parser.add_argument('maxDegree', type=int)
         findPathIncludingSourceByEntityID_parser.add_argument('excludedEntities')
         findPathIncludingSourceByEntityID_parser.add_argument('requiredDsrcs')
-        findPathIncludingSourceByEntityID_parser.add_argument('flags', type=int)
+
+        findPathIncludingSourceByEntityIDV2_parser = self.subparsers.add_parser('findPathIncludingSourceByEntityIDV2', usage=argparse.SUPPRESS)
+        findPathIncludingSourceByEntityIDV2_parser.add_argument('startEntityID', type=int)
+        findPathIncludingSourceByEntityIDV2_parser.add_argument('endEntityID', type=int)
+        findPathIncludingSourceByEntityIDV2_parser.add_argument('maxDegree', type=int)
+        findPathIncludingSourceByEntityIDV2_parser.add_argument('excludedEntities')
+        findPathIncludingSourceByEntityIDV2_parser.add_argument('requiredDsrcs')
+        findPathIncludingSourceByEntityIDV2_parser.add_argument('flags', type=int)
 
         findNetworkByEntityID_parser = self.subparsers.add_parser('findNetworkByEntityID', usage=argparse.SUPPRESS)
         findNetworkByEntityID_parser.add_argument('entityList')
@@ -301,7 +313,15 @@ class G2CmdShell(cmd.Cmd, object):
         findPathExcludingByRecordID_parser.add_argument('endRecordID')
         findPathExcludingByRecordID_parser.add_argument('maxDegree', type=int)
         findPathExcludingByRecordID_parser.add_argument('excludedEntities')
-        findPathExcludingByRecordID_parser.add_argument('flags', type=int)
+
+        findPathExcludingByRecordIDV2_parser = self.subparsers.add_parser('findPathExcludingByRecordIDV2', usage=argparse.SUPPRESS)
+        findPathExcludingByRecordIDV2_parser.add_argument('startDataSourceCode')
+        findPathExcludingByRecordIDV2_parser.add_argument('startRecordID')
+        findPathExcludingByRecordIDV2_parser.add_argument('endDataSourceCode')
+        findPathExcludingByRecordIDV2_parser.add_argument('endRecordID')
+        findPathExcludingByRecordIDV2_parser.add_argument('maxDegree', type=int)
+        findPathExcludingByRecordIDV2_parser.add_argument('excludedEntities')
+        findPathExcludingByRecordIDV2_parser.add_argument('flags', type=int)
 
         findPathIncludingSourceByRecordID_parser = self.subparsers.add_parser('findPathIncludingSourceByRecordID', usage=argparse.SUPPRESS)
         findPathIncludingSourceByRecordID_parser.add_argument('startDataSourceCode')
@@ -311,7 +331,16 @@ class G2CmdShell(cmd.Cmd, object):
         findPathIncludingSourceByRecordID_parser.add_argument('maxDegree', type=int)
         findPathIncludingSourceByRecordID_parser.add_argument('excludedEntities')
         findPathIncludingSourceByRecordID_parser.add_argument('requiredDsrcs')
-        findPathIncludingSourceByRecordID_parser.add_argument('flags', type=int)
+
+        findPathIncludingSourceByRecordIDV2_parser = self.subparsers.add_parser('findPathIncludingSourceByRecordIDV2', usage=argparse.SUPPRESS)
+        findPathIncludingSourceByRecordIDV2_parser.add_argument('startDataSourceCode')
+        findPathIncludingSourceByRecordIDV2_parser.add_argument('startRecordID')
+        findPathIncludingSourceByRecordIDV2_parser.add_argument('endDataSourceCode')
+        findPathIncludingSourceByRecordIDV2_parser.add_argument('endRecordID')
+        findPathIncludingSourceByRecordIDV2_parser.add_argument('maxDegree', type=int)
+        findPathIncludingSourceByRecordIDV2_parser.add_argument('excludedEntities')
+        findPathIncludingSourceByRecordIDV2_parser.add_argument('requiredDsrcs')
+        findPathIncludingSourceByRecordIDV2_parser.add_argument('flags', type=int)
 
         findNetworkByRecordID_parser = self.subparsers.add_parser('findNetworkByRecordID', usage=argparse.SUPPRESS)
         findNetworkByRecordID_parser.add_argument('recordList')
@@ -386,11 +415,11 @@ class G2CmdShell(cmd.Cmd, object):
         printWithNewLines('Initializing Senzing engines...', 'S')
 
         try:
-            self.g2_module.initV2('pyG2E', g2module_params, self.debug_trace)
-            self.g2_product_module.initV2('pyG2Product', g2module_params, self.debug_trace)
-            self.g2_diagnostic_module.initV2('pyG2Diagnostic', g2module_params, self.debug_trace)
-            self.g2_config_module.initV2('pyG2Config', g2module_params, self.debug_trace)
-            self.g2_configmgr_module.initV2('pyG2ConfigMgr', g2module_params, self.debug_trace)
+            self.g2_module.init('pyG2E', g2module_params, self.debug_trace)
+            self.g2_product_module.init('pyG2Product', g2module_params, self.debug_trace)
+            self.g2_diagnostic_module.init('pyG2Diagnostic', g2module_params, self.debug_trace)
+            self.g2_config_module.init('pyG2Config', g2module_params, self.debug_trace)
+            self.g2_configmgr_module.init('pyG2ConfigMgr', g2module_params, self.debug_trace)
         except G2Exception.G2Exception as ex:
             printWithNewLines(f'ERROR: {ex}', 'B')
             # Clean up before exiting
@@ -400,7 +429,7 @@ class G2CmdShell(cmd.Cmd, object):
         exportedConfig = bytearray()
         exportedConfigID = bytearray()
         self.g2_module.exportConfig(exportedConfig, exportedConfigID)
-        self.g2_hasher_module.initWithConfigV2('pyG2Hasher', g2module_params, exportedConfig, self.debug_trace)
+        self.g2_hasher_module.initWithConfig('pyG2Hasher', g2module_params, exportedConfig, self.debug_trace)
 
         self.initialized = True
         printWithNewLines('Welcome to G2Command. Type help or ? to list commands.', 'B')
@@ -874,17 +903,15 @@ class G2CmdShell(cmd.Cmd, object):
             print(err)
 
 
-    def do_exportCSVEntityReportV2(self, arg):
-        '\nExport repository contents as CSV:  exportCSVEntityReportV2 -t <csvColumnList> -f <flags> [-o <output_file>]\n'
-
+    def do_exportCSVEntityReport(self, arg):
+        '\nExport repository contents as CSV:  exportCSVEntityReport -t <csvColumnList> -f <flags> [-o <output_file>]\n'
         try:
-            args = self.parser.parse_args(['exportEntityCsvV2'] + parse(arg))
+            args = self.parser.parse_args(['exportEntityCsv'] + parse(arg))
         except SystemExit:
-            print(self.do_exportCSVEntityReportV2.__doc__)
+            print(self.do_exportCSVEntityReport.__doc__)
             return
-
         try:
-            exportHandle = self.g2_module.exportCSVEntityReportV2(args.headersForCSV, args.flags)
+            exportHandle = self.g2_module.exportCSVEntityReport(args.headersForCSV, args.flags)
             response = bytearray()
             rowData = self.g2_module.fetchNext(exportHandle,response)
             recCnt = 0
@@ -895,68 +922,6 @@ class G2CmdShell(cmd.Cmd, object):
                 response = bytearray()
                 rowData = self.g2_module.fetchNext(exportHandle,response)
             self.g2_module.closeExport(exportHandle)
-            if args.outputFile:
-                with open(args.outputFile, 'w') as data_out:
-                    data_out.write(resultString.decode())
-            else:
-                print('{}'.format(resultString.decode()))
-        except G2Exception.G2Exception as err:
-            print(err)
-        else:
-            #Remove 1 for the header on CSV
-            print('Number of exported records = %s\n' % (recCnt-1) )
-
-
-    def do_exportJSONEntityReport(self, arg):
-        '\nExport repository contents as JSON:  exportJSONEntityReport -f <flags> [-o <output_file>]\n'
-
-        try:
-            args = self.parser.parse_args(['exportEntityReport'] + parse(arg))
-        except SystemExit:
-            print(self.do_exportJSONEntityReport.__doc__)
-            return
-
-        try:
-            exportHandle = self.g2_module.exportJSONEntityReport(args.flags)
-            response = bytearray()
-            rowData = self.g2_module.fetchNext(exportHandle,response)
-            recCnt = 0
-            resultString = b""
-            while rowData:
-                resultString += response
-                recCnt = recCnt + 1
-                response = bytearray()
-                rowData = self.g2_module.fetchNext(exportHandle,response)
-            self.g2_module.closeExport(exportHandle)
-            if args.outputFile:
-                with open(args.outputFile, 'w') as data_out:
-                    data_out.write(resultString.decode())
-            else:
-                print('{}'.format(resultString.decode()))
-        except G2Exception.G2Exception as err:
-            print(err)
-        else:
-            print('Number of exported records = %s\n' % (recCnt) )
-
-    def do_exportCSVEntityReportV3(self, arg):
-        '\nExport repository contents as CSV:  exportCSVEntityReportV3 -t <csvColumnList> -f <flags> [-o <output_file>]\n'
-        try:
-            args = self.parser.parse_args(['exportEntityCsvV3'] + parse(arg))
-        except SystemExit:
-            print(self.do_exportCSVEntityReportV3.__doc__)
-            return
-        try:
-            exportHandle = self.g2_module.exportCSVEntityReportV3(args.headersForCSV, args.flags)
-            response = bytearray()
-            rowData = self.g2_module.fetchNextV3(exportHandle,response)
-            recCnt = 0
-            resultString = b""
-            while rowData:
-                resultString += response
-                recCnt = recCnt + 1
-                response = bytearray()
-                rowData = self.g2_module.fetchNextV3(exportHandle,response)
-            self.g2_module.closeExportV3(exportHandle)
             if args.outputFile:
                 with open(args.outputFile, 'w') as data_out:
                     data_out.write(resultString.decode())
@@ -967,25 +932,25 @@ class G2CmdShell(cmd.Cmd, object):
         else:
             print('Number of exported records = %s\n' % (recCnt - 1))
 
-    def do_exportJSONEntityReportV3(self, arg):
-        '\nExport repository contents as JSON:  exportJSONEntityReportV3 -f <flags> [-o <output_file>]\n'
+    def do_exportJSONEntityReport(self, arg):
+        '\nExport repository contents as JSON:  exportJSONEntityReport -f <flags> [-o <output_file>]\n'
         try:
             args = self.parser.parse_args(['exportEntityReport'] + parse(arg))
         except SystemExit:
-            print(self.do_exportJSONEntityReportV3.__doc__)
+            print(self.do_exportJSONEntityReport.__doc__)
             return
         try:
-            exportHandle = self.g2_module.exportJSONEntityReportV3(args.flags)
+            exportHandle = self.g2_module.exportJSONEntityReport(args.flags)
             response = bytearray()
-            rowData = self.g2_module.fetchNextV3(exportHandle,response)
+            rowData = self.g2_module.fetchNext(exportHandle,response)
             recCnt = 0
             resultString = b""
             while rowData:
                 resultString += response
                 recCnt = recCnt + 1
                 response = bytearray()
-                rowData = self.g2_module.fetchNextV3(exportHandle, response)
-            self.g2_module.closeExportV3(exportHandle)
+                rowData = self.g2_module.fetchNext(exportHandle, response)
+            self.g2_module.closeExport(exportHandle)
             if args.outputFile:
                 with open(args.outputFile, 'w') as data_out:
                     data_out.write(resultString.decode())
@@ -1547,7 +1512,7 @@ class G2CmdShell(cmd.Cmd, object):
 
 
     def do_findPathExcludingByEntityID(self, arg):
-        '\nFind path between two entities, with exclusions:  findPathExcludingByEntityID <startEntityID> <endEntityID> <maxDegree> <excludedEntities> <flags>\n'
+        '\nFind path between two entities, with exclusions:  findPathExcludingByEntityID <startEntityID> <endEntityID> <maxDegree> <excludedEntities>\n'
 
         try:
             args = self.parser.parse_args(['findPathExcludingByEntityID'] + parse(arg))
@@ -1557,7 +1522,27 @@ class G2CmdShell(cmd.Cmd, object):
 
         try:
             response = bytearray()
-            self.g2_module.findPathExcludingByEntityID(args.startEntityID,args.endEntityID,args.maxDegree,args.excludedEntities,args.flags,response)
+            self.g2_module.findPathExcludingByEntityID(args.startEntityID,args.endEntityID,args.maxDegree,args.excludedEntities,response)
+            if response:
+                print('{}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
+    def do_findPathExcludingByEntityIDV2(self, arg):
+        '\nFind path between two entities, with exclusions:  findPathExcludingByEntityIDV2 <startEntityID> <endEntityID> <maxDegree> <excludedEntities> <flags>\n'
+
+        try:
+            args = self.parser.parse_args(['findPathExcludingByEntityIDV2'] + parse(arg))
+        except SystemExit:
+            print(self.do_findPathExcludingByEntityIDV2.__doc__)
+            return
+
+        try:
+            response = bytearray()
+            self.g2_module.findPathExcludingByEntityIDV2(args.startEntityID,args.endEntityID,args.maxDegree,args.excludedEntities,args.flags,response)
             if response:
                 print('{}'.format(response.decode()))
             else:
@@ -1567,7 +1552,7 @@ class G2CmdShell(cmd.Cmd, object):
 
 
     def do_findPathIncludingSourceByEntityID(self, arg):
-        '\nFind path between two entities that includes a watched dsrc list, with exclusions:  findPathIncludingSourceByEntityID <startEntityID> <endEntityID> <maxDegree> <excludedEntities> <requiredDsrcs> <flags>\n'
+        '\nFind path between two entities that includes a watched dsrc list, with exclusions:  findPathIncludingSourceByEntityID <startEntityID> <endEntityID> <maxDegree> <excludedEntities> <requiredDsrcs>\n'
 
         try:
             args = self.parser.parse_args(['findPathIncludingSourceByEntityID'] + parse(arg))
@@ -1577,7 +1562,27 @@ class G2CmdShell(cmd.Cmd, object):
 
         try:
             response = bytearray()
-            self.g2_module.findPathIncludingSourceByEntityID(args.startEntityID,args.endEntityID,args.maxDegree,args.excludedEntities,args.requiredDsrcs,args.flags,response)
+            self.g2_module.findPathIncludingSourceByEntityID(args.startEntityID,args.endEntityID,args.maxDegree,args.excludedEntities,args.requiredDsrcs,response)
+            if response:
+                print('{}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
+    def do_findPathIncludingSourceByEntityIDV2(self, arg):
+        '\nFind path between two entities that includes a watched dsrc list, with exclusions:  findPathIncludingSourceByEntityIDV2 <startEntityID> <endEntityID> <maxDegree> <excludedEntities> <requiredDsrcs> <flags>\n'
+
+        try:
+            args = self.parser.parse_args(['findPathIncludingSourceByEntityIDV2'] + parse(arg))
+        except SystemExit:
+            print(self.do_findPathIncludingSourceByEntityIDV2.__doc__)
+            return
+
+        try:
+            response = bytearray()
+            self.g2_module.findPathIncludingSourceByEntityIDV2(args.startEntityID,args.endEntityID,args.maxDegree,args.excludedEntities,args.requiredDsrcs,args.flags,response)
             if response:
                 print('{}'.format(response.decode()))
             else:
@@ -1867,7 +1872,7 @@ class G2CmdShell(cmd.Cmd, object):
 
 
     def do_findPathExcludingByRecordID(self, arg):
-        '\nFind path between two records, with exclusions:  findPathExcludingByRecordID <startDataSourceCode> <startRecordID> <endDataSourceCode> <endRecordID> <maxDegree> <excludedEntities> <flags>\n'
+        '\nFind path between two records, with exclusions:  findPathExcludingByRecordID <startDataSourceCode> <startRecordID> <endDataSourceCode> <endRecordID> <maxDegree> <excludedEntities>\n'
 
         try:
             args = self.parser.parse_args(['findPathExcludingByRecordID'] + parse(arg))
@@ -1877,7 +1882,27 @@ class G2CmdShell(cmd.Cmd, object):
 
         try:
             response = bytearray()
-            self.g2_module.findPathExcludingByRecordID(args.startDataSourceCode,args.startRecordID,args.endDataSourceCode,args.endRecordID,args.maxDegree,args.excludedEntities,args.flags,response)
+            self.g2_module.findPathExcludingByRecordID(args.startDataSourceCode,args.startRecordID,args.endDataSourceCode,args.endRecordID,args.maxDegree,args.excludedEntities,response)
+            if response:
+                print('{}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
+    def do_findPathExcludingByRecordIDV2(self, arg):
+        '\nFind path between two records, with exclusions:  findPathExcludingByRecordIDV2 <startDataSourceCode> <startRecordID> <endDataSourceCode> <endRecordID> <maxDegree> <excludedEntities> <flags>\n'
+
+        try:
+            args = self.parser.parse_args(['findPathExcludingByRecordIDV2'] + parse(arg))
+        except SystemExit:
+            print(self.do_findPathExcludingByRecordIDV2.__doc__)
+            return
+
+        try:
+            response = bytearray()
+            self.g2_module.findPathExcludingByRecordIDV2(args.startDataSourceCode,args.startRecordID,args.endDataSourceCode,args.endRecordID,args.maxDegree,args.excludedEntities,args.flags,response)
             if response:
                 print('{}'.format(response.decode()))
             else:
@@ -1887,7 +1912,7 @@ class G2CmdShell(cmd.Cmd, object):
 
 
     def do_findPathIncludingSourceByRecordID(self, arg):
-        '\nFind path between two records that includes a watched dsrc list, with exclusions:  findPathIncludingSourceByRecordID <startDataSourceCode> <startRecordID> <endDataSourceCode> <endRecordID> <maxDegree> <excludedEntities> <requiredDsrcs> <flags>\n'
+        '\nFind path between two records that includes a watched dsrc list, with exclusions:  findPathIncludingSourceByRecordID <startDataSourceCode> <startRecordID> <endDataSourceCode> <endRecordID> <maxDegree> <excludedEntities> <requiredDsrcs>\n'
 
         try:
             args = self.parser.parse_args(['findPathIncludingSourceByRecordID'] + parse(arg))
@@ -1897,7 +1922,27 @@ class G2CmdShell(cmd.Cmd, object):
 
         try:
             response = bytearray()
-            self.g2_module.findPathIncludingSourceByRecordID(args.startDataSourceCode,args.startRecordID,args.endDataSourceCode,args.endRecordID,args.maxDegree,args.excludedEntities,args.requiredDsrcs,args.flags,response)
+            self.g2_module.findPathIncludingSourceByRecordID(args.startDataSourceCode,args.startRecordID,args.endDataSourceCode,args.endRecordID,args.maxDegree,args.excludedEntities,args.requiredDsrcs,response)
+            if response:
+                print('{}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
+    def do_findPathIncludingSourceByRecordIDV2(self, arg):
+        '\nFind path between two records that includes a watched dsrc list, with exclusions:  findPathIncludingSourceByRecordIDV2 <startDataSourceCode> <startRecordID> <endDataSourceCode> <endRecordID> <maxDegree> <excludedEntities> <requiredDsrcs> <flags>\n'
+
+        try:
+            args = self.parser.parse_args(['findPathIncludingSourceByRecordIDV2'] + parse(arg))
+        except SystemExit:
+            print(self.do_findPathIncludingSourceByRecordIDV2.__doc__)
+            return
+
+        try:
+            response = bytearray()
+            self.g2_module.findPathIncludingSourceByRecordIDV2(args.startDataSourceCode,args.startRecordID,args.endDataSourceCode,args.endRecordID,args.maxDegree,args.excludedEntities,args.requiredDsrcs,args.flags,response)
             if response:
                 print('{}'.format(response.decode()))
             else:
@@ -2060,13 +2105,11 @@ class G2CmdShell(cmd.Cmd, object):
 
     def do_getEntityListBySize(self, arg):
         '\nGet list of resolved entities of specified size:  getEntityListBySize -s <entitySize> [-o <output_file>]\n'
-
         try:
             args = self.parser.parse_args(['getEntityListBySize'] + parse(arg))
         except SystemExit:
             print(self.do_getEntityListBySize.__doc__)
             return
-
         try:
             sizedEntityHandle = self.g2_diagnostic_module.getEntityListBySize(args.entitySize)
             response = bytearray()
@@ -2077,32 +2120,6 @@ class G2CmdShell(cmd.Cmd, object):
                 response = bytearray()
                 rowData = self.g2_diagnostic_module.fetchNextEntityBySize(sizedEntityHandle,response)
             self.g2_diagnostic_module.closeEntityListBySize(sizedEntityHandle)
-            if args.outputFile:
-                with open(args.outputFile, 'w') as data_out:
-                    data_out.write(resultString.decode())
-            else:
-                print('{}'.format(resultString.decode()))
-        except G2Exception.G2Exception as err:
-            print(err)
-
-
-    def do_getEntityListBySizeV2(self, arg):
-        '\nGet list of resolved entities of specified size:  getEntityListBySizeV2 -s <entitySize> [-o <output_file>]\n'
-        try:
-            args = self.parser.parse_args(['getEntityListBySize'] + parse(arg))
-        except SystemExit:
-            print(self.do_getEntityListBySizeV2.__doc__)
-            return
-        try:
-            sizedEntityHandle = self.g2_diagnostic_module.getEntityListBySizeV2(args.entitySize)
-            response = bytearray()
-            rowData = self.g2_diagnostic_module.fetchNextEntityBySizeV2(sizedEntityHandle,response)
-            resultString = b""
-            while rowData:
-                resultString += response
-                response = bytearray()
-                rowData = self.g2_diagnostic_module.fetchNextEntityBySizeV2(sizedEntityHandle,response)
-            self.g2_diagnostic_module.closeEntityListBySizeV2(sizedEntityHandle)
             if args.outputFile:
                 with open(args.outputFile, 'w') as data_out:
                     data_out.write(resultString.decode())
@@ -2426,6 +2443,25 @@ class G2CmdShell(cmd.Cmd, object):
 
         try:
             returnCode = self.g2_product_module.validateLicenseFile(args.licenseFilePath)
+            if returnCode == 0:
+                printWithNewLine('License validated')
+            else:
+                printWithNewLine('License is not valid.')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
+    def do_validateLicenseStringBase64(self,arg):
+        '\nValidate a license string:  validateLicenseStringBase64 <licenseString>\n'
+
+        try:
+            args = self.parser.parse_args(['validateLicenseStringBase64'] + parse(arg))
+        except SystemExit:
+            print(self.do_validateLicenseStringBase64.__doc__)
+            return
+
+        try:
+            returnCode = self.g2_product_module.validateLicenseStringBase64(args.licenseString)
             if returnCode == 0:
                 printWithNewLine('License validated')
             else:

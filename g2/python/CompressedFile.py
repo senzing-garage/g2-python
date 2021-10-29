@@ -2,6 +2,7 @@ import csv
 import gzip
 import io
 import json
+from datetime import datetime
 
 from G2Exception import G2UnsupportedFileTypeException
 
@@ -28,10 +29,7 @@ def isCompressedFile(filename_):
 
     suffix = getSuffix(filename_)
 
-    if suffix and suffix.lower() in ('.gz', '.gzip', '.zip'):
-        return True
-
-    return False
+    return True if suffix and suffix.lower() in ('.gz', '.gzip', '.zip') else False
 
 
 def openPossiblyCompressedFile(filename_, options_, encoding_='utf-8-sig'):
@@ -57,34 +55,51 @@ def openPossiblyCompressedFile(filename_, options_, encoding_='utf-8-sig'):
     return io.open(filename_, options_, encoding=encoding_)
 
 
-def fileRowParser(line, fileData, rowNum=0):
+def removeQuoteChar(s):
+    if len(s) > 1 and s[0] + s[-1] in ("''", '""'):
+        return s[1:-1]
+    return s
 
-    if line[-1] == '\n':
-        line = line[0:-1].strip()
-    else:
-        line = line.strip()
+
+def fileRowParser(line, fileData, rowNum=0, errors_file=None, errors_short=False, errors_disable=False):
+
+    def write_error(row_num, line, msg='ERROR: Unknown error'):
+        ''' Write error to terminal and file if not disabled '''
+
+        print(f'  ERROR: {msg} {row_num} ({line[:50]})', flush=True)
+
+        if errors_file and not errors_disable:
+            if not errors_short:
+                errors_file.write(f'\n{str(datetime.now())} ERROR: {msg} {rowNum}\n\t{line}\n')
+            else:
+                errors_file.write(f'\n{str(datetime.now())} ERROR: {msg} {rowNum}\n')
+            errors_file.flush()
+
+    line = line.strip()
 
     if len(line) == 0:
-        print('  WARNING: row %s is blank' % rowNum)
-        return ''  # skip rows with no data
+        print(f'  WARNING: Row {rowNum} is blank')
+        return None
 
-    #--its a json string
+    # Its a JSON string
     if fileData['FILE_FORMAT'] == 'JSON':
         try:
             rowData = json.loads(line)
         except Exception:
-            print('  WARNING: Invalid json in row %s (%s) ' % (rowNum, line[0:50]))
-            return ''
+            write_error(rowNum, line, 'Invalid JSON in row')
+            return None
+
         return rowData
 
-    #--its a umf string
+    # Its a UMF string
     if fileData['FILE_FORMAT'] == 'UMF':
-        if not (line.upper().startswith('<UMF_DOC') and line.upper().endswith('/UMF_DOC>')):
-            print('  WARNING: invalid umf in row %s (%s)' % (rowNum, line[0:50]))
-            return ''
+        if not (line.upper().startswith('<UMF_DOC') or not line.upper().endswith('/UMF_DOC>')):
+            write_error(rowNum, line, 'Invalid UMF in row')
+            return None
+
         return line
 
-    #--its a csv variant
+    # Its a CSV variant
     else:
 
         #--handling for multi-character delimiters as csv module does not allow for it
@@ -95,22 +110,16 @@ def fileRowParser(line, fileData, rowNum=0):
                 rowData = [removeQuoteChar(x.strip()) for x in next(csv.reader([line], delimiter=fileData['DELIMITER']))]
 
         except Exception:
-            print('  WARNING: row %s could not be parsed' % rowNum)
+            write_error(rowNum, line, 'Row could not be parsed')
             try:
                 print(line)
             except Exception:
                 pass
-            return ''  # skip rows with no data
+            return None
 
         if len(''.join(map(str, rowData)).strip()) == 0:
-            print('  WARNING: row %s is blank' % rowNum)
+            print(f'  WARNING: Row {rowNum} is blank')
             return ''  # skip rows with no data
         if 'HEADER_ROW' in fileData:
             rowData = dict(zip(fileData['HEADER_ROW'], rowData))
         return rowData
-
-
-def removeQuoteChar(s):
-    if len(s) > 1 and s[0] + s[-1] in ("''", '""'):
-        return s[1:-1]
-    return s

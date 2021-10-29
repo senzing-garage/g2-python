@@ -187,7 +187,7 @@ def processEntities():
         if exportType == 'JSON':
             exportHandle = g2Engine.exportJSONEntityReport(exportFlags)
         else:
-            exportHandle = g2Engine.exportCSVEntityReportV2(",".join(exportFields), exportFlags)
+            exportHandle = g2Engine.exportCSVEntityReport(",".join(exportFields), exportFlags)
             exportHeaders = nextExportRecord(exportHandle)
 
     except G2Exception as err:
@@ -562,7 +562,7 @@ if __name__ == '__main__':
         g2Engine = G2Engine()
         iniParamCreator = G2IniParams()
         iniParams = iniParamCreator.getJsonINIParams(iniFileName)
-        g2Engine.initV2('G2Snapshot', iniParams, False)
+        g2Engine.init('G2Snapshot', iniParams, False)
     except G2Exception as err:
         print('\n%s\n' % str(err))
         sys.exit(1)
@@ -579,7 +579,7 @@ if __name__ == '__main__':
     #--get needed config data
     try: 
         g2ConfigMgr = G2ConfigMgr()
-        g2ConfigMgr.initV2('pyG2ConfigMgr', iniParams, False)
+        g2ConfigMgr.init('pyG2ConfigMgr', iniParams, False)
         defaultConfigID = bytearray() 
         g2ConfigMgr.getDefaultConfigID(defaultConfigID)
         defaultConfigDoc = bytearray() 

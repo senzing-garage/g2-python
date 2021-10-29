@@ -2,6 +2,8 @@ from ctypes import *
 import threading
 import json
 import os
+import functools
+import warnings
 
 class MyBuffer(threading.local):
   def __init__(self):
@@ -38,6 +40,22 @@ def resize_return_buffer(buf_, size_):
   return addressof(tls_var.buf)
   
 
+SENZING_PRODUCT_ID = "5027"  # See https://github.com/Senzing/knowledge-base/blob/master/lists/senzing-product-ids.md
+
+def deprecated(instance):
+    def the_decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            warnings.simplefilter('always', DeprecationWarning)  # turn off filter
+            warnings.warn(
+                "senzing-{0}{1:04d}W Call to deprecated function {2}.".format(SENZING_PRODUCT_ID, instance, func.__name__),
+                category=DeprecationWarning,
+                stacklevel=2)
+            warnings.simplefilter('default', DeprecationWarning)  # reset filter
+            return func(*args, **kwargs)
+        return wrapper
+    return the_decorator
+
 
 class G2Product(object):
     """G2 product module access library
@@ -50,7 +68,11 @@ class G2Product(object):
         _ini_file_name: name and location of .ini file
     """
 
+    @deprecated(1101)
     def initV2(self, module_name_, ini_params_, debug_=False):
+        self.init(module_name_,ini_params_,debug_)
+
+    def init(self, module_name_, ini_params_, debug_=False):
 
         self._module_name = self.prepareStringArgument(module_name_)
         self._ini_params = self.prepareStringArgument(ini_params_)
@@ -59,8 +81,8 @@ class G2Product(object):
         if self._debug:
             print("Initializing G2Product")
 
-        self._lib_handle.G2Product_init_V2.argtypes = [c_char_p, c_char_p, c_int]
-        ret_code = self._lib_handle.G2Product_init_V2(self._module_name,
+        self._lib_handle.G2Product_init.argtypes = [c_char_p, c_char_p, c_int]
+        ret_code = self._lib_handle.G2Product_init(self._module_name,
                                  self._ini_params,
                                  self._debug)
 
@@ -68,7 +90,7 @@ class G2Product(object):
             print("Initialization Status: " + str(ret_code))
 
         if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Product has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Product has not been successfully initialized')
         elif ret_code < 0:
             self._lib_handle.G2Product_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
@@ -148,7 +170,35 @@ class G2Product(object):
                                                                  self._resize_func)
 
         if ret_code == -1:
-            raise G2ModuleNotInitialized('G2Product has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2Product has not been successfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2Product_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+        return ret_code
+
+    def validateLicenseStringBase64(self,licenseString):
+        # type: (int) -> str
+        """ Validates a license string.
+        Args:
+            licenseString: The license string to validate
+
+        Return:
+            str: 0 for successful validation, 1 for failure
+        """
+
+        _licenseString = self.prepareStringArgument(licenseString)
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2Product_validateLicenseStringBase64.restype = c_int
+        self._lib_handle.G2Product_validateLicenseStringBase64.argtypes = [c_char_p, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2Product_validateLicenseStringBase64(_licenseString,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Product has not been successfully initialized')
         elif ret_code < 0:
             self._lib_handle.G2Product_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)

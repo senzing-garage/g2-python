@@ -6,7 +6,6 @@ import sys
 import textwrap
 from importlib import import_module
 
-
 #--project classes
 import G2Exception
 
@@ -28,7 +27,7 @@ class G2Database:
 
         #--import correct modules for DB type
         self.has_pyscopg2 = False
-        if self.dbType in ('MYSQL', 'DB2', 'POSTGRESQL'):
+        if self.dbType in ('MYSQL', 'DB2', 'POSTGRESQL', 'MSSQL'):
             if self.dbType == 'POSTGRESQL':
                 # Ensure have required args
                 try:
@@ -67,12 +66,12 @@ class G2Database:
             #print()
             #return
         else:
-            #--attempt to set the schema (if there is one)import 
+            #--attempt to set the schema (if there is one)import
             if self.schema != None and len(self.schema) != 0:
                 if not self.SetSchema():
                     print(self)
                     print('ERROR: could not connect to schema')
-            
+
                     return
 
             #--handle utf-8 issues for sqlite3
@@ -111,6 +110,8 @@ class G2Database:
                     self.dbo.set_session(autocommit=True, isolation_level='READ UNCOMMITTED', readonly=True)
                 else:
                     self.dbo = self.pyodbc.connect(conn_str, autocommit=True)
+            elif self.dbType == 'MSSQL':
+                self.dbo = self.pyodbc.connect('DSN=' + self.dsn + '; UID=' + self.userId + '; PWD=' + self.password, autocommit=True)
             else:
                 print('ERROR: Unsupported DB Type: ' + self.dbType)
                 return False
@@ -174,7 +175,7 @@ class G2Database:
         ''' make a database call '''
 
         execSuccess = False
-        try: 
+        try:
             cursor = self.dbo.cursor().executemany(sql, parmList)
         except Exception as err:
             raise self.TranslateException(err)
@@ -249,7 +250,7 @@ class G2Database:
 
         return rowList
 
-    #---------------------------------------    
+    #---------------------------------------
     def truncateTable(self, tableName_):
         if self.dbType == 'SQLITE3':
             sql = 'DELETE FROM ' + tableName_
@@ -257,12 +258,12 @@ class G2Database:
             sql = 'truncate table ' + tableName_
             if self.dbType == 'DB2':
                 sql += ' immediate'
-        
+
         cursor = self.sqlExec(sql)
 
-        return cursor 
+        return cursor
 
-    #---------------------------------------    
+    #---------------------------------------
     def SetSchema(self):
         if self.dbType == 'SQLITE3':
             print('''WARNING: SQLITE3 doesn't support schema URI argument''')
@@ -280,7 +281,7 @@ class G2Database:
             print(err)
             return False
 
-        return True 
+        return True
 
     #--------------------
     #--utility functions
@@ -295,25 +296,25 @@ class G2Database:
 
             # Pull off the table parameter if supplied
             uri_dict['TABLE'] = uri_dict['SCHEMA'] = uri_dict['PORT'] = None
-    
+
             if '/?' in dbUri:
                 (dbUri, parm) = tuple(dbUri.split('/?'))
                 for item in parm.split('&'):
                     (parmType, parmValue) = tuple(item.split('='))
                     uri_dict['TABLE'] = parmValue if parmType.upper() == 'TABLE' else None
                     uri_dict['SCHEMA'] = parmValue if parmType.upper() == 'SCHEMA' else None
-    
+
             # Get database type
             (uri_dict['DBTYPE'], dbUriData) = dbUri.split('://') if '://' in dbUri else ('UNKNOWN', dbUri)
             uri_dict['DBTYPE'] = uri_dict['DBTYPE'].upper()
-    
+
             # Separate login and dsn info
             (justUidPwd, justDsnSch) = dbUriData.split('@') if '@' in dbUriData else (':', dbUriData)
             justDsnSch = justDsnSch.rstrip('/')
-    
+
             # Separate uid and password
-            (uri_dict['USERID'], uri_dict['PASSWORD']) = justUidPwd.split(':') if ':' in justUidPwd else (justUidPwd, '') 
-    
+            (uri_dict['USERID'], uri_dict['PASSWORD']) = justUidPwd.split(':') if ':' in justUidPwd else (justUidPwd, '')
+
             # Separate dsn and port
             if justDsnSch[1:3] == ":\\":
                 uri_dict['DSN'] = justDsnSch
@@ -324,7 +325,7 @@ class G2Database:
                 # e.g. CONNECTION=postgresql://userid:password@localhost:5432:postgres
                 # postgres == odbc.ini datasource entry
                 if uri_dict['DBTYPE'] in ('POSTGRESQL', 'MYSQL'):
-                    uri_dict['HOST'] = uri_dict['DSN'] 
+                    uri_dict['HOST'] = uri_dict['DSN']
                     uri_dict['DSN'] = justDsnSch.split(':')[2]
             else: # Just dsn with no port
                 uri_dict['DSN'] = justDsnSch
@@ -332,8 +333,8 @@ class G2Database:
         except (IndexError, ValueError) as ex:
             raise G2DBException(f'Failed to parse database URI, check the connection string(s) in your G2Module INI file.') from None
 
-        if not uri_dict['DSN']: 
-           raise G2DBException(f'Missing database DSN. \n{self.show_connection(uri_dict, False, False)}')  
+        if not uri_dict['DSN']:
+           raise G2DBException(f'Missing database DSN. \n{self.show_connection(uri_dict, False, False)}')
 
         self.dbType = uri_dict['DBTYPE'] if 'DBTYPE' in uri_dict else None
         self.dsn = uri_dict['DSN'] if 'DSN' in uri_dict else None
@@ -344,7 +345,7 @@ class G2Database:
         self.table = uri_dict['TABLE'] if 'TABLE' in uri_dict else None
         self.schema = uri_dict['SCHEMA'] if 'SCHEMA' in uri_dict else None
 
-        if self.dbType not in ('DB2', 'MYSQL', 'SQLITE3', 'POSTGRESQL'):
+        if self.dbType not in ('DB2', 'MYSQL', 'SQLITE3', 'POSTGRESQL', 'MSSQL'):
             raise G2Exception.G2UnsupportedDatabaseType('ERROR: ' + self.dbType + ' is an unsupported database type')
 
         return uri_dict

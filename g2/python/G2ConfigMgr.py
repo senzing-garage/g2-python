@@ -2,6 +2,9 @@ from ctypes import *
 import threading
 import json
 import os
+import functools
+import warnings
+
 
 class MyBuffer(threading.local):
   def __init__(self):
@@ -37,6 +40,22 @@ def resize_return_buffer(buf_, size_):
   return addressof(tls_var.buf)
   
 
+SENZING_PRODUCT_ID = "5027"  # See https://github.com/Senzing/knowledge-base/blob/master/lists/senzing-product-ids.md
+
+def deprecated(instance):
+    def the_decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            warnings.simplefilter('always', DeprecationWarning)  # turn off filter
+            warnings.warn(
+                "senzing-{0}{1:04d}W Call to deprecated function {2}.".format(SENZING_PRODUCT_ID, instance, func.__name__),
+                category=DeprecationWarning,
+                stacklevel=2)
+            warnings.simplefilter('default', DeprecationWarning)  # reset filter
+            return func(*args, **kwargs)
+        return wrapper
+    return the_decorator
+
 
 class G2ConfigMgr(object):
     """G2 config-manager module access library
@@ -48,7 +67,12 @@ class G2ConfigMgr(object):
         _module_name: CME module name
         _ini_params: a JSON string containing INI parameters
     """
+
+    @deprecated(1401)
     def initV2(self, module_name_, ini_params_, debug_=False):
+        self.init(module_name_,ini_params_,debug_)
+
+    def init(self, module_name_, ini_params_, debug_=False):
         """  Initializes the G2 config manager
         This should only be called once per process.
         Args:
@@ -63,8 +87,8 @@ class G2ConfigMgr(object):
         if self._debug:
             print("Initializing G2 Config Manager")
 
-        self._lib_handle.G2ConfigMgr_init_V2.argtypes = [c_char_p, c_char_p, c_int]
-        ret_code = self._lib_handle.G2ConfigMgr_init_V2(self._module_name,
+        self._lib_handle.G2ConfigMgr_init.argtypes = [c_char_p, c_char_p, c_int]
+        ret_code = self._lib_handle.G2ConfigMgr_init(self._module_name,
                                  self._ini_params,
                                  self._debug)
 
@@ -72,7 +96,7 @@ class G2ConfigMgr(object):
             print("Initialization Status: " + str(ret_code))
 
         if ret_code == -1:
-            raise G2ModuleNotInitialized('G2ConfigMgr has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2ConfigMgr has not been successfully initialized')
         elif ret_code < 0:
             self._lib_handle.G2ConfigMgr_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
@@ -146,7 +170,7 @@ class G2ConfigMgr(object):
         ret_code = self._lib_handle.G2ConfigMgr_addConfig(_configStr,_configComments,cID)
 
         if ret_code == -1:
-            raise G2ModuleNotInitialized('G2ConfigMgr has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2ConfigMgr has not been successfully initialized')
         elif ret_code < 0:
             self._lib_handle.G2ConfigMgr_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
@@ -168,7 +192,7 @@ class G2ConfigMgr(object):
                                                                  self._resize_func)
 
         if ret_code == -1:
-            raise G2ModuleNotInitialized('G2ConfigMgr has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2ConfigMgr has not been successfully initialized')
         elif ret_code < 0:
             self._lib_handle.G2ConfigMgr_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
@@ -190,7 +214,7 @@ class G2ConfigMgr(object):
                                                                  self._resize_func)
 
         if ret_code == -1:
-            raise G2ModuleNotInitialized('G2ConfigMgr has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2ConfigMgr has not been successfully initialized')
         elif ret_code < 0:
             self._lib_handle.G2ConfigMgr_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
@@ -207,7 +231,7 @@ class G2ConfigMgr(object):
         ret_code = self._lib_handle.G2ConfigMgr_setDefaultConfigID(configID_)
 
         if ret_code == -1:
-            raise G2ModuleNotInitialized('G2ConfigMgr has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2ConfigMgr has not been successfully initialized')
         elif ret_code < 0:
             self._lib_handle.G2ConfigMgr_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
@@ -222,7 +246,7 @@ class G2ConfigMgr(object):
         ret_code = self._lib_handle.G2ConfigMgr_replaceDefaultConfigID(oldConfigID_,newConfigID_)
 
         if ret_code == -1:
-            raise G2ModuleNotInitialized('G2ConfigMgr has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2ConfigMgr has not been successfully initialized')
         elif ret_code < 0:
             self._lib_handle.G2ConfigMgr_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
@@ -237,7 +261,7 @@ class G2ConfigMgr(object):
         ret_code = self._lib_handle.G2ConfigMgr_getDefaultConfigID(cID)
 
         if ret_code == -1:
-            raise G2ModuleNotInitialized('G2ConfigMgr has not been succesfully initialized')
+            raise G2ModuleNotInitialized('G2ConfigMgr has not been successfully initialized')
         elif ret_code < 0:
             self._lib_handle.G2ConfigMgr_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)

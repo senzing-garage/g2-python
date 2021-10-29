@@ -188,7 +188,7 @@ if __name__ == '__main__':
     try:
         if os.path.exists(os.path.join(target_path, 'data')):
             os.remove(os.path.join(target_path, 'data'))
-        os.symlink('/opt/senzing/data/2.0.0', os.path.join(target_path, 'data'))
+        os.symlink('/opt/senzing/data/3.0.0', os.path.join(target_path, 'data'))
     except Exception as e:
         print(e)
 

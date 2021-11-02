@@ -4,9 +4,6 @@
 [submodule "dumpstack"]
   path = dumpstack
   url = https://github.com/Senzing/dumpstack.git
-[submodule "g2anon"]
-  path = g2anon
-  url = https://github.com/Senzing/g2anon.git
 [submodule "g2audit"]
   path = g2audit
   url = https://github.com/Senzing/g2audit.git
@@ -31,9 +28,6 @@
 [submodule "g2loader"]
   path = g2loader
   url = https://github.com/Senzing/g2loader.git
-[submodule "g2module"]
-  path = g2module
-  url = https://github.com/Senzing/g2module.git
 [submodule "g2project"]
   path = g2project
   url = https://github.com/Senzing/g2project.git

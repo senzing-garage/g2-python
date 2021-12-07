@@ -397,7 +397,7 @@ class G2CmdShell(cmd.Cmd, object):
         outputOptional_parser.add_argument('-o', '--outputFile', required=False)
 
         findEntitiesByFeatureIDs_parser = self.subparsers.add_parser('findEntitiesByFeatureIDs',  usage=argparse.SUPPRESS)
-        findEntitiesByFeatureIDs_parser.add_argument('jsonData')
+        findEntitiesByFeatureIDs_parser.add_argument('features')
 
         purgeRepository_parser = self.subparsers.add_parser('purgeRepository',  usage=argparse.SUPPRESS)
         purgeRepository_parser.add_argument('-n', '--noReset', required=False, nargs='?', const=1, type=int)

@@ -905,10 +905,15 @@ def g2Thread(threadId_, workQueue_, g2Engine_, threadStop, workloadStats, dsrcAc
         # Record is JSON
         if isinstance(row, dict):
             dataSource, recordID = parse_json(row)
-        # Record is UMF
         else:
-            dataSource, recordID = parse_umf(row)
-
+            # Record could be from REDO, and cound be either UMF or JSON
+            try:
+                row = json.loads(row)
+                dataSource, recordID = parse_json(row)
+            except JSONDecodeError:
+                # Record is UMF
+                dataSource, recordID = parse_umf(row)
+                
         # Is the record from the work queue specifically a redo record to be processed during redo time/mode?
         if is_redo_record:
             dsrcAction = 'X'

@@ -171,6 +171,15 @@ class G2CmdShell(cmd.Cmd, object):
         getEntityByEntityIDV2_parser.add_argument('entityID', type=int)
         getEntityByEntityIDV2_parser.add_argument('flags', type=int)
 
+        findInterestingEntitiesByEntityID_parser = self.subparsers.add_parser('findInterestingEntitiesByEntityID', usage=argparse.SUPPRESS)
+        findInterestingEntitiesByEntityID_parser.add_argument('entityID', type=int)
+        findInterestingEntitiesByEntityID_parser.add_argument('flags', type=int)
+
+        findInterestingEntitiesByRecordID_parser = self.subparsers.add_parser('findInterestingEntitiesByRecordID', usage=argparse.SUPPRESS)
+        findInterestingEntitiesByRecordID_parser.add_argument('dataSourceCode')
+        findInterestingEntitiesByRecordID_parser.add_argument('recordID')
+        findInterestingEntitiesByRecordID_parser.add_argument('flags', type=int)
+
         findPathByEntityID_parser = self.subparsers.add_parser('findPathByEntityID', usage=argparse.SUPPRESS)
         findPathByEntityID_parser.add_argument('startEntityID', type=int)
         findPathByEntityID_parser.add_argument('endEntityID', type=int)
@@ -1423,6 +1432,47 @@ class G2CmdShell(cmd.Cmd, object):
             response = bytearray()
             self.g2_module.getEntityByEntityIDV2(args.entityID,args.flags,response)
 
+            if response:
+                print('{}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
+    def do_findInterestingEntitiesByEntityID(self, arg):
+        '\nFind interesting entities close to entity by resolved entity ID:  findInterestingEntitiesByEntityID <entityID> <flags>\n'
+
+        try:
+            args = self.parser.parse_args(['findInterestingEntitiesByEntityID'] + parse(arg))
+        except SystemExit:
+            print(self.do_findInterestingEntitiesByEntityID.__doc__)
+            return
+
+        try:
+            response = bytearray()
+            self.g2_module.findInterestingEntitiesByEntityID(args.entityID,args.flags,response)
+
+            if response:
+                print('{}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
+    def do_findInterestingEntitiesByRecordID(self, arg):
+        '\nFind interesting entities close to entity by record ID:  findInterestingEntitiesByRecordID <dataSourceCode> <recordID> <flags>\n'
+
+        try:
+            args = self.parser.parse_args(['findInterestingEntitiesByRecordID'] + parse(arg))
+        except SystemExit:
+            print(self.do_findInterestingEntitiesByRecordID.__doc__)
+            return
+
+        try:
+            response = bytearray()
+            self.g2_module.findInterestingEntitiesByRecordID(args.dataSourceCode, args.recordID, args.flags,response)
             if response:
                 print('{}'.format(response.decode()))
             else:

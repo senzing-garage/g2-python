@@ -1733,6 +1733,64 @@ class G2Engine(object):
 
         response += tls_var.buf.value
 
+    def findInterestingEntitiesByEntityID(self,entityID,flags,response):
+        # type: (int,bytearray) -> int
+        """ Find interesting entities close to the entity with the given ID
+        Args:
+            entityID: The entity ID you want to search around.
+            flags: control flags.
+            response: A bytearray for returning the response document; if an error occurred, an error response is stored here.
+        """
+
+        response[::]=b''
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2_findInterestingEntitiesByEntityID.restype = c_int
+        self._lib_handle.G2_findInterestingEntitiesByEntityID.argtypes = [c_longlong, c_longlong, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_findInterestingEntitiesByEntityID(entityID,flags,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Engine has not been successfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+        #Add the bytes to the response bytearray from calling function
+        response += tls_var.buf.value
+
+    def findInterestingEntitiesByRecordID(self,dsrcCode,recordId,flags,response):
+        # type: (str,str,bytearray) -> int
+        """ Find interesting entities close to the entity with the specified record
+        Args:
+            dataSourceCode: The data source for the observation to search around.
+            recordID: The ID for the record to search around.
+            flags: control flags.
+            response: A bytearray for returning the response document; if an error occurred, an error response is stored here.
+        """
+
+        response[::]=b''
+        _dsrcCode = self.prepareStringArgument(dsrcCode)
+        _recordId = self.prepareStringArgument(recordId)
+        responseBuf = c_char_p(addressof(tls_var.buf))
+        responseSize = c_size_t(tls_var.bufSize)
+        self._lib_handle.G2_findInterestingEntitiesByRecordID.restype = c_int
+        self._lib_handle.G2_findInterestingEntitiesByRecordID.argtypes = [c_char_p, c_char_p, c_longlong, POINTER(c_char_p), POINTER(c_size_t), self._resize_func_def]
+        ret_code = self._lib_handle.G2_findInterestingEntitiesByRecordID(_dsrcCode,_recordId,flags,
+                                                                 pointer(responseBuf),
+                                                                 pointer(responseSize),
+                                                                 self._resize_func)
+
+        if ret_code == -1:
+            raise G2ModuleNotInitialized('G2Engine has not been successfully initialized')
+        elif ret_code < 0:
+            self._lib_handle.G2_getLastException(tls_var.buf, sizeof(tls_var.buf))
+            raise TranslateG2ModuleException(tls_var.buf.value)
+
+        response += tls_var.buf.value
+
     def getRedoRecord(self,response):
         # type: (bytearray) -> int
         """ Get the next Redo record

@@ -13,6 +13,8 @@
 # -----------------------------------------------------------------------------
 
 import argparse
+import configparser
+from github import Github
 import json
 import linecache
 import logging
@@ -20,12 +22,11 @@ import os
 import signal
 import sys
 import time
-from github import Github
 
 __all__ = []
 __version__ = "1.0.0"  # See https://www.python.org/dev/peps/pep-0396/
 __date__ = '2021-08-14'
-__updated__ = '2021-08-04'
+__updated__ = '2022-01-27'
 
 # See https://github.com/Senzing/knowledge-base/blob/master/lists/senzing-product-ids.md
 SENZING_PRODUCT_ID = "5023"
@@ -157,6 +158,10 @@ def get_parser():
     ''' Parse commandline arguments. '''
 
     subcommands = {
+        'list-gitmodules-for-bash': {
+            "help": 'Print xxxx',
+            "arguments": {},
+        },
         'list-submodule-versions': {
             "help": 'Print modules.sh',
             "argument_aspects": ["common"],
@@ -486,6 +491,45 @@ def exit_silently():
 #   Common function signature: do_XXX(args)
 # -----------------------------------------------------------------------------
 
+
+def do_list_gitmodules_for_bash(args):
+
+    # Get context from CLI, environment variables, and ini files.
+
+    config = get_configuration(args)
+    validate_configuration(config)
+
+    # Prolog.
+
+    logging.info(entry_template(config))
+
+    # Read .gitmodules file.
+
+    filename = "{0}/.gitmodules".format("..")
+    config_parser = configparser.ConfigParser()
+    config_parser.optionxform = str  # Maintain case of keys.
+    config_parser.read(filename)
+
+    # Transform to python dictionary.
+
+    gitmodules_dict = {}
+    sections = config_parser.sections()
+    for section in sections:
+        gitmodules_dict[section] = {}
+        for key in config_parser[section]:
+            value = config_parser[section][key]
+            gitmodules_dict[section][key] = value
+
+    # Print body.
+
+    for module, module_metadata in gitmodules_dict.items():
+        artifacts = repositories.get(module_metadata.get("path", {}),{}).get("artifacts", [])
+        for artifact in artifacts:
+            print("    {0};{1};{2}".format(
+                module_metadata.get("path"),
+                module_metadata.get("branch", "main"),
+                artifact
+            ))
 
 def do_list_submodule_versions(args):
 

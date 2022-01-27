@@ -1,5 +1,0 @@
-[
-{"DATA_SOURCE": "CUSTOMERS", "FILE_FORMAT": "CSV", "FILE_NAME": "truthset-person-v1-set1-data.csv"},
-{"DATA_SOURCE": "WATCHLIST", "FILE_FORMAT": "CSV", "FILE_NAME": "truthset-person-v1-set2-data.csv"}
-]
-

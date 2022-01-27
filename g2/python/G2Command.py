@@ -14,16 +14,10 @@ from collections import OrderedDict
 from contextlib import suppress
 from timeit import default_timer as timer
 
-import G2Exception
 import G2Paths
-from G2Config import G2Config
-from G2ConfigMgr import G2ConfigMgr
-from G2Diagnostic import G2Diagnostic
-from G2Engine import G2Engine
-from G2Hasher import G2Hasher
 from G2Health import G2Health
-from G2IniParams import G2IniParams
-from G2Product import G2Product
+
+from senzing import G2Config, G2ConfigMgr, G2Diagnostic, G2Engine, G2Exception, G2Hasher, G2IniParams, G2Product
 
 try:
     import readline
@@ -52,12 +46,12 @@ class G2CmdShell(cmd.Cmd, object):
         self.undoc_header = 'Misc Commands'
         self.__hidden_methods = ('do_shell', 'do_EOF', 'do_help')
 
-        self.g2_module = G2Engine()
-        self.g2_hasher_module = G2Hasher()
-        self.g2_product_module = G2Product()
-        self.g2_diagnostic_module = G2Diagnostic()
-        self.g2_config_module = G2Config()
-        self.g2_configmgr_module = G2ConfigMgr()
+        self.g2_module = G2Engine.G2Engine()
+        self.g2_hasher_module = G2Hasher.G2Hasher()
+        self.g2_product_module = G2Product.G2Product()
+        self.g2_diagnostic_module = G2Diagnostic.G2Diagnostic()
+        self.g2_config_module = G2Config.G2Config()
+        self.g2_configmgr_module = G2ConfigMgr.G2ConfigMgr()
 
         self.initialized = False
         self.restart = False
@@ -128,7 +122,7 @@ class G2CmdShell(cmd.Cmd, object):
         exportEntityCsv_parser.add_argument('-t', '--headersForCSV', required=False)
         exportEntityCsv_parser.add_argument('-f', '--flags', required=True, default=0, type=int)
         exportEntityCsv_parser.add_argument('-o', '--outputFile', required=False)
-        
+
         recordModify_parser = self.subparsers.add_parser('recordModify', usage=argparse.SUPPRESS)
         recordModify_parser.add_argument('dataSourceCode')
         recordModify_parser.add_argument('recordID')
@@ -2696,7 +2690,7 @@ if __name__ == '__main__':
     g2health.checkIniParams(ini_file_name)
 
     # Get the INI paramaters to use
-    iniParamCreator = G2IniParams()
+    iniParamCreator = G2IniParams.G2IniParams()
     g2module_params = iniParamCreator.getJsonINIParams(ini_file_name)
 
     # Execute a file of commands

@@ -21,20 +21,15 @@ from multiprocessing import Process, Queue, Value
 from queue import Empty, Full
 
 import DumpStack
-import G2Exception
 import G2Paths
 from CompressedFile import (fileRowParser, isCompressedFile,
                             openPossiblyCompressedFile)
-from G2Config import G2Config
-from G2ConfigMgr import G2ConfigMgr
 from G2ConfigTables import G2ConfigTables
-from G2Diagnostic import G2Diagnostic
-from G2Engine import G2Engine
-from G2Exception import G2ModuleException, G2ModuleLicenseException
 from G2Health import G2Health
-from G2IniParams import G2IniParams
-from G2Product import G2Product
 from G2Project import G2Project
+
+from senzing import G2Config, G2ConfigMgr, G2Diagnostic, G2Engine, G2Exception, G2IniParams, G2Product
+from senzing.G2Exception import G2ModuleException, G2ModuleLicenseException
 
 # -----------------------------------------------------------------------------
 # Class: Governor
@@ -65,7 +60,7 @@ def check_resources_and_startup(returnQueue, thread_count, doPurge, doLicense=Tr
     ''' Check system resources, calculate a safe number of threads when argument not specified on command line '''
 
     try:
-        diag = G2Diagnostic()
+        diag = G2Diagnostic.G2Diagnostic()
         diag.init('pyG2Diagnostic', g2module_params, args.debugTrace)
     except G2ModuleException as ex:
         print('\nERROR: Could not start G2Diagnostic for check_resources_and_startup()')
@@ -82,7 +77,7 @@ def check_resources_and_startup(returnQueue, thread_count, doPurge, doLicense=Tr
         return
 
     try:
-        g2_configmgr = G2ConfigMgr()
+        g2_configmgr = G2ConfigMgr.G2ConfigMgr()
         g2_configmgr.init('pyG2ConfigMgr', g2module_params, args.debugTrace)
     except G2ModuleException as ex:
         print('ERROR: Could not start G2ConfigMgr for check_resources_and_startup()')
@@ -91,7 +86,7 @@ def check_resources_and_startup(returnQueue, thread_count, doPurge, doLicense=Tr
         return
 
     try:
-        g2_product = G2Product()
+        g2_product = G2Product.G2Product()
         g2_product.init('pyG2LicenseVersion', g2module_params, args.debugTrace)
     except G2ModuleException as ex:
         print('ERROR: Could not start G2Product for check_resources_and_startup()')
@@ -913,7 +908,7 @@ def g2Thread(threadId_, workQueue_, g2Engine_, threadStop, workloadStats, dsrcAc
             except JSONDecodeError:
                 # Record is UMF
                 dataSource, recordID = parse_umf(row)
-                
+
         # Is the record from the work queue specifically a redo record to be processed during redo time/mode?
         if is_redo_record:
             dsrcAction = 'X'
@@ -1010,7 +1005,7 @@ def init_engine(name, config_parms, debug_trace, prime_engine=True, add_start_ti
         engine_start_time = time.perf_counter()
 
     try:
-        engine = G2Engine()
+        engine = G2Engine.G2Engine()
         engine.init(name, config_parms, debug_trace)
         if prime_engine:
             engine.primeEngine()
@@ -1254,7 +1249,7 @@ def getInitialG2Config(g2module_params, g2ConfigJson):
             return False
     else:
         # Get the current configuration from the database
-        g2ConfigMgr = G2ConfigMgr()
+        g2ConfigMgr = G2ConfigMgr.G2ConfigMgr()
         g2ConfigMgr.init('g2ConfigMgr', g2module_params, False)
         defaultConfigID = bytearray()
         g2ConfigMgr.getDefaultConfigID(defaultConfigID)
@@ -1292,7 +1287,7 @@ def enhanceG2Config(g2Project, g2module_params, g2ConfigJson, configuredDatasour
 
     # Define variables for where the config is stored.
 
-    g2Config = G2Config()
+    g2Config = G2Config.G2Config()
     g2Config.init("g2Config", g2module_params, False)
 
     # Add any missing source codes and entity types to the g2 config
@@ -1312,7 +1307,7 @@ def enhanceG2Config(g2Project, g2module_params, g2ConfigJson, configuredDatasour
             with open(has_g2configfile, 'w') as fp:
                 json.dump(json.loads(g2ConfigJson), fp, indent=4, sort_keys=True)
         else:
-            g2ConfigMgr = G2ConfigMgr()
+            g2ConfigMgr = G2ConfigMgr.G2ConfigMgr()
             g2ConfigMgr.init("g2ConfigMgr", g2module_params, False)
             new_config_id = bytearray()
             try:
@@ -1677,7 +1672,7 @@ if __name__ == '__main__':
     g2health.checkIniParams(iniFileName)
 
     # Get the INI paramaters to use
-    iniParamCreator = G2IniParams()
+    iniParamCreator = G2IniParams.G2IniParams()
     g2module_params = iniParamCreator.getJsonINIParams(iniFileName)
 
     # Deprecated but still supported at this time, is G2CONFIGFILE being used?

@@ -4,7 +4,7 @@ import io
 import json
 from datetime import datetime
 
-from G2Exception import G2UnsupportedFileTypeException
+from senzing.G2Exception import G2UnsupportedFileTypeException
 
 
 def peekLine(file_):

@@ -14,7 +14,7 @@ class MyBuffer(threading.local):
 
 tls_var = MyBuffer()
 
-from G2Exception import TranslateG2ModuleException, G2ModuleNotInitialized, G2ModuleGenericException
+from senzing.G2Exception import TranslateG2ModuleException, G2ModuleNotInitialized, G2ModuleGenericException
 
 def resize_return_buffer(buf_, size_):
   """  callback function that resizes return buffer when it is too small
@@ -38,7 +38,7 @@ def resize_return_buffer(buf_, size_):
       #print("Created new Buffer {}".format(tls_var.buf))
       tls_var.bufSize = size_
   return addressof(tls_var.buf)
-  
+
 
 SENZING_PRODUCT_ID = "5027"  # See https://github.com/Senzing/knowledge-base/blob/master/lists/senzing-product-ids.md
 
@@ -186,13 +186,13 @@ class G2Config(object):
         self._lib_handle.G2Config_load.argtypes = [c_char_p,POINTER(c_void_p)]
         configHandle = c_void_p(0)
         ret_code = self._lib_handle.G2Config_load(_jsonConfig,byref(configHandle))
-        
+
         if ret_code == -1:
             raise G2ModuleNotInitialized('G2Config has not been successfully initialized')
         elif ret_code < 0:
             self._lib_handle.G2Config_getLastException(tls_var.buf, sizeof(tls_var.buf))
             raise TranslateG2ModuleException(tls_var.buf.value)
-            
+
         return configHandle.value
 
     def close(self,configHandle):

@@ -7,7 +7,7 @@ import textwrap
 from importlib import import_module
 
 #--project classes
-import G2Exception
+from senzing import G2Exception
 
 
 #======================
@@ -331,10 +331,10 @@ class G2Database:
                 uri_dict['DSN'] = justDsnSch
 
         except (IndexError, ValueError) as ex:
-            raise G2DBException(f'Failed to parse database URI, check the connection string(s) in your G2Module INI file.') from None
+            raise G2Exception.G2DBException(f'Failed to parse database URI, check the connection string(s) in your G2Module INI file.') from None
 
         if not uri_dict['DSN']:
-           raise G2DBException(f'Missing database DSN. \n{self.show_connection(uri_dict, False, False)}')
+           raise G2Exception.G2DBException(f'Missing database DSN. \n{self.show_connection(uri_dict, False, False)}')
 
         self.dbType = uri_dict['DBTYPE'] if 'DBTYPE' in uri_dict else None
         self.dsn = uri_dict['DSN'] if 'DSN' in uri_dict else None
@@ -386,7 +386,7 @@ class G2Database:
             errMessage = ex.args[1] if len(ex.args) > 1 else ex.args[0]
         else:
             return G2Exception.G2UnsupportedDatabaseType('ERROR: ' + self.dbType + ' is an unsupported database type')
-        
+
         #return G2Exception.G2DBUnknownException(errMessage)
         return G2Exception.G2DBException(errMessage)
 
@@ -403,7 +403,7 @@ if __name__ == "__main__":
         optParser.add_option('-d', '--dbUri', dest='dbUri', default='', help='a database uri such as: db2://user:pwd@dsn:schema')
         (options, args) = optParser.parse_args()
         dbUri = options.dbUri
- 
+
     #--create an instance
     testDbo = g2Database(dbUri)
     if testDbo.success:

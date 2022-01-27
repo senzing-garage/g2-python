@@ -24,7 +24,6 @@ do
     SUBMODULE_BRANCH="${SUBMODULE_DATA[1]}"
     SUBMODULE_ARTIFACT="${SUBMODULE_DATA[2]}"
 
-
     echo "Processing ${SUBMODULE_NAME} branch: ${SUBMODULE_BRANCH}"
 
     # Get requested version of submodule.
@@ -35,11 +34,8 @@ do
     git checkout ${SUBMODULE_BRANCH}
     git pull
 
-#   echo "Copy ${SUBMODULE_NAME}/${SUBMODULE_ARTIFACT}"
-
     # Copy artifact into collection.
 
-#   cd ${GIT_REPOSITORY_DIR}/${SUBMODULE_NAME}
-#   cp ${SUBMODULE_ARTIFACT} ${TARGET_PYTHON_DIR}/
+    cp ${GIT_REPOSITORY_DIR}/${SUBMODULE_NAME}/${SUBMODULE_ARTIFACT} ${TARGET_PYTHON_DIR}/
 
 done

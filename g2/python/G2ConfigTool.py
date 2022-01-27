@@ -20,12 +20,8 @@ from shutil import copyfile
 import G2Paths
 
 try:
-    from G2IniParams import G2IniParams
-    from G2Engine import G2Engine
     from G2Health import G2Health
-    from G2ConfigMgr import G2ConfigMgr
-    from G2Config import G2Config
-    import G2Exception
+    from senzing import G2Config, G2ConfigMgr, G2Engine, G2Exception, G2IniParams
 except Exception:
     pass
 
@@ -60,9 +56,9 @@ class G2CmdShell(cmd.Cmd, object):
         self.undoc_header = 'Misc Commands'
         self.__hidden_methods = ('do_shell', 'do_EOF', 'do_help')
 
-        self.g2_module = G2Engine()
-        self.g2_configmgr = G2ConfigMgr()
-        self.g2_config = G2Config()
+        self.g2_module = G2Engine.G2Engine()
+        self.g2_configmgr = G2ConfigMgr.G2ConfigMgr()
+        self.g2_config = G2Config.G2Config()
 
         # Set flag to know if running an interactive command shell or reading from file
         self.isInteractive = True
@@ -4690,7 +4686,7 @@ if __name__ == '__main__':
     g2health.checkIniParams(ini_file_name)
 
     # Older Senzing using G2CONFIGFILE, e.g, G2CONFIGFILE=/opt/senzing/g2/python/g2config.json
-    iniParamCreator = G2IniParams()
+    iniParamCreator = G2IniParams.G2IniParams()
     g2ConfigFile = iniParamCreator.getINIParam(ini_file_name, 'SQL', 'G2CONFIGFILE')
 
     # Get the INI paramaters to use

@@ -11,13 +11,11 @@ if sys.version[0] == '2':
     sys.setdefaultencoding('utf-8')
 
 #--project classes
-import G2Exception
-from G2IniParams import G2IniParams
-from G2Config import G2Config
-from G2ConfigMgr import G2ConfigMgr
 import G2Paths
 
- 
+from senzing import G2Config, G2ConfigMgr, G2Exception, G2IniParams
+
+
 #---------------------------------------------------------------------
 #-- Setup Config
 #---------------------------------------------------------------------
@@ -25,11 +23,11 @@ import G2Paths
 def setupConfig(iniFileName,autoMode):
 
     #-- Load the G2 configuration file
-    iniParamCreator = G2IniParams()
+    iniParamCreator = G2IniParams.G2IniParams()
     iniParams = iniParamCreator.getJsonINIParams(iniFileName)
 
     # Connect to the needed API
-    g2ConfigMgr = G2ConfigMgr()
+    g2ConfigMgr = G2ConfigMgr.G2ConfigMgr()
     g2ConfigMgr.init("g2ConfigMgr", iniParams, False)
 
     # Determine if a default/initial G2 configuration already exists.
@@ -84,7 +82,7 @@ def setupConfig(iniFileName,autoMode):
         if shouldContinue == False:
             print('Error:  Will not migrate config from file to database.')
             return -1
-        g2Config = G2Config()
+        g2Config = G2Config.G2Config()
         g2Config.init("g2Config", iniParams, False)
         config_handle = g2Config.create()
         if config_handle == None:

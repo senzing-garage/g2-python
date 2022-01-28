@@ -1,3 +1,0 @@
-DATA_SOURCE,FILE_FORMAT,FILE_NAME
-CUSTOMERS,CSV,truthset-person-v1-set1-data.csv
-WATCHLIST,CSV,truthset-person-v1-set2-data.csv

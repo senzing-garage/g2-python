@@ -374,6 +374,20 @@ class G2CmdShell(cmd.Cmd, object):
         whyEntityByEntityIDV2_parser.add_argument('entityID', type=int)
         whyEntityByEntityIDV2_parser.add_argument('flags', type=int)
 
+        howEntityByEntityID_parser = self.subparsers.add_parser('howEntityByEntityID', usage=argparse.SUPPRESS)
+        howEntityByEntityID_parser.add_argument('entityID', type=int)
+
+        howEntityByEntityIDV2_parser = self.subparsers.add_parser('howEntityByEntityIDV2', usage=argparse.SUPPRESS)
+        howEntityByEntityIDV2_parser.add_argument('entityID', type=int)
+        howEntityByEntityIDV2_parser.add_argument('flags', type=int)
+
+        getVirtualEntityByRecordID_parser = self.subparsers.add_parser('getVirtualEntityByRecordID', usage=argparse.SUPPRESS)
+        getVirtualEntityByRecordID_parser.add_argument('recordList')
+
+        getVirtualEntityByRecordIDV2_parser = self.subparsers.add_parser('getVirtualEntityByRecordIDV2', usage=argparse.SUPPRESS)
+        getVirtualEntityByRecordIDV2_parser.add_argument('recordList')
+        getVirtualEntityByRecordIDV2_parser.add_argument('flags', type=int)
+
         whyEntities_parser = self.subparsers.add_parser('whyEntities', usage=argparse.SUPPRESS)
         whyEntities_parser.add_argument('entityID1', type=int)
         whyEntities_parser.add_argument('entityID2', type=int)
@@ -1827,6 +1841,86 @@ class G2CmdShell(cmd.Cmd, object):
         try:
             response = bytearray()
             self.g2_module.whyEntityByEntityIDV2(args.entityID,args.flags,response)
+            if response:
+                print('{}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
+    def do_howEntityByEntityID(self, arg):
+        '\nRetrieve information on how entities are constructed from their base records:  howEntityByEntityID <entityID>\n'
+
+        try:
+            args = self.parser.parse_args(['howEntityByEntityID'] + parse(arg))
+        except SystemExit:
+            print(self.do_howEntityByEntityID.__doc__)
+            return
+
+        try:
+            response = bytearray()
+            self.g2_module.howEntityByEntityID(args.entityID,response)
+            if response:
+                print('{}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
+    def do_howEntityByEntityIDV2(self, arg):
+        '\nRetrieve information on how entities are constructed from their base records:  howEntityByEntityIDV2 <entityID> <flags>\n'
+
+        try:
+            args = self.parser.parse_args(['howEntityByEntityIDV2'] + parse(arg))
+        except SystemExit:
+            print(self.do_howEntityByEntityIDV2.__doc__)
+            return
+
+        try:
+            response = bytearray()
+            self.g2_module.howEntityByEntityIDV2(args.entityID,args.flags,response)
+            if response:
+                print('{}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
+    def do_getVirtualEntityByRecordID(self, arg):
+        '\nDetermine how an entity composed of a given set of records would look:  getVirtualEntityByRecordID <recordList>\n'
+
+        try:
+            args = self.parser.parse_args(['getVirtualEntityByRecordID'] + parse(arg))
+        except SystemExit:
+            print(self.do_getVirtualEntityByRecordID.__doc__)
+            return
+
+        try:
+            response = bytearray()
+            self.g2_module.getVirtualEntityByRecordID(args.recordList,response)
+            if response:
+                print('{}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
+        except G2Exception.G2Exception as err:
+            print(err)
+
+
+    def do_getVirtualEntityByRecordIDV2(self, arg):
+        '\nDetermine how an entity composed of a given set of records would look:  getVirtualEntityByRecordIDV2 <recordList> <flags>\n'
+
+        try:
+            args = self.parser.parse_args(['getVirtualEntityByRecordIDV2'] + parse(arg))
+        except SystemExit:
+            print(self.do_getVirtualEntityByRecordIDV2.__doc__)
+            return
+
+        try:
+            response = bytearray()
+            self.g2_module.getVirtualEntityByRecordIDV2(args.recordList,args.flags,response)
             if response:
                 print('{}'.format(response.decode()))
             else:

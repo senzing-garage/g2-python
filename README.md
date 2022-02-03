@@ -51,7 +51,6 @@ $ tree g2/python
 ├── G2Paths.py
 ├── G2Product.py
 ├── G2Project.py
-├── g2purge.umf
 ├── G2S3.py
 ├── G2SetupConfig.py
 ├── G2Snapshot.py

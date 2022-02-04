@@ -15,10 +15,6 @@
   path = g2command
   url = https://github.com/Senzing/g2command.git
   branch = issue-31.jae.1
-[submodule "g2config"]
-  path = g2config
-  url = https://github.com/Senzing/g2config.git
-  branch = issue-17.jae.1
 [submodule "g2configtables"]
   path = g2configtables
   url = https://github.com/Senzing/g2configtables.git
@@ -26,9 +22,6 @@
   path = g2database
   url = https://github.com/Senzing/g2database.git
   branch = issue-15.jae.1
-[submodule "g2exception"]
-  path = g2exception
-  url = https://github.com/Senzing/g2exception.git
 [submodule "g2export"]
   path = g2export
   url = https://github.com/Senzing/g2export.git
@@ -48,35 +41,12 @@
   path = g2configtool
   url = https://github.com/Senzing/g2configtool.git
   branch = issue-28.jae.1
-[submodule "g2engine"]
-  path = g2engine
-  url = https://github.com/Senzing/g2engine.git
-  branch = issue-26.jae.1
-[submodule "g2product"]
-  path = g2product
-  url = https://github.com/Senzing/g2product.git
-  branch = issue-13.jae.1
 [submodule "g2s3"]
   path = g2s3
   url = https://github.com/Senzing/g2s3.git
-[submodule "g2diagnostic"]
-  path = g2diagnostic
-  url = https://github.com/Senzing/g2diagnostic.git
-  branch = issue-18.jae.1
-[submodule "g2hasher"]
-  path = g2hasher
-  url = https://github.com/Senzing/g2hasher.git
-  branch = issue-13.jae.1
 [submodule "g2paths"]
   path = g2paths
   url = https://github.com/Senzing/g2paths.git
-[submodule "g2configmgr"]
-  path = g2configmgr
-  url = https://github.com/Senzing/g2configmgr.git
-  branch = issue-13.jae.1
-[submodule "g2iniparams"]
-  path = g2iniparams
-  url = https://github.com/Senzing/g2iniparams.git
 [submodule "g2createproject"]
   path = g2createproject
   url = https://github.com/Senzing/g2createproject.git

@@ -1745,7 +1745,7 @@ if __name__ == '__main__':
     if not args.projectFileName and not args.projectFileSpec and not args.redoMode and (args.purgeFirst or args.forcePurge):
         print('\nINFO: No source file or project file was specified, loading the sample truth set data...')
         # Convert the path to a string, G2Project needs updating to accomodate pathlib objects
-        args.projectFileName = str(pathlib.Path(os.environ.get('SENZING_ROOT', '/opt/senzing/g2/')).joinpath('python', 'demo', 'truth', 'project.csv'))
+        args.projectFileName = str(pathlib.Path(os.environ.get('SENZING_ROOT', '/opt/senzing/g2/')).joinpath('python', 'demo', 'truth', 'truthset-project.csv'))
 
     # Running in redo only mode? Don't purge in redo only mode, would purge the queue!
     if args.redoMode:

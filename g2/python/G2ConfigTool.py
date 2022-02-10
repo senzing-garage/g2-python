@@ -1857,6 +1857,7 @@ class G2CmdShell(cmd.Cmd, object):
             newRecord['DERIVATION'] = parmData['DERIVATION']
             newRecord['USED_FOR_CAND'] = 'No' if parmData['CANDIDATES'].upper() == 'NO' else 'Yes'
             newRecord['PERSIST_HISTORY'] = 'No' if 'HISTORY' in parmData and parmData['HISTORY'].upper() == 'NO' else 'Yes'
+            newRecord['SHOW_IN_MATCH_KEY'] = parmData['MATCHKEY'] if 'MATCHKEY' in parmData else 'Yes'
             newRecord['VERSION'] = 1
             newRecord['RTYPE_ID'] = int(parmData['RTYPE_ID']) if 'RTYPE_ID' in parmData else 0
             self.cfgData['G2_CONFIG']['CFG_FTYPE'].append(newRecord)

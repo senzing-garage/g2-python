@@ -953,15 +953,15 @@ def g2Thread(threadId_, workQueue_, g2Engine_, threadStop, workloadStats, dsrcAc
 
             if dsrcAction == 'A':
                 dsrc_action_str = 'addRecord()'
-                g2Engine_.addRecord(dataSource, str(recordID), json.dumps(row, sort_keys=True))
+                g2Engine_.addRecord(dataSource, recordID, json.dumps(row, sort_keys=True))
 
             if dsrcAction == 'D':
                 dsrc_action_str = 'deleteRecord()'
-                g2Engine_.deleteRecord(dataSource, str(recordID))
+                g2Engine_.deleteRecord(dataSource, recordID)
 
             if dsrcAction == 'X':
                 dsrc_action_str = 'reevaluateRecord()'
-                g2Engine_.reevaluateRecord(dataSource, str(recordID), 0)
+                g2Engine_.reevaluateRecord(dataSource, recordID, 0)
 
         except G2ModuleLicenseException as ex:
             print('ERROR: G2Engine licensing error!')

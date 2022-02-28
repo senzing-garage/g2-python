@@ -404,19 +404,19 @@ if __name__ == '__main__':
             print_error_msg(f'Error: Could not start the G2 engine using {iniFileName}', ex, exit=True)
 
         # Determine data requested with engine flags
-        exportFlags = g2_engine.G2_EXPORT_INCLUDE_ALL_ENTITIES
+        exportFlags = G2EngineFlags.G2_EXPORT_INCLUDE_ALL_ENTITIES
         if args.outputFilter == 1:
             pass
         elif args.outputFilter == 2:
-            exportFlags = exportFlags | g2_engine.G2_EXPORT_INCLUDE_POSSIBLY_SAME | g2_engine.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS
+            exportFlags = exportFlags | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_SAME | G2EngineFlags.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS
         elif args.outputFilter == 3:
-            exportFlags = exportFlags | g2_engine.G2_EXPORT_INCLUDE_POSSIBLY_SAME | g2_engine.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | g2_engine.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS | g2_engine.G2_ENTITY_INCLUDE_POSSIBLY_RELATED_RELATIONS
+            exportFlags = exportFlags | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_SAME | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | G2EngineFlags.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS | G2EngineFlags.G2_ENTITY_INCLUDE_POSSIBLY_RELATED_RELATIONS
         elif args.outputFilter == 4:
-            exportFlags = exportFlags | g2_engine.G2_EXPORT_INCLUDE_POSSIBLY_SAME | g2_engine.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | g2_engine.G2_EXPORT_INCLUDE_NAME_ONLY | g2_engine.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS | g2_engine.G2_ENTITY_INCLUDE_POSSIBLY_RELATED_RELATIONS | g2_engine.G2_ENTITY_INCLUDE_NAME_ONLY_RELATIONS
+            exportFlags = exportFlags | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_SAME | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | G2EngineFlags.G2_EXPORT_INCLUDE_NAME_ONLY | G2EngineFlags.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS | G2EngineFlags.G2_ENTITY_INCLUDE_POSSIBLY_RELATED_RELATIONS | G2EngineFlags.G2_ENTITY_INCLUDE_NAME_ONLY_RELATIONS
         elif args.outputFilter >= 5:
-            exportFlags = exportFlags | g2_engine.G2_EXPORT_INCLUDE_POSSIBLY_SAME | g2_engine.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | g2_engine.G2_EXPORT_INCLUDE_NAME_ONLY | g2_engine.G2_EXPORT_INCLUDE_DISCLOSED | g2_engine.G2_ENTITY_INCLUDE_ALL_RELATIONS
+            exportFlags = exportFlags | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_SAME | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | G2EngineFlags.G2_EXPORT_INCLUDE_NAME_ONLY | G2EngineFlags.G2_EXPORT_INCLUDE_DISCLOSED | G2EngineFlags.G2_ENTITY_INCLUDE_ALL_RELATIONS
         else:
-            exportFlags = exportFlags | g2_engine.G2_ENTITY_INCLUDE_ALL_RELATIONS
+            exportFlags = exportFlags | G2EngineFlags.G2_ENTITY_INCLUDE_ALL_RELATIONS
 
         #if not extended:
         #  exportFlags |= g2_engine.G2_ENTITY_MINIMAL_FORMAT
@@ -438,11 +438,11 @@ if __name__ == '__main__':
                 else:
                     # For JSON output amend the engine flags to obtain additional data
                     # JSON output to match similar CSV ouput will include additional items, CSV unions flags & csvFields to determine output
-                    exportFlags = exportFlags | g2_engine.G2_ENTITY_INCLUDE_RECORD_DATA | g2_engine.G2_ENTITY_INCLUDE_RELATED_RECORD_DATA | g2_engine.G2_ENTITY_INCLUDE_RECORD_MATCHING_INFO | g2_engine.G2_ENTITY_INCLUDE_RELATED_MATCHING_INFO
+                    exportFlags = exportFlags | G2EngineFlags.G2_ENTITY_INCLUDE_RECORD_DATA | G2EngineFlags.G2_ENTITY_INCLUDE_RELATED_RECORD_DATA | G2EngineFlags.G2_ENTITY_INCLUDE_RECORD_MATCHING_INFO | G2EngineFlags.G2_ENTITY_INCLUDE_RELATED_MATCHING_INFO
                     if args.extended:
                         # Note: There is no flag for JSON export to get the related JSON_DATA details to fully mimic CSV output
                         #       Would need to getRecord() and inject the JSON_DATA
-                        exportFlags = exportFlags | g2_engine.G2_ENTITY_INCLUDE_ENTITY_NAME | g2_engine.G2_ENTITY_INCLUDE_RECORD_JSON_DATA
+                        exportFlags = exportFlags | G2EngineFlags.G2_ENTITY_INCLUDE_ENTITY_NAME | G2EngineFlags.G2_ENTITY_INCLUDE_RECORD_JSON_DATA
                     export_handle = g2_engine.exportJSONEntityReport(exportFlags)
             except G2ModuleException as ex:
                 print_error_msg('Could not initialize export', ex, exit=True)

@@ -150,20 +150,20 @@ def processEntities():
 
     #--determine the output flags
     exportFlags = 0
-    exportFlags = g2Engine.G2_EXPORT_INCLUDE_ALL_ENTITIES
+    exportFlags = G2EngineFlags.G2_EXPORT_INCLUDE_ALL_ENTITIES
     if relationshipFilter == 1:
         pass #--don't include any relationships
     elif relationshipFilter == 2:
-        exportFlags = exportFlags | g2Engine.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS
+        exportFlags = exportFlags | G2EngineFlags.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS
     else:
-        exportFlags = exportFlags | g2Engine.G2_ENTITY_INCLUDE_ALL_RELATIONS
+        exportFlags = exportFlags | G2EngineFlags.G2_ENTITY_INCLUDE_ALL_RELATIONS
 
     if exportType == 'JSON':  #--specify what sections for json
         print('\nExport type is JSON')
-        exportFlags = exportFlags | g2Engine.G2_ENTITY_INCLUDE_RECORD_DATA
-        exportFlags = exportFlags | g2Engine.G2_ENTITY_INCLUDE_RECORD_MATCHING_INFO
-        exportFlags = exportFlags | g2Engine.G2_ENTITY_INCLUDE_RELATED_MATCHING_INFO
-        exportFlags = exportFlags | g2Engine.G2_ENTITY_INCLUDE_RELATED_RECORD_SUMMARY
+        exportFlags = exportFlags | G2EngineFlags.G2_ENTITY_INCLUDE_RECORD_DATA
+        exportFlags = exportFlags | G2EngineFlags.G2_ENTITY_INCLUDE_RECORD_MATCHING_INFO
+        exportFlags = exportFlags | G2EngineFlags.G2_ENTITY_INCLUDE_RELATED_MATCHING_INFO
+        exportFlags = exportFlags | G2EngineFlags.G2_ENTITY_INCLUDE_RELATED_RECORD_SUMMARY
 
     else:  #--specify what fields for csv
         exportFields = []
@@ -371,7 +371,7 @@ def processEntities():
     reviewStartTime = time.time()
     batchStartTime = time.time()
     reviewCount = 0
-    getFlags = g2Engine.G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES
+    getFlags = G2EngineFlags.G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES
     entitySizeBreakdown = {}
     for strEntitySize in statPack['ENTITY_SIZE_BREAKDOWN']:
         entitySize = int(strEntitySize)

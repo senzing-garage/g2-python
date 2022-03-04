@@ -7,7 +7,7 @@ import textwrap
 from importlib import import_module
 
 #--project classes
-from senzing import G2Exception
+from senzing import G2UnsupportedDatabaseType, G2DBMNotStarted, G2DBNotFound, G2DBException, G2DBUnknownException, G2TableNoExist, G2DBUniqueConstraintViolation
 
 
 #======================
@@ -21,7 +21,7 @@ class G2Database:
 
         #--parse the uri
         try: self.dburi_parse(dbUri)
-        except G2Exception.G2UnsupportedDatabaseType as err:
+        except G2UnsupportedDatabaseType as err:
             print(err)
             return
 
@@ -49,11 +49,11 @@ class G2Database:
         #--attempt to open the database
         try:
             self.Connect()
-        except G2Exception.G2DBMNotStarted as err:
+        except G2DBMNotStarted as err:
             print('ERROR: Database Manager not started')
             print(err)
             return
-        except G2Exception.G2DBNotFound as err:
+        except G2DBNotFound as err:
             print('ERROR: Database not found')
             print(err)
             return
@@ -90,7 +90,7 @@ class G2Database:
                 self.dbo = self.pyodbc.connect('DRIVER={' + self.dbType + '};SERVER=' + self.dsn + ';PORT=' + self.port + ';DATABASE=' + self.schema + ';UID=' + self.userId + '; PWD=' + self.password, autocommit = True)
             elif self.dbType == 'SQLITE3':
                 if not os.path.isfile(self.dsn):
-                    raise G2Exception.G2DBNotFound('ERROR: sqlite3 database file not found ' + self.dsn)
+                    raise G2DBNotFound('ERROR: sqlite3 database file not found ' + self.dsn)
                 self.dbo = self.sqlite3.connect(self.dsn, isolation_level=None)
                 c = self.dbo.cursor()
                 c.execute("PRAGMA journal_mode=wal")
@@ -277,7 +277,7 @@ class G2Database:
                 #--note: for some reason pyodbc not throwing error with set to invalid schema!
             elif self.dbType == 'POSTGRESQL':
                 self.sqlExec('SET search_path TO ' + self.schema)
-        except G2Exception.G2DBException as err:
+        except G2DBException as err:
             print(err)
             return False
 
@@ -331,10 +331,10 @@ class G2Database:
                 uri_dict['DSN'] = justDsnSch
 
         except (IndexError, ValueError) as ex:
-            raise G2Exception.G2DBException(f'Failed to parse database URI, check the connection string(s) in your G2Module INI file.') from None
+            raise G2DBException(f'Failed to parse database URI, check the connection string(s) in your G2Module INI file.') from None
 
         if not uri_dict['DSN']:
-           raise G2Exception.G2DBException(f'Missing database DSN. \n{self.show_connection(uri_dict, False, False)}')
+           raise G2DBException(f'Missing database DSN. \n{self.show_connection(uri_dict, False, False)}')
 
         self.dbType = uri_dict['DBTYPE'] if 'DBTYPE' in uri_dict else None
         self.dsn = uri_dict['DSN'] if 'DSN' in uri_dict else None
@@ -346,7 +346,7 @@ class G2Database:
         self.schema = uri_dict['SCHEMA'] if 'SCHEMA' in uri_dict else None
 
         if self.dbType not in ('DB2', 'MYSQL', 'SQLITE3', 'POSTGRESQL', 'MSSQL'):
-            raise G2Exception.G2UnsupportedDatabaseType('ERROR: ' + self.dbType + ' is an unsupported database type')
+            raise G2UnsupportedDatabaseType('ERROR: ' + self.dbType + ' is an unsupported database type')
 
         return uri_dict
 
@@ -368,16 +368,16 @@ class G2Database:
         if self.dbType == 'DB2':
             errMessage = ex.args[1]
             if ex.args[0] == '42S02':
-                return G2Exception.G2DBUnknownException(errMessage)
+                return G2DBUnknownException(errMessage)
             if ex.args[0] == '42704':
-                return G2Exception.G2TableNoExist(errMessage)
+                return G2TableNoExist(errMessage)
             elif ex.args[0] == '23505':
-                return G2Exception.G2DBUniqueConstraintViolation(errMessage)
+                return G2DBUniqueConstraintViolation(errMessage)
 
         elif self.dbType == 'SQLITE3':
             #### if type(ex) == self.sqlite3.OperationalError:
             ####     if errMessage.startswith('no such table'):
-            ####         return G2Exception.G2TableNoExist(errMessage)
+            ####         return G2TableNoExist(errMessage)
             #### if type(ex) == self.sqlite3.IntegrityError:
             ####     if 'not unique' in errMessage:
             #### SQLITE3 only returns 1 arg
@@ -385,10 +385,10 @@ class G2Database:
         elif self.dbType in ('MYSQL', 'POSTGRESQL'):
             errMessage = ex.args[1] if len(ex.args) > 1 else ex.args[0]
         else:
-            return G2Exception.G2UnsupportedDatabaseType('ERROR: ' + self.dbType + ' is an unsupported database type')
+            return G2UnsupportedDatabaseType('ERROR: ' + self.dbType + ' is an unsupported database type')
 
-        #return G2Exception.G2DBUnknownException(errMessage)
-        return G2Exception.G2DBException(errMessage)
+        #return G2DBUnknownException(errMessage)
+        return G2DBException(errMessage)
 
 #----------------------------------------
 if __name__ == "__main__":

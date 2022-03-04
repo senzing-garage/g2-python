@@ -56,9 +56,9 @@ class G2CmdShell(cmd.Cmd, object):
         self.undoc_header = 'Misc Commands'
         self.__hidden_methods = ('do_shell', 'do_EOF', 'do_help')
 
-        self.g2_module = G2Engine.G2Engine()
-        self.g2_configmgr = G2ConfigMgr.G2ConfigMgr()
-        self.g2_config = G2Config.G2Config()
+        self.g2_module = G2Engine()
+        self.g2_configmgr = G2ConfigMgr()
+        self.g2_config = G2Config()
 
         # Set flag to know if running an interactive command shell or reading from file
         self.isInteractive = True
@@ -204,7 +204,7 @@ class G2CmdShell(cmd.Cmd, object):
             self.g2_module.init('pyG2E', g2module_params, False)
             self.g2_configmgr.init('pyG2ConfigMgr', g2module_params, False)
             self.g2_config.init('pyG2Config', g2module_params, False)
-        except G2Exception.G2Exception as ex:
+        except G2Exception as ex:
             printWithNewLines(f'ERROR: {ex}', 'B')
             # Clean up before exiting
             self.destroyEngines()
@@ -475,7 +475,7 @@ class G2CmdShell(cmd.Cmd, object):
         try:
             self.g2_module.getActiveConfigID(response)
             printResponse(response)
-        except G2Exception.G2Exception as err:
+        except G2Exception as err:
             printWithNewLines(err, 'B')
 
     def do_getConfig(self, arg):
@@ -492,7 +492,7 @@ class G2CmdShell(cmd.Cmd, object):
         try:
             self.g2_configmgr.getConfig(args.configID, response)
             self.printJsonResponse(response)
-        except G2Exception.G2Exception as err:
+        except G2Exception as err:
             print(err)
 
     def do_getConfigList(self, arg):
@@ -503,7 +503,7 @@ class G2CmdShell(cmd.Cmd, object):
         try:
             self.g2_configmgr.getConfigList(response)
             self.printJsonResponse(response)
-        except G2Exception.G2Exception as err:
+        except G2Exception as err:
             print(err)
 
     def do_getConfigSection(self, arg):
@@ -4687,7 +4687,7 @@ if __name__ == '__main__':
     g2health.checkIniParams(ini_file_name)
 
     # Older Senzing using G2CONFIGFILE, e.g, G2CONFIGFILE=/opt/senzing/g2/python/g2config.json
-    iniParamCreator = G2IniParams.G2IniParams()
+    iniParamCreator = G2IniParams()
     g2ConfigFile = iniParamCreator.getINIParam(ini_file_name, 'SQL', 'G2CONFIGFILE')
 
     # Get the INI paramaters to use

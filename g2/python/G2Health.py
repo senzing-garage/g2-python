@@ -13,7 +13,7 @@ class G2Health:
     def checkIniParams(self, iniFileName):
         ''' Checks the INI parameters. '''
 
-        iniParamCreator = G2IniParams.G2IniParams()
+        iniParamCreator = G2IniParams()
         hasG2configfileParamValue = iniParamCreator.hasINIParam(iniFileName,'SQL','G2CONFIGFILE')
 
         if hasG2configfileParamValue:

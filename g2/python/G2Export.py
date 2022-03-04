@@ -14,8 +14,7 @@ from datetime import datetime
 import G2Paths
 from G2Health import G2Health
 
-from senzing import G2Engine, G2Exception, G2IniParams
-from senzing.G2Exception import G2ModuleException
+from senzing import G2Engine, G2Exception, G2IniParams, G2ModuleException
 
 def print_error_msg(msg, error1, error2='', exit=False):
     ''' Display error msg and optionally exit '''
@@ -392,13 +391,13 @@ if __name__ == '__main__':
         g2health.checkIniParams(iniFileName)
 
         # Get the INI paramaters to use
-        iniParamCreator = G2IniParams.G2IniParams()
+        iniParamCreator = G2IniParams()
         g2module_params = iniParamCreator.getJsonINIParams(iniFileName)
 
         # Initialise an engine
         try:
             print('\nStarting Senzing engine...', file=msg_output_handle)
-            g2_engine = G2Engine.G2Engine()
+            g2_engine = G2Engine()
             g2_engine.init('pyG2Export', g2module_params, False)
         except G2ModuleException as ex:
             print_error_msg(f'Error: Could not start the G2 engine using {iniFileName}', ex, exit=True)

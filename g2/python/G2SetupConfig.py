@@ -13,7 +13,7 @@ if sys.version[0] == '2':
 #--project classes
 import G2Paths
 
-from senzing import G2Config, G2ConfigMgr, G2Exception, G2IniParams
+from senzing import G2Config, G2ConfigMgr, G2Exception, G2IniParams, G2ModuleException
 
 
 #---------------------------------------------------------------------
@@ -23,11 +23,11 @@ from senzing import G2Config, G2ConfigMgr, G2Exception, G2IniParams
 def setupConfig(iniFileName,autoMode):
 
     #-- Load the G2 configuration file
-    iniParamCreator = G2IniParams.G2IniParams()
+    iniParamCreator = G2IniParams()
     iniParams = iniParamCreator.getJsonINIParams(iniFileName)
 
     # Connect to the needed API
-    g2ConfigMgr = G2ConfigMgr.G2ConfigMgr()
+    g2ConfigMgr = G2ConfigMgr()
     g2ConfigMgr.init("g2ConfigMgr", iniParams, False)
 
     # Determine if a default/initial G2 configuration already exists.
@@ -82,7 +82,7 @@ def setupConfig(iniFileName,autoMode):
         if shouldContinue == False:
             print('Error:  Will not migrate config from file to database.')
             return -1
-        g2Config = G2Config.G2Config()
+        g2Config = G2Config()
         g2Config.init("g2Config", iniParams, False)
         config_handle = g2Config.create()
         if config_handle == None:
@@ -99,7 +99,7 @@ def setupConfig(iniFileName,autoMode):
     new_config_id = bytearray()
     try:
         g2ConfigMgr.addConfig(configJsonToUse, config_comment, new_config_id)
-    except G2Exception.G2ModuleException as exc:
+    except G2ModuleException as exc:
         print(exc)
         exceptionInfo = g2ConfigMgr.getLastException()
         exInfo = exceptionInfo.split('|', 1)
@@ -112,7 +112,7 @@ def setupConfig(iniFileName,autoMode):
     # Set the default configuration ID.
     try:
         g2ConfigMgr.setDefaultConfigID(new_config_id)
-    except G2Exception.G2Exception as err:
+    except G2Exception as err:
         print ("Error:  Failed to set config as default.")
         return -1
 

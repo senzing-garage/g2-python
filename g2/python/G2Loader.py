@@ -28,8 +28,7 @@ from G2ConfigTables import G2ConfigTables
 from G2Health import G2Health
 from G2Project import G2Project
 
-from senzing import G2Config, G2ConfigMgr, G2Diagnostic, G2Engine, G2Exception, G2IniParams, G2Product
-from senzing.G2Exception import G2ModuleException, G2ModuleLicenseException
+from senzing import G2Config, G2ConfigMgr, G2Diagnostic, G2Engine, G2Exception, G2IniParams, G2Product, G2ModuleException, G2ModuleLicenseException, UnconfiguredDataSourceException
 
 # -----------------------------------------------------------------------------
 # Class: Governor
@@ -77,7 +76,7 @@ def check_resources_and_startup(returnQueue, thread_count, doPurge, doLicense=Tr
         return
 
     try:
-        g2_configmgr = G2ConfigMgr.G2ConfigMgr()
+        g2_configmgr = G2ConfigMgr()
         g2_configmgr.init('pyG2ConfigMgr', g2module_params, args.debugTrace)
     except G2ModuleException as ex:
         print('ERROR: Could not start G2ConfigMgr for check_resources_and_startup()')
@@ -86,7 +85,7 @@ def check_resources_and_startup(returnQueue, thread_count, doPurge, doLicense=Tr
         return
 
     try:
-        g2_product = G2Product.G2Product()
+        g2_product = G2Product()
         g2_product.init('pyG2LicenseVersion', g2module_params, args.debugTrace)
     except G2ModuleException as ex:
         print('ERROR: Could not start G2Product for check_resources_and_startup()')
@@ -102,7 +101,7 @@ def check_resources_and_startup(returnQueue, thread_count, doPurge, doLicense=Tr
         response = bytearray()
         g2_configmgr.getConfigList(response)
         config_list = json.loads(response.decode())
-    except G2Exception.G2Exception as ex:
+    except G2Exception as ex:
         print('ERROR: Could not get config list in check_resources_and_startup()')
         print(f'       {ex}')
         returnQueue.put(-1)
@@ -113,7 +112,7 @@ def check_resources_and_startup(returnQueue, thread_count, doPurge, doLicense=Tr
         response = bytearray()
         g2_engine.getActiveConfigID(response)
         active_cfg_id = int(response.decode())
-    except G2Exception.G2Exception as ex:
+    except G2Exception as ex:
         print('ERROR: Could not get the active config in check_resources_and_startup()')
         print(f'       {ex}')
         returnQueue.put(-1)
@@ -1005,7 +1004,7 @@ def init_engine(name, config_parms, debug_trace, prime_engine=True, add_start_ti
         engine_start_time = time.perf_counter()
 
     try:
-        engine = G2Engine.G2Engine()
+        engine = G2Engine()
         engine.init(name, config_parms, debug_trace)
         if prime_engine:
             engine.primeEngine()
@@ -1222,7 +1221,7 @@ def addDataSource(g2ConfigModule, configDoc, dataSource, configuredDatasourcesOn
             configDoc += newConfig
             returnCode = 1
         else:
-            raise G2Exception.UnconfiguredDataSourceException(dataSource)
+            raise UnconfiguredDataSourceException(dataSource)
 
     g2ConfigModule.close(configHandle)
 
@@ -1249,7 +1248,7 @@ def getInitialG2Config(g2module_params, g2ConfigJson):
             return False
     else:
         # Get the current configuration from the database
-        g2ConfigMgr = G2ConfigMgr.G2ConfigMgr()
+        g2ConfigMgr = G2ConfigMgr()
         g2ConfigMgr.init('g2ConfigMgr', g2module_params, False)
         defaultConfigID = bytearray()
         g2ConfigMgr.getDefaultConfigID(defaultConfigID)
@@ -1287,7 +1286,7 @@ def enhanceG2Config(g2Project, g2module_params, g2ConfigJson, configuredDatasour
 
     # Define variables for where the config is stored.
 
-    g2Config = G2Config.G2Config()
+    g2Config = G2Config()
     g2Config.init("g2Config", g2module_params, False)
 
     # Add any missing source codes and entity types to the g2 config
@@ -1297,7 +1296,7 @@ def enhanceG2Config(g2Project, g2module_params, g2ConfigJson, configuredDatasour
             try:
                 if addDataSource(g2Config, g2ConfigJson, sourceDict['DATA_SOURCE'], configuredDatasourcesOnly) == 1:  # inserted
                     g2NewConfigRequired = True
-            except G2Exception.UnconfiguredDataSourceException as err:
+            except UnconfiguredDataSourceException as err:
                 print(err)
                 return False
 
@@ -1307,17 +1306,17 @@ def enhanceG2Config(g2Project, g2module_params, g2ConfigJson, configuredDatasour
             with open(has_g2configfile, 'w') as fp:
                 json.dump(json.loads(g2ConfigJson), fp, indent=4, sort_keys=True)
         else:
-            g2ConfigMgr = G2ConfigMgr.G2ConfigMgr()
+            g2ConfigMgr = G2ConfigMgr()
             g2ConfigMgr.init("g2ConfigMgr", g2module_params, False)
             new_config_id = bytearray()
             try:
                 g2ConfigMgr.addConfig(g2ConfigJson.decode(), 'Updated From G2Loader', new_config_id)
-            except G2Exception.G2Exception as err:
+            except G2Exception as err:
                 print("Error:  Failed to add new config to the datastore")
                 return False
             try:
                 g2ConfigMgr.setDefaultConfigID(new_config_id)
-            except G2Exception.G2Exception as err:
+            except G2Exception as err:
                 print("Error:  Failed to set new config as default")
                 return False
             g2ConfigMgr.destroy()

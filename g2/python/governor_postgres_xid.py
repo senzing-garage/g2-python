@@ -26,8 +26,7 @@ import time
 from datetime import datetime
 from importlib import import_module
 
-from G2Exception import G2DBException
-from G2IniParams import G2IniParams
+from senzing import G2DBException
 
 
 class Governor:

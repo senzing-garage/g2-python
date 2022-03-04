@@ -186,7 +186,7 @@ def processEntities():
             exportHandle = g2Engine.exportCSVEntityReport(",".join(exportFields), exportFlags)
             exportHeaders = nextExportRecord(exportHandle)
 
-    except G2Exception.G2Exception as err:
+    except G2Exception as err:
         print('\n%s\n' % str(err))
         return 1
 
@@ -399,7 +399,7 @@ def processEntities():
                     response = bytearray()
                     retcode = g2Engine.getEntityByEntityIDV2(int(entityID), getFlags, response)
                     response = response.decode() if response else ''
-                except G2Exception.G2Exception as err:
+                except G2Exception as err:
                     print(str(err))
                     #shutDown = True
                     #return 1
@@ -555,26 +555,26 @@ if __name__ == '__main__':
 
     #--try to initialize the g2engine
     try:
-        g2Engine = G2Engine.G2Engine()
-        iniParamCreator = G2IniParams.G2IniParams()
+        g2Engine = G2Engine()
+        iniParamCreator = G2IniParams()
         iniParams = iniParamCreator.getJsonINIParams(iniFileName)
         g2Engine.init('G2Snapshot', iniParams, False)
-    except G2Exception.G2Exception as err:
+    except G2Exception as err:
         print('\n%s\n' % str(err))
         sys.exit(1)
 
     #--get the version information
     try:
-        g2Product = G2Product.G2Product()
+        g2Product = G2Product()
         apiVersion = json.loads(g2Product.version())
-    except G2Exception.G2Exception as err:
+    except G2Exception as err:
         print(err)
         sys.exit(1)
     g2Product.destroy()
 
     #--get needed config data
     try:
-        g2ConfigMgr = G2ConfigMgr.G2ConfigMgr()
+        g2ConfigMgr = G2ConfigMgr()
         g2ConfigMgr.init('pyG2ConfigMgr', iniParams, False)
         defaultConfigID = bytearray()
         g2ConfigMgr.getDefaultConfigID(defaultConfigID)

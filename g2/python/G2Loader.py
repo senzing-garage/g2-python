@@ -59,7 +59,7 @@ def check_resources_and_startup(returnQueue, thread_count, doPurge, doLicense=Tr
     ''' Check system resources, calculate a safe number of threads when argument not specified on command line '''
 
     try:
-        diag = G2Diagnostic.G2Diagnostic()
+        diag = G2Diagnostic()
         diag.init('pyG2Diagnostic', g2module_params, args.debugTrace)
     except G2ModuleException as ex:
         print('\nERROR: Could not start G2Diagnostic for check_resources_and_startup()')
@@ -1671,7 +1671,7 @@ if __name__ == '__main__':
     g2health.checkIniParams(iniFileName)
 
     # Get the INI paramaters to use
-    iniParamCreator = G2IniParams.G2IniParams()
+    iniParamCreator = G2IniParams()
     g2module_params = iniParamCreator.getJsonINIParams(iniFileName)
 
     # Deprecated but still supported at this time, is G2CONFIGFILE being used?

@@ -6,11 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 [markdownlint](https://dlaa.me/markdownlint/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.7] - 2022-03-01
+
+### Changed in 2.8.7
+
+- Nothing
+- See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-2.8.7-22049.x86_64.rpm`
+
+## [2.8.5] - 2022-01-12
+
+### Changed in 2.8.5
+
+- Nothing
+- See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-2.8.5-22004.x86_64.rpm`
+
+## [2.8.4] - 2021-11-07
+
+### Changed in 2.8.4
+
+- Nothing
+- See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-2.8.4-21311.x86_64.rpm`
+
 ## [2.8.3] - 2021-10-04
 
 ### Changed in 2.8.3
 
 - Nothing
+- See [Senzing API Version History](https://senzing.com/releases/)
+- Packaged in `senzingapi-2.8.3-21277.x86_64.rpm`
 
 ## [2.8.2] - 2021-08-31
 

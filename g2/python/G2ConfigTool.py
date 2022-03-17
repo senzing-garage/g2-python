@@ -21,7 +21,7 @@ import G2Paths
 
 try:
     from G2Health import G2Health
-    from senzing import G2Config, G2ConfigMgr, G2Engine, G2Exception, G2IniParams
+    from senzing import G2Config, G2ConfigMgr, G2Exception, G2IniParams
 except Exception:
     pass
 
@@ -56,7 +56,6 @@ class G2CmdShell(cmd.Cmd, object):
         self.undoc_header = 'Misc Commands'
         self.__hidden_methods = ('do_shell', 'do_EOF', 'do_help')
 
-        self.g2_module = G2Engine()
         self.g2_configmgr = G2ConfigMgr()
         self.g2_config = G2Config()
 
@@ -201,7 +200,6 @@ class G2CmdShell(cmd.Cmd, object):
             printWithNewLines('Initializing Senzing engines...', 'B')
 
         try:
-            self.g2_module.init('pyG2E', g2module_params, False)
             self.g2_configmgr.init('pyG2ConfigMgr', g2module_params, False)
             self.g2_config.init('pyG2Config', g2module_params, False)
         except G2Exception as ex:
@@ -217,7 +215,6 @@ class G2CmdShell(cmd.Cmd, object):
     def destroyEngines(self):
 
         with suppress(Exception):
-            self.g2_module.destroy()
             self.g2_configmgr.destroy()
             self.g2_config.destroy()
 
@@ -467,17 +464,6 @@ class G2CmdShell(cmd.Cmd, object):
 
 # ===== General config =====
 
-    def do_getActiveConfigID(self, arg):
-        '\nGet the config identifier:  getActiveConfigID\n'
-
-        response = bytearray()
-
-        try:
-            self.g2_module.getActiveConfigID(response)
-            printResponse(response)
-        except G2Exception as err:
-            printWithNewLines(err, 'B')
-
     def do_getConfig(self, arg):
         '\nGet the config:  getConfig <configID> \n'
 
@@ -520,6 +506,16 @@ class G2CmdShell(cmd.Cmd, object):
 
         self.printJsonResponse(section)
 
+    def do_getDefaultConfigID(self, arg):
+        '\nGet the current config identifier:  getDefaultConfigID\n'
+
+        response = bytearray()
+
+        try:
+            self.g2_configmgr.getDefaultConfigID(response)
+            printResponse(response)
+        except G2Exception as err:
+            printWithNewLines(err, 'B')
 
 # ===== global commands =====
 

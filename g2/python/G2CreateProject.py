@@ -5,6 +5,7 @@ import json
 import shutil
 import sys
 import textwrap
+import os
 from pathlib import Path
 
 
@@ -54,6 +55,17 @@ def get_ignored(path, filenames):
             ret.append(filename)
 
     return ret
+
+
+def change_permissions_recursive(path, mode):
+    os.chmod(path, mode)
+    for root, dirs, files in os.walk(path, topdown=False):
+        for dir in [os.path.join(root,d) for d in dirs]:
+            if not os.path.islink(dir):
+                os.chmod(dir, mode)
+        for file in [os.path.join(root, f) for f in files]:
+            if not os.path.islink(file):
+                os.chmod(file, mode)
 
 
 if __name__ == '__main__':
@@ -124,5 +136,8 @@ if __name__ == '__main__':
     for f in files_to_update:
         for p in senzing_path_subs:
             find_replace_in_file(f, p[0], str(p[1]))
+
+    # Set permissions to 750
+    change_permissions_recursive(target_path, 0o750)
 
     print('Successfully created.')

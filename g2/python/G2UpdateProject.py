@@ -103,6 +103,16 @@ def overlayFiles(sourcePath,destPath):
         except Exception as e:
             print(e)
 
+def change_permissions_recursive(path, mode):
+    os.chmod(path, mode)
+    for root, dirs, files in os.walk(path, topdown=False):
+        for dir in [os.path.join(root,d) for d in dirs]:
+            if not os.path.islink(dir):
+                os.chmod(dir, mode)
+        for file in [os.path.join(root, f) for f in files]:
+            if not os.path.islink(file):
+                os.chmod(file, mode)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Update an existing Senzing project with the installed version of Senzing.')
     parser.add_argument('folder', metavar='Project',help='the path of the folder to update. It must already exist and be a Senzing project folder.')
@@ -237,5 +247,8 @@ if __name__ == '__main__':
         print("Could not find the [PIPELINE] section in G2Module.ini. Add RESOURCEPATH to the [PIPELINE] of G2Module.ini and set it to '" + os.path.join(target_path, 'resources') + "'")
 
     # End of fixups
+
+    # Set permissions to 750
+    change_permissions_recursive(target_path, 0o750)
 
     print("Project successfully updated from %s to %s. Please refer to https://senzing.com/releases/#api-releases for any additional upgrade instructions." % (start_version_info['VERSION'], end_version_info['VERSION']))

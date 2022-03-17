@@ -1488,7 +1488,7 @@ if __name__ == '__main__':
         errors_file_default = pathlib.Path(senz_root) / 'var' / errors_file_name
 
     # In containers /var/opt/senzing should be available
-    if sys_senz_var.exists() and sys_senz_var.is_dir():
+    elif sys_senz_var.exists() and sys_senz_var.is_dir():
         errors_file_default = pathlib.Path(sys_senz_var) / errors_file_name
 
     # Don't allow argparse to create abbreviations of options

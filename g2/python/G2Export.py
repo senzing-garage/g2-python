@@ -14,7 +14,7 @@ from datetime import datetime
 import G2Paths
 from G2Health import G2Health
 
-from senzing import G2Engine, G2Exception, G2IniParams, G2ModuleException
+from senzing import G2Engine, G2EngineFlags, G2Exception, G2IniParams, G2ModuleException
 
 def print_error_msg(msg, error1, error2='', exit=False):
     ''' Display error msg and optionally exit '''

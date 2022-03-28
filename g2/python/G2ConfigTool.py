@@ -2394,38 +2394,6 @@ class G2CmdShell(cmd.Cmd, object):
                 printWithNewLines('Record not found!', 'B')
             printWithNewLines('%s rows deleted!' % deleteCnt, 'B')
 
-    def do_addEntityScore(self, arg):
-        '\n\taddEntityScore {"behavior": "<behavior code>", "grouperFeat": "<yes/no>", "richnessScore": "<richness score>", "exclusivityScore": "<exclusivity score>"}\n'
-
-        if not argCheck('addEntityScore', arg, self.do_addEntityScore.__doc__):
-            return
-
-        try:
-            parmData = dictKeysUpper(json.loads(arg))
-            parmData['BEHAVIOR'] = parmData['BEHAVIOR'].upper()
-        except (ValueError, KeyError) as e:
-            argError(arg, e)
-        else:
-
-            #--lookup behavior and error if it doesn't exist
-            if self.getRecord('CFG_ESCORE', 'BEHAVIOR_CODE', parmData['BEHAVIOR']):
-                printWithNewLines('Entity score entry %s already exists!' % parmData['BEHAVIOR'], 'B')
-                return
-
-            if 'GROUPERFEAT' not in parmData:
-                parmData['GROUPERFEAT'] = 'No'
-
-            newRecord = {}
-            newRecord['BEHAVIOR_CODE'] = parmData['BEHAVIOR']
-            newRecord['GROUPER_FEAT'] = 'Yes' if parmData['GROUPERFEAT'].upper() == 'YES' else 'No'
-            newRecord['RICHNESS_SCORE'] = int(parmData['RICHNESSSCORE'])
-            newRecord['EXCLUSIVITY_SCORE'] = int(parmData['EXCLUSIVITYSCORE'])
-            self.cfgData['G2_CONFIG']['CFG_ESCORE'].append(newRecord)
-            self.configUpdated = True
-            printWithNewLines('Successfully added!', 'B')
-            if self.doDebug:
-                debug(newRecord)
-
     def do_addAttribute(self, arg):
         '\n\taddAttribute {"attribute": "<attribute_name>"}' \
         '\n\n\taddAttribute {"attribute": "<attribute_name>", "class": "<class_type>", "feature": "<feature_name>", "element": "<element_type>"}' \

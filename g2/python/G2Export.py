@@ -14,7 +14,7 @@ from datetime import datetime
 import G2Paths
 from G2Health import G2Health
 
-from senzing import G2Engine, G2EngineFlags, G2Exception, G2IniParams, G2ModuleException
+from senzing import G2Engine, G2EngineFlags, G2IniParams, G2ModuleException
 
 def print_error_msg(msg, error1, error2='', exit=False):
     ''' Display error msg and optionally exit '''
@@ -345,7 +345,7 @@ if __name__ == '__main__':
                  ********** Warning **********
 
                  G2Export isn't intended for exporting large numbers of entities and associated data source record information.
-                 Beyond 100M+ data source records isn't suggested. For exporting overview entity and relationship data for 
+                 Beyond 100M+ data source records isn't suggested. For exporting overview entity and relationship data for
                  analytical purposes outside of Senzing please review the following article:
 
                  https://senzing.zendesk.com/hc/en-us/articles/360010716274--Advanced-Replicating-the-Senzing-results-to-a-Data-Warehouse
@@ -360,17 +360,16 @@ if __name__ == '__main__':
         # Some CSV exports can be large especially with extended data. Is checked and increased in csv_fetch_next()
         csv.field_size_limit(300000)
 
-        # Extended format (with REF_SCORE, ENTITY_TYPE, ERRULE_CODE) hard coded to false for now. Applies to CSV output
+        # Extended format (with ENTITY_TYPE, ERRULE_CODE) hard coded to false for now. Applies to CSV output
         extendedFormat = False
 
         # Fields to use with CSV output, list of fields to request data
         # For CSV these are unioned with the data returned by the flags to give final output
-        csvFields = ['RESOLVED_ENTITY_ID', 'RELATED_ENTITY_ID', 'MATCH_LEVEL', 'MATCH_KEY', 'DATA_SOURCE', 'RECORD_ID', 'LENS_CODE']
+        csvFields = ['RESOLVED_ENTITY_ID', 'RELATED_ENTITY_ID', 'MATCH_LEVEL', 'MATCH_KEY', 'DATA_SOURCE', 'RECORD_ID']
         if args.extended:
             csvFields.insert(2, 'RESOLVED_ENTITY_NAME')
             csvFields.insert(6, 'JSON_DATA')
         if extendedFormat:  # Hard coded to false for now
-            csvFields.append('REF_SCORE')
             csvFields.append('ENTITY_TYPE')
             csvFields.append('ERRULE_CODE')
         csvFields = ','.join(csvFields)

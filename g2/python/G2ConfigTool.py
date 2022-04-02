@@ -21,7 +21,7 @@ import G2Paths
 
 try:
     from G2Health import G2Health
-    from senzing import G2Config, G2ConfigMgr, G2Exception, G2IniParams
+    from senzing import G2Config, G2ConfigMgr, G2Exception, G2IniParams, G2ModuleGenericException
 except Exception:
     pass
 
@@ -135,7 +135,7 @@ class G2CmdShell(cmd.Cmd, object):
                     addconfig_id = bytearray()
                     self.g2ConfigMgr.addConfig(config_string, 'New default configuration added by G2ConfigTool.', addconfig_id)
                     self.g2ConfigMgr.setDefaultConfigID(addconfig_id)
-                except G2Exception.G2ModuleGenericException:
+                except G2ModuleGenericException:
                     raise
 
                 self.destroyEngines()
@@ -570,7 +570,7 @@ class G2CmdShell(cmd.Cmd, object):
                     self.g2_configmgr.addConfig(json.dumps(self.cfgData), 'Updated by G2ConfigTool', newConfigId)
                     self.g2_configmgr.setDefaultConfigID(newConfigId)
 
-                except G2Exception.G2ModuleGenericException as err:
+                except G2ModuleGenericException as err:
                     printWithNewLines('ERROR: Failed to save configuration to Senzing repository!', 'S')
                     printWithNewLines(f'       {err}', 'E')
                 else:

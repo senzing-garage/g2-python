@@ -4,8 +4,9 @@ import io
 import json
 from datetime import datetime
 
-from senzing import G2UnsupportedFileTypeException
-
+class G2UnsupportedFileTypeException(Exception):
+    def __init__(self, *args, **kwargs):
+        super().__init__(self, *args, **kwargs)
 
 def peekLine(file_):
 

@@ -29,14 +29,14 @@ except:
     sys.exit(1)
 
 #---------------------------------------
-def queue_read(queue): 
+def queue_read(queue):
     try: return queue.get(True, 1)
     except Empty:
         time.sleep(.01)
         return None
 
 #---------------------------------------
-def queue_write(queue, message): 
+def queue_write(queue, message):
     while True:
         try: queue.put(message, True, 1)
         except Full:
@@ -58,7 +58,7 @@ def setup_entity_queue_db(thread_id, threadStop, entity_queue, resume_queue):
 #---------------------------------------
 def setup_entity_queue_api(thread_count, threadStop, entity_queue, resume_queue):
     #--multi-threaded API
-    try: 
+    try:
         g2Engine = G2Engine()
         g2Engine.init('G2Snapshot', iniParams, False)
     except G2Exception as ex:
@@ -78,7 +78,7 @@ def setup_entity_queue_api(thread_count, threadStop, entity_queue, resume_queue)
 #---------------------------------------
 def setup_entity_queue_api_single(thread_id, threadStop, entity_queue, resume_queue):
     #--single-threaded API
-    try: 
+    try:
         g2Engine = G2Engine()
         g2Engine.init('G2Snapshot%s' % thread_id, iniParams, False)
     except G2Exception as ex:
@@ -94,7 +94,7 @@ def process_entity_queue_db(thread_id, threadStop, entity_queue, resume_queue, l
     while threadStop.value == 0: #or entity_queue.empty() == False:
         queue_data = queue_read(entity_queue)
         if queue_data:
-            #print('read entity_queue %s' % row)  
+            #print('read entity_queue %s' % row)
             resume_rows = get_resume_db(local_dbo, queue_data)
             if resume_rows:
                 queue_write(resume_queue, resume_rows)
@@ -105,7 +105,7 @@ def process_entity_queue_api(thread_id, threadStop, entity_queue, resume_queue, 
     while threadStop.value == 0: #entity_queue.empty() == False:
         queue_data = queue_read(entity_queue)
         if queue_data:
-            #print('read entity_queue %s' % row)  
+            #print('read entity_queue %s' % row)
             resume_rows = get_resume_api(g2_engine, queue_data)
             if resume_rows:
                 queue_write(resume_queue, resume_rows)
@@ -122,17 +122,17 @@ def setup_resume_queue(statPack, thread_id, threadStop, resume_queue):
         columnHeaders.append('MATCH_KEY')
         columnHeaders.append('DATA_SOURCE')
         columnHeaders.append('RECORD_ID')
-        try: 
+        try:
             exportFileHandle = open(csvFilePath, 'a')
-            exportFileHandle.write(','.join(columnHeaders) + '\n')        
-        except IOError as err: 
+            exportFileHandle.write(','.join(columnHeaders) + '\n')
+        except IOError as err:
             print('\nERROR: cannot write to %s \n%s\n' % (csvFilePath, err))
             with shutDown.get_lock():
                 shutDown.value = 1
             return
     else:
         exportFileHandle = None
-            
+
     process_resume_queue(thread_id, threadStop, resume_queue, statPack, exportFileHandle)
 
     if exportCsv:
@@ -147,7 +147,7 @@ def process_resume_queue(thread_id, threadStop, resume_queue, statPack, exportFi
             #print('read resume_queue', row)
 
             #--its a resume to process
-            if type(queue_data) == list: 
+            if type(queue_data) == list:
                 statPack = process_resume(statPack, queue_data, exportFileHandle)
 
             #--its a status write request
@@ -202,7 +202,7 @@ def get_resume_db(local_dbo, resolved_id):
                        'join OBS_ENT d on d.OBS_ENT_ID = c.OBS_ENT_ID '\
                        'join DSRC_RECORD e on e.ENT_SRC_KEY = d.ENT_SRC_KEY and e.DSRC_ID = d.DSRC_ID and e.ETYPE_ID = d.ETYPE_ID '\
                        'where a.RES_ENT_ID = ?'
-    
+
     queryStartTime = time.time()
     cursor1 = local_dbo.sqlExec(sqlEntities, [resolved_id,])
     for rowData in local_dbo.fetchAllDicts(cursor1):
@@ -225,11 +225,11 @@ def get_resume_db(local_dbo, resolved_id):
 def complete_resume_db(rowData):
 
     if 'RELATED_ENTITY_ID' not in rowData:
-        rowData['RELATED_ENTITY_ID'] = 0 
-        rowData['IS_DISCLOSED'] = 0 
+        rowData['RELATED_ENTITY_ID'] = 0
+        rowData['IS_DISCLOSED'] = 0
         rowData['IS_AMBIGUOUS'] = 0
-    if 'RECORD_ID' not in rowData: 
-        rowData['RECORD_ID'] = 'n/a' 
+    if 'RECORD_ID' not in rowData:
+        rowData['RECORD_ID'] = 'n/a'
 
     try: rowData['DATA_SOURCE'] = dsrcLookup[rowData['DSRC_ID']]['DSRC_CODE']
     except: rowData['DATA_SOURCE'] = 'unk'
@@ -250,7 +250,7 @@ def complete_resume_db(rowData):
         except: rowData['MATCH_LEVEL'] = 3
         if rowData['MATCH_LEVEL'] == 2:
             rowData['MATCH_CATEGORY'] = 'POSSIBLE_MATCH'
-        else:          
+        else:
             rowData['MATCH_CATEGORY'] = 'POSSIBLY_RELATED'
 
     return rowData
@@ -272,9 +272,9 @@ def get_resume_api(g2Engine, resolved_id):
         getFlags = getFlags | G2EngineFlags.G2_ENTITY_INCLUDE_RELATED_MATCHING_INFO
         getFlags = getFlags | G2EngineFlags.G2_ENTITY_INCLUDE_RELATED_RECORD_SUMMARY
 
-    try: 
+    try:
         response = bytearray()
-        retcode = g2Engine.getEntityByEntityIDV2(int(resolved_id), getFlags, response)
+        retcode = g2Engine.getEntityByEntityID(int(resolved_id), response, getFlags)
         response = response.decode() if response else ''
     except G2Exception as err:
         print(str(err))
@@ -335,7 +335,7 @@ def process_resume(statPack, resume_rows, exportFileHandle):
     recordList = []
     resumeData = {}
 
-    #--summarize entity resume 
+    #--summarize entity resume
     entityID = resume_rows[0]['RESOLVED_ENTITY_ID']
     for rowData in resume_rows:
         relatedID = str(rowData['RELATED_ENTITY_ID'])
@@ -352,7 +352,7 @@ def process_resume(statPack, resume_rows, exportFileHandle):
             matchCategory = 'AMBIGUOUS_MATCH'
         elif rowData['MATCH_LEVEL'] == 2:
             matchCategory = 'POSSIBLE_MATCH'
-        else:          
+        else:
             matchCategory = 'POSSIBLY_RELATED'
 
         if relatedID not in resumeData:
@@ -365,7 +365,7 @@ def process_resume(statPack, resume_rows, exportFileHandle):
         else:
             resumeData[relatedID]['dataSources'][dataSource] += 1
 
-        if exportFileHandle: 
+        if exportFileHandle:
              writeCsvRecord(rowData, exportFileHandle)
 
     #--update entity size breakdown
@@ -389,7 +389,7 @@ def process_resume(statPack, resume_rows, exportFileHandle):
         recordCount = resumeData['0']['dataSources'][dataSource1]
 
         #--this just updates entity and record count for the data source
-        statPack = updateStatpack(statPack, dataSource1, None, None, 1, recordCount, None) 
+        statPack = updateStatpack(statPack, dataSource1, None, None, 1, recordCount, None)
 
         if recordCount == 1:
             statPack = updateStatpack(statPack, dataSource1, None, 'SINGLE', 1, 0, entityID)
@@ -606,7 +606,7 @@ def processEntities():
               'where a.DSRC_ID = ' + str(datasourceFilterID)
         minEntityId, maxEntityId = g2Dbo.fetchRow(g2Dbo.sqlExec(sql))
         print(f'from {minEntityId} to {maxEntityId}\n')
-        if newStatPack: 
+        if newStatPack:
             statPack['PROCESS']['LAST_ENTITY_ID'] = minEntityId - 1
 
         sql0 = 'select distinct' \
@@ -657,7 +657,7 @@ def processEntities():
                 if shutDown.value == 9:
                     print('USER INTERUPT! Shutting down ... ')
                 break
- 
+
         #--get out if errors hit
         if shutDown.value:
             break
@@ -708,8 +708,8 @@ def processEntities():
             print(process.name, 'did not terminate gracefully')
             process.terminate()
         process.join()
-    entity_queue.close() 
-    resume_queue.close() 
+    entity_queue.close()
+    resume_queue.close()
 
 #---------------------------------------
 def wait_for_queues(entity_queue, resume_queue):
@@ -756,7 +756,7 @@ def write_stat_pack(statPack, statData):
     minutes = (seconds % 3600) // 60
     seconds = seconds % 60
     statPack['PROCESS']['RUN_TIME'] = '%s:%s:%s' % (hours, minutes, seconds)
-    #statPack['PROCESS']['ENTITIES_PER_SECOND'] = int(float(statPack['TOTAL_ENTITY_COUNT']) / float(diff.seconds)) 
+    #statPack['PROCESS']['ENTITIES_PER_SECOND'] = int(float(statPack['TOTAL_ENTITY_COUNT']) / float(diff.seconds))
     #--actual final stat
     #elapsedMins = diff = data2 - data1
     #eps = int(float(entityCount) / (float(time.time() - procStartTime if time.time() - procStartTime != 0 else 1)))
@@ -768,7 +768,7 @@ def write_stat_pack(statPack, statData):
         statPack['DATA_SOURCES'][dataSource]['COMPRESSION'] = str(round(100.00-((float(statPack['DATA_SOURCES'][dataSource]['ENTITY_COUNT']) / float(statPack['DATA_SOURCES'][dataSource]['RECORD_COUNT'])) * 100.00), 2)) + '%'
 
     with open(statsFileName, 'w') as outfile:
-        json.dump(statPack, outfile, indent=4)    
+        json.dump(statPack, outfile, indent=4)
 
     return statPack
 
@@ -797,7 +797,7 @@ if __name__ == '__main__':
 
     #--defaults
     try: configFileName = G2Paths.get_G2Module_ini_path()
-    except: configFileName = '' 
+    except: configFileName = ''
     outputFileRoot = os.getenv('SENZING_OUTPUT_FILE_ROOT') if os.getenv('SENZING_OUTPUT_FILE_ROOT', None) else None
     sampleSize = int(os.getenv('SENZING_SAMPLE_SIZE')) if os.getenv('SENZING_SAMPLE_SIZE', None) and os.getenv('SENZING_SAMPLE_SIZE').isdigit() else 1000
     datasourceFilter = os.getenv('SENZING_DATASOURCE_FILTER', None)
@@ -839,7 +839,7 @@ if __name__ == '__main__':
     iniParser = configparser.ConfigParser()
     iniParser.read(configFileName)
     try: g2dbUri = iniParser.get('SQL', 'CONNECTION')
-    except: 
+    except:
         print('')
         print('CONNECTION parameter not found in [SQL] section of the ini file')
         print('')
@@ -882,22 +882,22 @@ if __name__ == '__main__':
 
         ftypeCodeLookup = {}
         for cfgRecord in cfgData['G2_CONFIG']['CFG_FTYPE']:
-            ftypeCodeLookup[cfgRecord['FTYPE_CODE']] = cfgRecord 
+            ftypeCodeLookup[cfgRecord['FTYPE_CODE']] = cfgRecord
 
         dsrcLookup = {}
         dsrcLookupByCode = {}
         for cfgRecord in cfgData['G2_CONFIG']['CFG_DSRC']:
-            dsrcLookup[cfgRecord['DSRC_ID']] = cfgRecord 
+            dsrcLookup[cfgRecord['DSRC_ID']] = cfgRecord
             dsrcLookupByCode[cfgRecord['DSRC_CODE']] = cfgRecord
 
         erruleLookup = {}
         for cfgRecord in cfgData['G2_CONFIG']['CFG_ERRULE']:
-            erruleLookup[cfgRecord['ERRULE_ID']] = cfgRecord 
+            erruleLookup[cfgRecord['ERRULE_ID']] = cfgRecord
 
         ftypeLookup = {}
         ambiguousFtypeID = 0
         for cfgRecord in cfgData['G2_CONFIG']['CFG_FTYPE']:
-            ftypeLookup[cfgRecord['FTYPE_ID']] = cfgRecord 
+            ftypeLookup[cfgRecord['FTYPE_ID']] = cfgRecord
             if cfgRecord['FTYPE_CODE'] == 'AMBIGUOUS_ENTITY':
                 ambiguousFtypeID = cfgRecord['FTYPE_ID']
 

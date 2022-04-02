@@ -28,7 +28,17 @@ from G2ConfigTables import G2ConfigTables
 from G2Health import G2Health
 from G2Project import G2Project
 
-from senzing import G2Config, G2ConfigMgr, G2Diagnostic, G2Engine, G2Exception, G2IniParams, G2Product, G2ModuleException, G2ModuleLicenseException, UnconfiguredDataSourceException
+from senzing import G2Config, G2ConfigMgr, G2Diagnostic, G2Engine, G2Exception, G2IniParams, G2Product, G2ModuleException, G2ModuleLicenseException
+
+# -----------------------------------------------------------------------------
+# Exceptions
+# -----------------------------------------------------------------------------
+
+
+class UnconfiguredDataSourceException(Exception):
+
+    def __init__(self, DataSourceName):
+        super().__init__(self, ("Datasource %s not configured. See https://senzing.zendesk.com/hc/en-us/articles/360010784333 on how to configure datasources in the config file." % DataSourceName))
 
 # -----------------------------------------------------------------------------
 # Class: Governor
@@ -462,7 +472,7 @@ def perform_load():
                 filePath = str(shuf_file_path)
 
         fileReader = openPossiblyCompressedFile(filePath, 'r')
-        #--fileReader = safe_csv_reader(csv.reader(csvFile, fileFormat), cntBadParse)
+        # --fileReader = safe_csv_reader(csv.reader(csvFile, fileFormat), cntBadParse)
 
         # Use previously stored header row, so get rid of this one
         if sourceDict['FILE_FORMAT'] not in ('JSON', 'UMF'):
@@ -524,7 +534,7 @@ def perform_load():
                         cntBadUmf += 1
                         okToContinue = False
 
-                #--only add force a load_id if not in test mode (why do we do this??)
+                # --only add force a load_id if not in test mode (why do we do this??)
                 if 'LOAD_ID' not in rowData:
                     rowData['LOAD_ID'] = sourceDict['FILE_NAME']
 
@@ -1524,7 +1534,7 @@ if __name__ == '__main__':
     # Both -p and -f shouldn't be used together
     file_project_group = g2load_parser.add_mutually_exclusive_group()
     file_project_group.add_argument('-p', '--projectFile', dest='projectFileName', default=None, help='the name of a project CSV or JSON file')
-    file_project_group.add_argument('-f', '--fileSpec', dest='projectFileSpec', default=[], nargs='+', help='the name of a file and parameters to load such as /data/mydata.json/?data_source=?,file_format=?')    # Both -ns and -nsd shouldn't be used together
+    file_project_group.add_argument('-f', '--fileSpec', dest='projectFileSpec', default=[], nargs='+', help='the name of a file and parameters to load such as /data/mydata.json/?data_source=?,file_format=?')  # Both -ns and -nsd shouldn't be used together
 
     # Both -ns and -snd shouldn't be used together
     no_shuf_shuf_no_del = g2load_parser.add_mutually_exclusive_group()

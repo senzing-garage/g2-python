@@ -7,7 +7,6 @@ import errno
 import shutil
 import json
 import pathlib
-from distutils.dir_util import copy_tree
 try: import configparser
 except: import ConfigParser as configparser
 

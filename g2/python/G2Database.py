@@ -6,8 +6,52 @@ import sys
 import textwrap
 from importlib import import_module
 
-#--project classes
-from senzing import G2UnsupportedDatabaseType, G2DBMNotStarted, G2DBNotFound, G2DBException, G2DBUnknownException, G2TableNoExist, G2DBUniqueConstraintViolation
+# -----------------------------------------------------------------------------
+# Exceptions
+# -----------------------------------------------------------------------------
+
+
+class G2DBException(Exception):
+    '''Base exception for G2 DB related python code'''
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(self, *args, **kwargs)
+
+
+class G2DBMNotStarted(G2DBException):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(self, *args, **kwargs)
+
+
+class G2DBNotFound(G2DBException):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(self, *args, **kwargs)
+
+
+class G2DBUniqueConstraintViolation(G2DBException):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(self, *args, **kwargs)
+
+
+class G2DBUnknownException(G2DBException):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(self, *args, **kwargs)
+
+
+class G2TableNoExist(G2DBException):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(self, *args, **kwargs)
+
+
+class G2UnsupportedDatabaseType(G2DBException):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(self, *args, **kwargs)
 
 
 #======================
@@ -19,13 +63,13 @@ class G2Database:
         """ open the database """
         self.success = False
 
-        #--parse the uri
+        # --parse the uri
         try: self.dburi_parse(dbUri)
         except G2UnsupportedDatabaseType as err:
             print(err)
             return
 
-        #--import correct modules for DB type
+        # --import correct modules for DB type
         self.has_pyscopg2 = False
         if self.dbType in ('MYSQL', 'DB2', 'POSTGRESQL', 'MSSQL'):
             if self.dbType == 'POSTGRESQL':
@@ -46,7 +90,7 @@ class G2Database:
             except ImportError as err:
                 raise ImportError('ERROR: could not import sqlite3 module\n\nPlease ensure the python sqlite3 module is available')
 
-        #--attempt to open the database
+        # --attempt to open the database
         try:
             self.Connect()
         except G2DBMNotStarted as err:
@@ -58,15 +102,15 @@ class G2Database:
             print(err)
             return
         except Exception as err:
-            #print(self)
+            # print(self)
             raise Exception(err)
             #### print('ERROR: could not open database ' + self.dsn)
-            #print(err)
-            #print(type(err))
-            #print()
-            #return
+            # print(err)
+            # print(type(err))
+            # print()
+            # return
         else:
-            #--attempt to set the schema (if there is one)import
+            # --attempt to set the schema (if there is one)import
             if self.schema != None and len(self.schema) != 0:
                 if not self.SetSchema():
                     print(self)
@@ -74,7 +118,7 @@ class G2Database:
 
                     return
 
-            #--handle utf-8 issues for sqlite3
+            # --handle utf-8 issues for sqlite3
             if self.dbType == 'SQLITE3':
                 self.dbo.text_factory = str
 
@@ -87,7 +131,7 @@ class G2Database:
 
         try:
             if self.dbType == 'MYSQL':
-                self.dbo = self.pyodbc.connect('DRIVER={' + self.dbType + '};SERVER=' + self.dsn + ';PORT=' + self.port + ';DATABASE=' + self.schema + ';UID=' + self.userId + '; PWD=' + self.password, autocommit = True)
+                self.dbo = self.pyodbc.connect('DRIVER={' + self.dbType + '};SERVER=' + self.dsn + ';PORT=' + self.port + ';DATABASE=' + self.schema + ';UID=' + self.userId + '; PWD=' + self.password, autocommit=True)
             elif self.dbType == 'SQLITE3':
                 if not os.path.isfile(self.dsn):
                     raise G2DBNotFound('ERROR: sqlite3 database file not found ' + self.dsn)
@@ -106,7 +150,7 @@ class G2Database:
                                                 user=self.userId,
                                                 password=self.password)
 
-                    #self.dbo.set_session(autocommit=False, isolation_level='READ UNCOMMITTED', readonly=True)
+                    # self.dbo.set_session(autocommit=False, isolation_level='READ UNCOMMITTED', readonly=True)
                     self.dbo.set_session(autocommit=True, isolation_level='READ UNCOMMITTED', readonly=True)
                 else:
                     self.dbo = self.pyodbc.connect(conn_str, autocommit=True)
@@ -126,10 +170,10 @@ class G2Database:
     def __str__(self):
         ''' return the database we connected to '''
 
-        return "\ndbType:" + str(self.dbType) + " dsn:" + str(self.dsn) + " port:" + str(self.port) +" userId:" + str(self.userId) + " password:" + str(self.password) + " schema:" + str(self.schema) + " table:" + str(self.table) + '\n'
+        return "\ndbType:" + str(self.dbType) + " dsn:" + str(self.dsn) + " port:" + str(self.port) + " userId:" + str(self.userId) + " password:" + str(self.password) + " schema:" + str(self.schema) + " table:" + str(self.table) + '\n'
 
     #----------------------------------------
-    #-- basic database functions
+    # -- basic database functions
     #----------------------------------------
 
     #----------------------------------------
@@ -137,7 +181,7 @@ class G2Database:
         ''' make a database call '''
         if parmList and type(parmList) not in (list, tuple):
             parmList = [parmList]
-        #--name and itersize are postgres server side cursor settings
+        # --name and itersize are postgres server side cursor settings
         cursorData = {}
         cursorData['NAME'] = kwargs['name'] if 'name' in kwargs else None
         cursorData['ITERSIZE'] = kwargs['itersize'] if 'itersize' in kwargs else None
@@ -157,9 +201,9 @@ class G2Database:
                 exec_cursor.execute(sql)
 
         except Exception as err:
-            #print('ERR: ' + str(err))
-            #print('SQL: ' + sql)
-            #if parmList:
+            # print('ERR: ' + str(err))
+            # print('SQL: ' + sql)
+            # if parmList:
             #    print('PARMS:', type(parmList), parmList)
             raise err
         else:
@@ -274,7 +318,7 @@ class G2Database:
                 self.sqlExec('use ' + self.schema)
             elif self.dbType == 'DB2':
                 self.sqlExec('set current schema ' + self.schema)
-                #--note: for some reason pyodbc not throwing error with set to invalid schema!
+                # --note: for some reason pyodbc not throwing error with set to invalid schema!
             elif self.dbType == 'POSTGRESQL':
                 self.sqlExec('SET search_path TO ' + self.schema)
         except G2DBException as err:
@@ -284,7 +328,7 @@ class G2Database:
         return True
 
     #--------------------
-    #--utility functions
+    # --utility functions
     #--------------------
 
     def dburi_parse(self, dbUri):
@@ -327,7 +371,7 @@ class G2Database:
                 if uri_dict['DBTYPE'] in ('POSTGRESQL', 'MYSQL'):
                     uri_dict['HOST'] = uri_dict['DSN']
                     uri_dict['DSN'] = justDsnSch.split(':')[2]
-            else: # Just dsn with no port
+            else:  # Just dsn with no port
                 uri_dict['DSN'] = justDsnSch
 
         except (IndexError, ValueError) as ex:
@@ -351,7 +395,7 @@ class G2Database:
         return uri_dict
 
     #----------------------------------------
-    def pause(self, question = None):
+    def pause(self, question=None):
         if not question:
             v_wait = input("PRESS ENTER TO CONTINUE ... ")
         else:
@@ -387,24 +431,25 @@ class G2Database:
         else:
             return G2UnsupportedDatabaseType('ERROR: ' + self.dbType + ' is an unsupported database type')
 
-        #return G2DBUnknownException(errMessage)
+        # return G2DBUnknownException(errMessage)
         return G2DBException(errMessage)
+
 
 #----------------------------------------
 if __name__ == "__main__":
 
-    #--running in debug mode - no parameters
+    # --running in debug mode - no parameters
     if len(sys.argv) == 1:
         dbUri = 'db2://db2inst1:db2admin@g2'
 
-    #--capture the command line arguments
+    # --capture the command line arguments
     else:
         optParser = optparse.OptionParser()
         optParser.add_option('-d', '--dbUri', dest='dbUri', default='', help='a database uri such as: db2://user:pwd@dsn:schema')
         (options, args) = optParser.parse_args()
         dbUri = options.dbUri
 
-    #--create an instance
+    # --create an instance
     testDbo = g2Database(dbUri)
     if testDbo.success:
         print('SUCCESS: connection to ' + testDbo.dsn + ' successful!')

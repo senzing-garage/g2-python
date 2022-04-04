@@ -1,163 +1,106 @@
 #! /usr/bin/env python3
 
-#--python imports
 import argparse
-import os
-import json
-
+import pathlib
 import sys
-if sys.version[0] == '2':
-    reload(sys)
-    sys.setdefaultencoding('utf-8')
-
-#--project classes
 import G2Paths
+from senzing import (G2Config, G2ConfigMgr, G2Exception, G2IniParams, G2ModuleException)
 
-from senzing import G2Config, G2ConfigMgr, G2Exception, G2IniParams, G2ModuleException
 
+def setup_config(ini_params, auto_mode):
 
-#---------------------------------------------------------------------
-#-- Setup Config
-#---------------------------------------------------------------------
-
-def setupConfig(iniFileName,autoMode):
-
-    #-- Load the G2 configuration file
-    iniParamCreator = G2IniParams()
-    iniParams = iniParamCreator.getJsonINIParams(iniFileName)
-
-    # Connect to the needed API
-    g2ConfigMgr = G2ConfigMgr()
-    g2ConfigMgr.init("g2ConfigMgr", iniParams, False)
-
-    # Determine if a default/initial G2 configuration already exists.
+    # Determine if a default/initial G2 configuration already exists
     default_config_id = bytearray()
-    g2ConfigMgr.getDefaultConfigID(default_config_id)
+    g2_config_mgr = G2ConfigMgr()
+    g2_config_mgr.init("g2ConfigMgr", ini_params, False)
+    g2_config_mgr.getDefaultConfigID(default_config_id)
 
-    # If a default configuration exists, there is nothing more to do.
-    if default_config_id:
-        shouldContinue = False
-        reply = ''
-        if autoMode == False:
-            reply = userInput('\nA configuration document already exists in the database.  Do you want to replace it (yes/no)?  ')
-        else:
-            reply = os.environ.get("G2SETUPCONFIG_OVERWRITE_CONFIGURATION_DOC")
-        if reply in ['y','Y', 'yes', 'YES']:
-            shouldContinue = True
-        if shouldContinue == False:
-            print('Error:  Will not replace config in database.')
-            return -1
+    # If not in auto mode prompt user
+    if not auto_mode:
 
-    # See if "[SQL]G2ConfigFile" is configured
-    g2ConfigFilePath = iniParamCreator.getINIParam(iniFileName,'Sql','G2ConfigFile')
-    g2ConfigFileExistsInINIParams = False;
-    if len(g2ConfigFilePath) > 0:
-        g2ConfigFileExistsInINIParams = True;
+        if default_config_id:
+            if not input('\nA configuration document already exists in the database. Do you want to replace it (yes/no)?  ') in ['y', 'Y', 'yes', 'YES']:
+                print('\nWARN: Not replacing configuration in database.')
+                return -1
+        else:
 
-    # get data to import
-    configJsonToUse = ''
-    if g2ConfigFileExistsInINIParams == True:
-        shouldContinue = False
-        reply = ''
-        if autoMode == False:
-            reply = userInput('\nMigrating configuration from file to database.  Do you want to continue (yes/no)?  ')
-        else:
-            reply = os.environ.get("G2SETUPCONFIG_MIGRATE_CONFIG_TO_DATABASE")
-        if reply in ['y','Y', 'yes', 'YES']:
-            shouldContinue = True
-        if shouldContinue == False:
-            print('Error:  Will not migrate config from file to database.')
-            return -1
-        jsonData = json.load(open(g2ConfigFilePath), encoding="utf-8")
-        configJsonToUse = json.dumps(jsonData)
-    else:
-        shouldContinue = False
-        reply = ''
-        if autoMode == False:
-            reply = userInput('\nInstalling template configuration to database.  Do you want to continue (yes/no)?  ')
-        else:
-            reply = os.environ.get("G2SETUPCONFIG_INSTALL_TEMPLATE_CONFIG_TO_DATABASE")
-        if reply in ['y','Y', 'yes', 'YES']:
-            shouldContinue = True
-        if shouldContinue == False:
-            print('Error:  Will not migrate config from file to database.')
-            return -1
-        g2Config = G2Config()
-        g2Config.init("g2Config", iniParams, False)
-        config_handle = g2Config.create()
-        if config_handle == None:
-            print('Error:  Could not get template config.')
-            return -1
-        new_configuration_bytearray = bytearray()
-        g2Config.save(config_handle, new_configuration_bytearray)
-        g2Config.close(config_handle)
-        g2Config.destroy()
-        configJsonToUse = new_configuration_bytearray.decode()
+            if not input('\nInstalling template configuration to database. Do you want to continue (yes/no)?  ') in ['y', 'Y', 'yes', 'YES']:
+                print('\nWARN: No default template configuration has been applied to the database.')
+                return -1
+
+    # Apply a default configuration
+    g2_config = G2Config()
+    g2_config.init("g2Config", ini_params, False)
+
+    try:
+        config_handle = g2_config.create()
+    except G2ModuleException as ex:
+        print('\nERROR: Could not get template config from G2Config.')
+        print(f'\n\t{ex}')
+        return -1
+
+    new_configuration_bytearray = bytearray()
+    g2_config.save(config_handle, new_configuration_bytearray)
+    g2_config.close(config_handle)
+
+    config_json = new_configuration_bytearray.decode()
 
     # Save configuration JSON into G2 database.
-    config_comment = "Configuration added from G2SetupConfig."
     new_config_id = bytearray()
+
     try:
-        g2ConfigMgr.addConfig(configJsonToUse, config_comment, new_config_id)
-    except G2ModuleException as exc:
-        print(exc)
-        exceptionInfo = g2ConfigMgr.getLastException()
-        exInfo = exceptionInfo.split('|', 1)
-        if exInfo[0] == '0040E':
-            print ("Error:  Failed to add config to the datastore.  Please ensure your config is updated to the current version.")
-            return -1
-        print ("Error:  Failed to add config to the datastore.")
+
+        g2_config_mgr.addConfig(config_json, 'Configuration added from G2SetupConfig.', new_config_id)
+    except G2ModuleException as ex:
+        ex_info = g2_config_mgr.getLastException().split('|', 1)
+        # The engine configuration compatibility version [{0}] does not match the version of the provided config[{1}]
+        if ex_info[0] == '0040E':
+            print("\nERROR: Failed to add config to the database. Please ensure your config is updated to the current version.")
+        else:
+            print("\nERROR: Failed to add config to the datastore.")
+        print(f'\n\t{ex}')
         return -1
 
     # Set the default configuration ID.
     try:
-        g2ConfigMgr.setDefaultConfigID(new_config_id)
-    except G2Exception as err:
-        print ("Error:  Failed to set config as default.")
+        g2_config_mgr.setDefaultConfigID(new_config_id)
+    except G2ModuleException as ex:
+        print("\nERROR: Failed to set config as default.")
+        print(f'\n\t{ex}')
         return -1
 
-    # Remove the parameter from the INI file.
-    if g2ConfigFileExistsInINIParams == True:
-        iniParamCreator.removeINIParam(iniFileName,'Sql','G2ConfigFile','Removed by G2SetupConfig.py')
+    # Shut down
+    g2_config_mgr.destroy()
+    g2_config.destroy()
 
-    # shut down the API's
-    g2ConfigMgr.destroy()
+    print("\nConfiguration successfully added.")
 
-    # We completed successfully
-    print ("Config added successfully.")
-    exitCode = 0
-    return exitCode
+    return 0
 
 
-#---------------------------------------------------------------------
-#-- Main function
-#---------------------------------------------------------------------
-
-#----------------------------------------
 if __name__ == '__main__':
 
-    #--python3 uses input
-    userInput = input
-
     argParser = argparse.ArgumentParser()
-    argParser.add_argument('-c', '--iniFile', dest='iniFile', default='', help='the name of a G2Module.ini file to use', nargs='?')
-    argParser.add_argument('-a', '--auto', action='store_true', help='should run in non-interactive mode')
+    argParser.add_argument('-c',
+                           '--iniFile',
+                           default=None,
+                           help='Path and file name of optional G2Module.ini to use.',
+                           nargs=1)
+
+    # Run in non-interactive mode for Senzing team testing
+    argParser.add_argument('-a',
+                           '--auto',
+                           action='store_true',
+                           help=argparse.SUPPRESS)
 
     args = argParser.parse_args()
-    #print(args)
 
-    ini_file_name = ''
-
-    if args.iniFile and len(args.iniFile) > 0:
-        ini_file_name = os.path.abspath(args.iniFile)
-
-    if ini_file_name == '':
-        ini_file_name = G2Paths.get_G2Module_ini_path()
-
+    # If ini file isn't specified try and locate it with G2Paths
+    ini_file_name = pathlib.Path(G2Paths.get_G2Module_ini_path()) if not args.iniFile else pathlib.Path(args.iniFile[0]).resolve()
     G2Paths.check_file_exists_and_readable(ini_file_name)
 
-    autoMode = args.auto == True
+    # Load the G2 configuration file
+    ini_param_creator = G2IniParams()
+    ini_params = ini_param_creator.getJsonINIParams(ini_file_name)
 
-    exitCode = setupConfig(ini_file_name,autoMode)
-    sys.exit(exitCode)
-
+    sys.exit(setup_config(ini_params, args.auto))

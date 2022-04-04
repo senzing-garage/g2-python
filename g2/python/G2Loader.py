@@ -38,7 +38,7 @@ from senzing import G2Config, G2ConfigMgr, G2Diagnostic, G2Engine, G2Exception, 
 class UnconfiguredDataSourceException(Exception):
 
     def __init__(self, DataSourceName):
-        super().__init__(self, ("Datasource %s not configured. See https://senzing.zendesk.com/hc/en-us/articles/360010784333 on how to configure datasources in the config file." % DataSourceName))
+        super().__init__(self, f"Datasource {DataSourceName} not configured. See https://senzing.zendesk.com/hc/en-us/articles/360010784333 on how to configure data sources in the config file.")
 
 # -----------------------------------------------------------------------------
 # Class: Governor
@@ -53,11 +53,11 @@ class Governor:
         return
 
     def govern(self, *args, **kwargs):
-        ''' Main function to trigger action(s) '''
+        """ Main function to trigger action(s) """
         return
 
     def govern_cleanup(self, *args, **kwargs):
-        ''' Tasks to perform when shutting down, e.g., close DB connections '''
+        """ Tasks to perform when shutting down, e.g., close DB connections """
         return
 
 #---------------------------------------------------------------------
@@ -65,8 +65,8 @@ class Governor:
 #---------------------------------------------------------------------
 
 
-def check_resources_and_startup(returnQueue, thread_count, doPurge, doLicense=True):
-    ''' Check system resources, calculate a safe number of threads when argument not specified on command line '''
+def check_resources_and_startup(returnQueue, thread_count, doPurge):
+    """ Check system resources, calculate a safe number of threads when argument not specified on command line """
 
     try:
         diag = G2Diagnostic()
@@ -165,7 +165,7 @@ def check_resources_and_startup(returnQueue, thread_count, doPurge, doLicense=Tr
     critical_error = warning_issued = False
     max_time_per_insert = 0.5
 
-    # Limit the number of threads for sqlite, doesn't benefit from more and slowes down (8 is approx)
+    # Limit the number of threads for sqlite, doesn't benefit from more and can slow down (8 is approx)
     max_sqlite_threads = 8
     sqlite_limit_msg = ''
     sqlite_warned = False
@@ -249,8 +249,8 @@ def check_resources_and_startup(returnQueue, thread_count, doPurge, doLicense=Tr
             Threads calculated:          {'Yes' if not args.thread_count else 'No, -nt argument was specified'}
             Threads per process:         {args.max_threads_per_process}
             Number of processes:         {num_processes}
-            Min recommeded cores:        {min_recommend_cores}
-            Min recommeded memory (GB):  {min_recommend_mem:.1f}
+            Min recommended cores:       {min_recommend_cores}
+            Min recommended memory (GB): {min_recommend_mem:.1f}
         '''))
 
     if sqlite_warned:
@@ -323,7 +323,7 @@ def check_resources_and_startup(returnQueue, thread_count, doPurge, doLicense=Tr
 
 
 def perform_load():
-    ''' Main processing when not in redo only mode '''
+    """ Main processing when not in redo only mode """
 
     exitCode = 0
     DumpStack.listen()
@@ -409,7 +409,7 @@ def perform_load():
                 plib_file_path = pathlib.Path(filePath).resolve()
                 shuf_file_path = pathlib.Path(str(plib_file_path) + shuf_file_suffix)
 
-                # Look for previously shuffled files in orginal path...
+                # Look for previously shuffled files in original path...
                 if not args.shuffFilesIgnore:
 
                     prior_shuf_files = [str(pathlib.Path(p).resolve()) for p in glob(filePath + SHUF_TAG_GLOB)]
@@ -439,7 +439,7 @@ def perform_load():
                         while True:
                             r, _, _ = select.select([sys.stdin], [], [], SHUF_RESPONSE_TIMEOUT)
                             if r:
-                                # Read wihtout hitting enter?
+                                # Read without hitting enter?
                                 read_input = sys.stdin.readline()
                                 if read_input == '\n':
                                     sys.exit(0)
@@ -660,7 +660,7 @@ def perform_load():
             else:
                 shuf_msg = 'File wasn\'t shuffled, small size or number of threads was 1'
 
-            # Format with seperator if specified
+            # Format with separator if specified
             skip_records = f'{args.skipRecords:,}' if args.skipRecords and args.skipRecords != 0 else ''
             stop_on_record = f'{args.stopOnRecord:,}' if args.stopOnRecord and args.stopOnRecord != 0 else ''
 
@@ -820,6 +820,8 @@ def sendToG2(threadId_, workQueue_, numThreads_, debugTrace, threadStop, workloa
             g2Thread(str(threadId_), workQueue_, g2_engine, threadStop, workloadStats, dsrcAction)
 
     except Exception:
+        with threadStop.get_lock():
+            threadStop.value = 1
         pass
 
     if workloadStats and num_processed > 0:
@@ -833,38 +835,20 @@ def sendToG2(threadId_, workQueue_, numThreads_, debugTrace, threadStop, workloa
 
 
 def g2Thread(threadId_, workQueue_, g2Engine_, threadStop, workloadStats, dsrcActionArgs):
-    ''' g2 thread function '''
+    """ g2 thread function """
 
     global num_processed
 
     def parse_json(row):
-        ''' Parse record id and data source from a JSON record'''
+        """ Parse record id and data source from a JSON record """
 
-        data_source = row.get('DATA_SOURCE', None)
-        record_id = row.get('RECORD_ID', None)
+        data_source = row.get('DATA_SOURCE', '')
+        record_id = row.get('RECORD_ID', '')
 
-        return (data_source, record_id)
-
-    def parse_umf(row):
-        ''' Parse record id and data source from a UMF record'''
-
-        data_source = record_id = None
-
-        # Find delimiters for dsrc_code and record_id
-        dsrc_start = row.find(DSRC_START_STR)
-        dsrc_end = row.find(DSRC_END_STR)
-        rid_start = row.find(RID_START_STR)
-        rid_end = row.find(RID_END_STR)
-
-        # Only modify dataSource & recordID if strings found, catch exceptions in API call if missing
-        if dsrc_start != -1 and dsrc_end != -1 and rid_start != -1 and rid_end != -1:
-            data_source = row[dsrc_start + len(DSRC_START_STR):dsrc_end]
-            record_id = row[rid_start + len(RID_START_STR):rid_end]
-
-        return (data_source, record_id)
+        return (data_source, str(record_id))
 
     def g2thread_error(msg, dsrc_action_str):
-        ''' Write out errors during processing '''
+        """ Write out errors during processing """
 
         global del_errors_file
         del_errors_file = False
@@ -902,21 +886,13 @@ def g2Thread(threadId_, workQueue_, g2Engine_, threadStop, workloadStats, dsrcAc
         # Unpack tuple from the work queue into the data and indicator for being a redo record
         row, is_redo_record = row
 
-        dataSource = recordID = dsrc_action_str = None
-        # Start with dsrdAction set to what was used as the CLI arg or default of add
+        dsrc_action_str = None
+
+        # Start with dsrcAction set to what was used as the CLI arg or default of add
         dsrcAction = dsrcActionArgs
 
         # Record is JSON
-        if isinstance(row, dict):
-            dataSource, recordID = parse_json(row)
-        else:
-            # Record could be from REDO, and cound be either UMF or JSON
-            try:
-                row = json.loads(row)
-                dataSource, recordID = parse_json(row)
-            except JSONDecodeError:
-                # Record is UMF
-                dataSource, recordID = parse_umf(row)
+        dataSource, recordID = parse_json(row)
 
         # Is the record from the work queue specifically a redo record to be processed during redo time/mode?
         if is_redo_record:
@@ -999,7 +975,7 @@ def stopLoaderProcessAndThreads(threadList, workQueue):
 
 
 def dump_workload_stats(engine):
-    ''' Print JSON workload stats '''
+    """ Print JSON workload stats """
 
     response = bytearray()
     engine.stats(response)
@@ -1008,7 +984,7 @@ def dump_workload_stats(engine):
 
 
 def init_engine(name, config_parms, debug_trace, prime_engine=True, add_start_time=False):
-    '''  Initialize an engine. add_start_time is for redo engines only '''
+    """  Initialize an engine. add_start_time is for redo engines only """
 
     if add_start_time:
         engine_start_time = time.perf_counter()
@@ -1028,7 +1004,7 @@ def init_engine(name, config_parms, debug_trace, prime_engine=True, add_start_ti
 
 
 def processRedo(q, empty_q_wait=False, empty_q_msg='', sleep_interval=1):
-    ''' Called in normal and redo only mode (-R) to process redo records that need re-evaluation '''
+    """ Called in normal and redo only mode (-R) to process redo records that need re-evaluation """
 
     # Drain the processing queue of ingest records before starting to process redo
     if empty_q_wait:
@@ -1050,7 +1026,7 @@ def processRedo(q, empty_q_wait=False, empty_q_msg='', sleep_interval=1):
 
 
 def redoFeed(q, debugTrace, redoMode, redoModeInterval):
-    ''' Process records in the redo queue '''
+    """ Process records in the redo queue """
 
     passNum = cntRows = batch_time_governing = 0
     batchStartTime = time.time()
@@ -1059,7 +1035,7 @@ def redoFeed(q, debugTrace, redoMode, redoModeInterval):
     test_get_redo = False
 
     try:
-        redo_engine = init_engine('pyG2Redo', g2module_params, debugTrace, prime_engine=True, add_start_time=False)
+        redo_engine = init_engine('pyG2Redo', g2module_params, debugTrace, prime_engine=False, add_start_time=False)
 
         # Only do initial count if in redo mode, counting large redo can be expensive
         if args.redoMode:
@@ -1135,8 +1111,10 @@ def redoFeed(q, debugTrace, redoMode, redoModeInterval):
         while True:
             try:
                 # Tuple to indicate if a record on workqueue is redo - (rec, True == this is redo)
-                q.put((rec, True), True, 1)
+                q.put((json.loads(rec), True), True, 1)
             except Full:
+                if threadStop.value != 0:
+                    break
                 continue
             break
 
@@ -1205,7 +1183,7 @@ def verifyEntityTypeExists(configJson, entityType):
 
 
 def addDataSource(g2ConfigModule, configDoc, dataSource, configuredDatasourcesOnly):
-    ''' Adds a data source if does not exist '''
+    """ Adds a data source if does not exist """
 
     returnCode = 0  # 1=inserted, 2=updated
 
@@ -1339,7 +1317,7 @@ def enhanceG2Config(g2Project, g2module_params, g2ConfigJson, configuredDatasour
 
 
 def time_now(add_secs=False):
-    ''' Date time now for processing messages '''
+    """ Date time now for processing messages """
 
     fmt_string = '%I:%M%p'
     if add_secs:
@@ -1349,13 +1327,13 @@ def time_now(add_secs=False):
 
 
 def signal_int(signal, frame):
-    ''' Signal interupt handler '''
+    """ Signal interrupt handler """
 
-    shutdown(f'USER INTERUPT ({signal}) - Stopping threads, please be patient this can take a number of minutes...')
+    shutdown(f'USER INTERRUPT ({signal}) - Stopping threads, please be patient this can take a number of minutes...')
 
 
 def shutdown(msg=None):
-    ''' Shutdown threads and exit cleanly from Governor if in use and clean up Governor '''
+    """ Shutdown threads and exit cleanly from Governor if in use and clean up Governor """
 
     if msg:
         print(f'{msg}')
@@ -1373,7 +1351,7 @@ def shutdown(msg=None):
 
 
 def governor_setup():
-    ''' Import and create governors '''
+    """ Import and create governors """
 
     global record_governor
     global source_governor
@@ -1440,7 +1418,7 @@ def governor_setup():
 
 
 def governor_cleanup():
-    ''' Perform any actions defined in governor cleanup function '''
+    """ Perform any actions defined in governor cleanup function """
 
     if not args.redoMode:
         record_governor.govern_cleanup()
@@ -1454,10 +1432,6 @@ if __name__ == '__main__':
     SHUF_TAG = '_-_SzShuf_-_'
     SHUF_TAG_GLOB = '_-_SzShuf*'
     SHUF_RESPONSE_TIMEOUT = 30
-    DSRC_START_STR = '<DSRC_CODE>'
-    DSRC_END_STR = '</DSRC_CODE>'
-    RID_START_STR = '<RECORD_ID>'
-    RID_END_STR = '</RECORD_ID>'
 
     exitCode = 0
     del_errors_file = True
@@ -1534,7 +1508,7 @@ if __name__ == '__main__':
     # Both -p and -f shouldn't be used together
     file_project_group = g2load_parser.add_mutually_exclusive_group()
     file_project_group.add_argument('-p', '--projectFile', dest='projectFileName', default=None, help='the name of a project CSV or JSON file')
-    file_project_group.add_argument('-f', '--fileSpec', dest='projectFileSpec', default=[], nargs='+', help='the name of a file and parameters to load such as /data/mydata.json/?data_source=?,file_format=?')  # Both -ns and -nsd shouldn't be used together
+    file_project_group.add_argument('-f', '--fileSpec', dest='projectFileSpec', default=[], nargs='+', help='the name of a file and parameters to load such as /data/mydata.json/?data_source=?,file_format=?')    # Both -ns and -nsd shouldn't be used together
 
     # Both -ns and -snd shouldn't be used together
     no_shuf_shuf_no_del = g2load_parser.add_mutually_exclusive_group()
@@ -1544,7 +1518,7 @@ if __name__ == '__main__':
 
     # Both -R and -sr shouldn't be used together
     stop_row_redo_node = g2load_parser.add_mutually_exclusive_group()
-    stop_row_redo_node.add_argument('-R', '--redoMode', action='store_true', default=False, help='run in redo mode only processesing the redo queue')
+    stop_row_redo_node.add_argument('-R', '--redoMode', action='store_true', default=False, help='run in redo mode only processing the redo queue')
     stop_row_redo_node.add_argument('-sr', '--stopOnRecord', default=0, type=int, help='stop processing after n records (for testing large files)')
 
     # Both -P and -D shouldn't be used together
@@ -1554,7 +1528,7 @@ if __name__ == '__main__':
     purge_dsrc_delete.add_argument('--FORCEPURGE', dest='forcePurge', action='store_true', default=False, help='purge the Senzing repository before loading, no confirmation prompt before purging')
 
     # Options hidden from help, used for testing
-    # Frequency to ouput load and redo rate
+    # Frequency to output load and redo rate
     g2load_parser.add_argument('-lof', '--loadOutputFrequency', default=1000, type=int, help=argparse.SUPPRESS)
 
     # Frequency to pause loading and perform redo
@@ -1591,7 +1565,7 @@ if __name__ == '__main__':
             '''))
         time.sleep(5)
 
-    # Check for additional mutually exclusuve arg combinations not easy to cover in argparse and sensible values
+    # Check for additional mutually exclusive arg combinations not easy to cover in argparse and sensible values
     if (args.purgeFirst or args.forcePurge) and args.redoMode:
         print('\nWARNING: Purge cannot be used with redo only mode. This would purge the repository before processing redo!')
         sys.exit(1)
@@ -1600,7 +1574,7 @@ if __name__ == '__main__':
         print('\nWARNING: The number of records to skip is greater than the record number to stop on. No work would be done!')
         sys.exit(1)
 
-    # Cheack early we can read -f/-p - G2Project can handle but early out before running dbperf etc
+    # Check early we can read -f/-p - G2Project can handle but early out before running dbperf etc
     # Note args.projectFileSpec is a list, G2Project accepts file globbing, split to get only filename not URI
     if args.projectFileSpec or args.projectFileName:
         file_list = []
@@ -1680,7 +1654,7 @@ if __name__ == '__main__':
     g2health = G2Health()
     g2health.checkIniParams(iniFileName)
 
-    # Get the INI paramaters to use
+    # Get the INI parameters to use
     iniParamCreator = G2IniParams()
     g2module_params = iniParamCreator.getJsonINIParams(iniFileName)
 
@@ -1717,8 +1691,7 @@ if __name__ == '__main__':
         checkResourcesProcess = Process(target=check_resources_and_startup,
                                         args=(tempQueue,
                                               args.thread_count,
-                                              (args.purgeFirst or args.forcePurge) and not (args.testMode or args.redoMode),
-                                              True))
+                                              (args.purgeFirst or args.forcePurge) and not (args.testMode or args.redoMode)))
         checkResourcesProcess.start()
         checkResourcesProcess.join()
         defaultThreadCount = tempQueue.get()
@@ -1753,7 +1726,7 @@ if __name__ == '__main__':
     # Load truthset data if neither -p and -f and not in redo mode but pruge was requested
     if not args.projectFileName and not args.projectFileSpec and not args.redoMode and (args.purgeFirst or args.forcePurge):
         print('\nINFO: No source file or project file was specified, loading the sample truth set data...')
-        # Convert the path to a string, G2Project needs updating to accomodate pathlib objects
+        # Convert the path to a string, G2Project needs updating to accommodate pathlib objects
         args.projectFileName = str(pathlib.Path(os.environ.get('SENZING_ROOT', '/opt/senzing/g2/')).joinpath('python', 'demo', 'truth', 'truthset-project.csv'))
 
     # Running in redo only mode? Don't purge in redo only mode, would purge the queue!

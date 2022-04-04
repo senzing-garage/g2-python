@@ -108,7 +108,7 @@ def fileRowParser(line, fileData, rowNum=0, errors_file=None, errors_short=False
             if fileData['MULTICHAR_DELIMITER']:
                 rowData = [removeQuoteChar(x.strip()) for x in line.split(fileData['DELIMITER'])]
             else:
-                rowData = [removeQuoteChar(x.strip()) for x in next(csv.reader([line], delimiter=fileData['DELIMITER']))]
+                rowData = [removeQuoteChar(x.strip()) for x in next(csv.reader([line], delimiter=fileData['DELIMITER'], skipinitialspace=True))]
 
         except Exception:
             write_error(rowNum, line, 'Row could not be parsed')

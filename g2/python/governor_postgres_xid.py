@@ -360,7 +360,7 @@ class Governor:
             raise G2DBException(f'Failed to parse database URI, check the connection string(s) in your G2Module INI file.') from None
 
         if not uri_dict['DSN']:
-           raise G2DBException(f'Missing database DSN. \n{self.show_connection(uri_dict, False, False)}')
+            raise G2DBException(f'Missing database DSN. \n{self.show_connection(uri_dict, False, False)}')
 
         return uri_dict
 

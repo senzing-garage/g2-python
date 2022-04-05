@@ -30,15 +30,17 @@ from importlib import import_module
 # Exceptions
 # -----------------------------------------------------------------------------
 
+
 class G2DBException(Exception):
     '''Base exception for G2 DB related python code'''
+
     def __init__(self, *args, **kwargs):
         super().__init__(self, *args, **kwargs)
-
 
 # -----------------------------------------------------------------------------
 # Class: Governor
 # -----------------------------------------------------------------------------
+
 
 class Governor:
 
@@ -117,7 +119,6 @@ class Governor:
             except JSONDecodeError as ex:
                 raise ValueError(f'Couldn\'t decode parameters to JSON for G2Module.')
 
-
         if not self.frequency:
             raise ValueError(f'Creating governor, frequency=<freq> must be specified. Where <freq> is one of {self.valid_frequencies}')
 
@@ -146,7 +147,6 @@ class Governor:
                 except:
                     raise ValueError(f'Creating governor, invalid {check[0]} {check[1]}. Should be {check[3]} not {type(check[1])}')
 
-
         # Track number of per record calls when governor is frequency = row
         self.record_num = 1
 
@@ -155,7 +155,7 @@ class Governor:
         self.connect_hybrid = True if self.sql_backend and self.sql_backend.strip() == 'HYBRID' else False
 
         # Collect connection string(s)
-        for stanza in {k:v for (k,v) in self.g2module_params.items() if k.upper() not in self.ignore_ini_stanzas}:
+        for stanza in {k: v for (k, v) in self.g2module_params.items() if k.upper() not in self.ignore_ini_stanzas}:
             for line_value in self.g2module_params[stanza].values():
                 if 'postgresql://' in line_value.lower():
                     self.connect_strs.append(line_value)
@@ -199,7 +199,6 @@ class Governor:
 
         return
 
-
     def govern_pre(self, *args, **kwargs):
         ''' Tasks to perform before creating governor '''
 
@@ -211,7 +210,6 @@ class Governor:
             '''))
 
         return
-
 
     def govern_post(self, *args, **kwargs):
         '''  Tasks to perform after creating governor '''
@@ -232,7 +230,6 @@ class Governor:
                 '''), '  '))
 
         return
-
 
     def govern_cleanup(self, *args, **kwargs):
         '''  Tasks to perform when shutting down, e.g., close DB connections '''
@@ -255,7 +252,7 @@ class Governor:
             for db_objs in self.connect_dict.values():
 
                 try:
-                    db_objs[1].execute(self.sql_stmt, (db_objs[2], ))
+                    db_objs[1].execute(self.sql_stmt, (db_objs[2],))
                     current_age = db_objs[1].fetchone()[0]
                 except self.psycopg2.DatabaseError as ex:
                     raise ex
@@ -287,12 +284,10 @@ class Governor:
             # Update the last checked time
             self.next_check_time = time.time() + self.check_time_interval
 
-
     def source_action(self):
         ''' Action to be performed when triggered for each source, e.g. in multi-source project  '''
 
         return
-
 
     def connect_cursor(self, parsed_uri):
         ''' For each DB return connection and cursor '''
@@ -317,7 +312,6 @@ class Governor:
             raise ex
 
         return (dbo, cursor)
-
 
     def dburi_parse(self, dbUri):
         ''' Parse the database uri string '''
@@ -359,7 +353,7 @@ class Governor:
                 if uri_dict['DBTYPE'] in ('POSTGRESQL', 'MYSQL'):
                     uri_dict['HOST'] = uri_dict['DSN']
                     uri_dict['DSN'] = justDsnSch.split(':')[2]
-            else: # Just dsn with no port
+            else:  # Just dsn with no port
                 uri_dict['DSN'] = justDsnSch
 
         except (IndexError, ValueError) as ex:
@@ -369,7 +363,6 @@ class Governor:
            raise G2DBException(f'Missing database DSN. \n{self.show_connection(uri_dict, False, False)}')
 
         return uri_dict
-
 
     def show_connection(self, uri_dict, show_pwd=False, print_not_return=True):
         ''' Show connection details and redact password if requested. Print directly or return only the parsed URI dict'''
@@ -386,7 +379,6 @@ class Governor:
             return
 
         return conn_string
-
 
     def print_or_log(self, msg, level_='INFO'):
         ''' Use logging or print for output '''

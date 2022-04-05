@@ -232,8 +232,9 @@ class G2CmdShell(cmd.Cmd, object):
         getEntityListBySize_parser.add_argument('-o', '--outputFile', required=False)
 
         getEntityByRecordID_parser = self.subparsers.add_parser('getEntityByRecordID', usage=argparse.SUPPRESS)
-        getEntityByRecordID_parser.add_argument('dataSourceCode')
-        getEntityByRecordID_parser.add_argument('recordID')
+        getEntityByRecordID_parser.add_argument('--dataSourceCode')
+        getEntityByRecordID_parser.add_argument('--recordID')
+        getEntityByRecordID_parser.add_argument('--flags', type=int, required=False)
 
         getRecord_parser = self.subparsers.add_parser('getRecord', usage=argparse.SUPPRESS)
         getRecord_parser.add_argument('--dataSourceCode')
@@ -257,11 +258,6 @@ class G2CmdShell(cmd.Cmd, object):
         reevaluateEntityWithInfo_parser = self.subparsers.add_parser('reevaluateEntityWithInfo', usage=argparse.SUPPRESS)
         reevaluateEntityWithInfo_parser.add_argument('entityID', type=int)
         reevaluateEntityWithInfo_parser.add_argument('-f', '--flags', required=False, type=int)
-
-        getEntityByRecordID2_parser = self.subparsers.add_parser('getEntityByRecordID', usage=argparse.SUPPRESS)
-        getEntityByRecordID2_parser.add_argument('--dataSourceCode')
-        getEntityByRecordID2_parser.add_argument('--recordID')
-        getEntityByRecordID2_parser.add_argument('--flags', type=int, required=False)
 
         findPathByRecordID_parser = self.subparsers.add_parser('findPathByRecordID', usage=argparse.SUPPRESS)
         findPathByRecordID_parser.add_argument('--startDataSourceCode')
@@ -309,9 +305,6 @@ class G2CmdShell(cmd.Cmd, object):
         howEntityByEntityID_parser = self.subparsers.add_parser('howEntityByEntityID', usage=argparse.SUPPRESS)
         howEntityByEntityID_parser.add_argument('--entityID', type=int)
         howEntityByEntityID_parser.add_argument('--flags', type=int, required=False)
-
-        getVirtualEntityByRecordID_parser = self.subparsers.add_parser('getVirtualEntityByRecordID', usage=argparse.SUPPRESS)
-        getVirtualEntityByRecordID_parser.add_argument('recordList')
 
         getVirtualEntityByRecordID_parser = self.subparsers.add_parser('getVirtualEntityByRecordID', usage=argparse.SUPPRESS)
         getVirtualEntityByRecordID_parser.add_argument('--recordList')
@@ -1256,28 +1249,6 @@ class G2CmdShell(cmd.Cmd, object):
         try:
             response = bytearray()
             self.g2_module.searchByAttributes(args.jsonData, response, **kwargs)
-            if response:
-                print('{}'.format(response.decode()))
-            else:
-                print('\nNo response!\n')
-        except G2Exception as err:
-            print(err)
-
-    def do_getEntityByEntityID(self, arg):
-        '\nGet entity by resolved entity ID:  getEntityByEntityID <entityID> <flags>\n'
-
-        try:
-            args = self.parser.parse_args(['getEntityByEntityID'] + parse(arg))
-        except SystemExit:
-            print(self.do_getEntityByEntityID.__doc__)
-            return
-
-        kwargs = {}
-        if args.flags:
-            kwargs['flags'] = args.flags
-        try:
-            response = bytearray()
-            self.g2_module.getEntityByEntityID(args.entityID, response, **kwargs)
             if response:
                 print('{}'.format(response.decode()))
             else:

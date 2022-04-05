@@ -5,16 +5,15 @@ import textwrap
 from senzing import G2IniParams
 
 
-#======================
+# ======================
 class G2Health:
-#======================
 
-    #----------------------------------------
+    # ----------------------------------------
     def checkIniParams(self, iniFileName):
         ''' Checks the INI parameters. '''
 
         iniParamCreator = G2IniParams()
-        hasG2configfileParamValue = iniParamCreator.hasINIParam(iniFileName,'SQL','G2CONFIGFILE')
+        hasG2configfileParamValue = iniParamCreator.hasINIParam(iniFileName, 'SQL', 'G2CONFIGFILE')
 
         if hasG2configfileParamValue:
 

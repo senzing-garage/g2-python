@@ -14,11 +14,10 @@ from CompressedFile import (fileRowParser, isCompressedFile,
 from G2S3 import G2S3
 
 
-#======================
+# ======================
 class G2Project:
-#======================
 
-    #----------------------------------------
+    # ----------------------------------------
     def __init__(self, g2ConfigTables, dsrcAction, projectFileName=None, projectFileUri=None, tempFolderPath=None):
         """ open and validate a g2 generic configuration and project file """
 
@@ -48,11 +47,11 @@ class G2Project:
             self.loadProjectUri(projectFileUri)
         return
 
-    #-----------------------------
-    #--mapping functions
-    #-----------------------------
+    # -----------------------------
+    # --mapping functions
+    # -----------------------------
 
-    #----------------------------------------
+    # ----------------------------------------
     def lookupAttribute(self, attrName):
         ''' determine if a valid config attribute '''
         attrName = attrName.upper()
@@ -97,11 +96,11 @@ class G2Project:
 
         return attrMapping
 
-    #---------------------------------------
+    # ---------------------------------------
     def mapAttribute(self, attrName, attrValue):
         ''' places mapped column values into a feature structure '''
 
-        #--strip spaces and ensure a string
+        # --strip spaces and ensure a string
         if not str(attrValue).strip():
             return None
 
@@ -111,7 +110,7 @@ class G2Project:
 
         return attrMapping
 
-    #----------------------------------------
+    # ----------------------------------------
     def testJsonRecord(self, jsonDict, rowNum, sourceDict):
         mappingErrors = []
         mappedAttributeList = []
@@ -119,7 +118,7 @@ class G2Project:
         entityName = None
         self.recordCount += 1
 
-        #--parse the json
+        # --parse the json
         for columnName in jsonDict:
             if type(jsonDict[columnName]) == list:
                 childRowNum = -1
@@ -151,7 +150,7 @@ class G2Project:
             self.updateStatPack('ERROR', 'Invalid JSON structure', 'row: ' + str(rowNum))
         else:
 
-            #--create a feature key to group elements that go together
+            # --create a feature key to group elements that go together
             elementKeyVersions = {}
             for i in range(len(mappedAttributeList)):
                 if mappedAttributeList[i]['FTYPE_CODE']:
@@ -170,7 +169,7 @@ class G2Project:
                 else:
                     mappedAttributeList[i]['FEATURE_KEY'] = ""
 
-            #--validate and count the features
+            # --validate and count the features
             featureCount = 0
             mappedAttributeList = sorted(mappedAttributeList, key=itemgetter('FEATURE_KEY', 'ATTR_ID'))
             mappedAttributeListLength = len(mappedAttributeList)
@@ -206,19 +205,18 @@ class G2Project:
                         self.updateStatPack('MAPPED', f'{ftypeCode}|{usageType}|n/a', featureDesc.strip())
                         featureCount += 1
 
-                        #--update mapping stats
+                        # --update mapping stats
                         statCode = ftypeCode + ('-' + usageType if usageType else '')
                         if statCode in self.featureStats:
                             self.featureStats[statCode] += 1
                         else:
                             self.featureStats[statCode] = 1
 
-
-                        #--use first name encountered as the entity description
+                        # --use first name encountered as the entity description
                         if ftypeCode == 'NAME' and not entityName:
                             entityName = featureDesc
 
-                        #--capture feature stats for validation
+                        # --capture feature stats for validation
                         validationData = {'USAGE_TYPE': usageType, 'ATTR_LIST': attrList}
                         if ftypeCode not in mappedFeatures:
                             mappedFeatures[ftypeCode] = [validationData]
@@ -226,10 +224,10 @@ class G2Project:
                             mappedFeatures[ftypeCode].append(validationData)
 
                 else:
-                    #--this is an unmapped attribute
+                    # --this is an unmapped attribute
                     if mappedAttributeList[i]['ATTR_CLASS'] == 'OTHER':
 
-                        #--update mapping stats
+                        # --update mapping stats
                         statCode = mappedAttributeList[i]['ATTR_NAME']
                         if statCode in self.unmappedStats:
                             self.unmappedStats[statCode] += 1
@@ -247,29 +245,29 @@ class G2Project:
 
                     i += 1
 
-            #--errors and warnings
+            # --errors and warnings
             messageList = []
             if self.dsrcAction == 'A' and featureCount == 0:
                 messageList.append(['ERROR', 'No features mapped'])
 
-            #--required missing values
+            # --required missing values
             if 'DATA_SOURCE' not in jsonDict and 'DATA_SOURCE' not in sourceDict:
                 messageList.append(['ERROR', 'Data source missing'])
-            #--this next condition is confusing because if they specified data source for the file (sourceDict) it will be added automatically
-            #--so if the data source was not specified for the file its in the json record and needs to be validated
+            # --this next condition is confusing because if they specified data source for the file (sourceDict) it will be added automatically
+            # --so if the data source was not specified for the file its in the json record and needs to be validated
             elif 'DATA_SOURCE' not in sourceDict and jsonDict['DATA_SOURCE'].upper() not in self.dataSourceDict:
                 messageList.append(['ERROR', 'Invalid data source: ' + jsonDict['DATA_SOURCE'].upper()])
             if 'ENTITY_TYPE' in jsonDict and jsonDict['ENTITY_TYPE'].upper() not in self.entityTypeDict:
                 messageList.append(['ERROR', 'Invalid entity type: ' + jsonDict['ENTITY_TYPE'].upper()])
 
-            #--record_id
+            # --record_id
             if 'RECORD_ID' not in jsonDict:
                 messageList.append(['INFO', 'Record ID is missing'])
                 record_id = ''
             else:
                 record_id = jsonDict['RECORD_ID']
 
-            #--name warnings
+            # --name warnings
             if 'NAME' not in mappedFeatures:
                 messageList.append(['INFO', 'Missing Name'])
             else:
@@ -285,11 +283,11 @@ class G2Project:
                 if 'NAME_ORG' in crossAttrList and any(item in crossAttrList for item in ['NAME_FIRST', 'NAME_LAST']):
                     messageList.append(['WARNING', 'Organization and person names on same record'])
 
-            #--address warnings
+            # --address warnings
             if 'ADDRESS' in mappedFeatures:
                 for validationData in mappedFeatures['ADDRESS']:
                     if 'ADDR_FULL' in validationData['ATTR_LIST']:
-                        if any(item in validationData['ATTR_LIST'] for item in ['ADDR_LINE1', 'ADDR_CITY', 'ADDR_STATE', 'ADDR_POSTAL_CODE', 'ADDR_COUNTRY' ]):
+                        if any(item in validationData['ATTR_LIST'] for item in ['ADDR_LINE1', 'ADDR_CITY', 'ADDR_STATE', 'ADDR_POSTAL_CODE', 'ADDR_COUNTRY']):
                             messageList.append(['INFO', 'Full address should be mapped alone'])
                     else:
                         if 'ADDR_LINE1' not in validationData['ATTR_LIST']:
@@ -299,7 +297,7 @@ class G2Project:
                         if 'ADDR_POSTAL_CODE' not in validationData['ATTR_LIST']:
                             messageList.append(['INFO', 'Address postal code is missing'])
 
-            #--other warnings
+            # --other warnings
             if 'OTHER_ID' in mappedFeatures:
                 if len(mappedFeatures['OTHER_ID']) > 1:
                     messageList.append(['INFO', 'Multiple other_ids mapped'])
@@ -312,7 +310,7 @@ class G2Project:
 
         return [mappingErrors, mappedAttributeList, entityName]
 
-    #---------------------------------------
+    # ---------------------------------------
     def clearStatPack(self):
         ''' clear the statistics on demand '''
         self.recordCount = 0
@@ -322,7 +320,7 @@ class G2Project:
         self.unmappedStats = {}
         return
 
-    #----------------------------------------
+    # ----------------------------------------
     def updateStatPack(self, cat1, cat2, value=None):
 
         if cat1 not in self.statPack:
@@ -340,7 +338,7 @@ class G2Project:
 
         return
 
-    #---------------------------------------
+    # ---------------------------------------
     def getStatPack(self):
         statPack = {}
         fileWarnings = []
@@ -375,7 +373,7 @@ class G2Project:
                     itemDict['uniqueCount'] = len(self.statPack[cat1][cat2]['VALUES'])
                     itemDict['uniquePercent'] = itemDict['uniqueCount'] / itemDict['recordCount'] if itemDict['recordCount'] else 0
 
-                #--feature warnings (not statistically relevant on small amounts of data)
+                # --feature warnings (not statistically relevant on small amounts of data)
                 if cat1 == 'MAPPED' and itemDict['attrId'] == 0 and itemDict['recordCount'] >= 1000:
                     itemDict['frequency'] = self.featureDict[cat2parts[0]]['FTYPE_FREQ']
                     if itemDict['frequency'] == 'F1' and itemDict['uniquePercent'] < .8:
@@ -391,7 +389,7 @@ class G2Project:
                         msg = itemDict['feature'] + ' is only ' + str(round(itemDict['uniquePercent'] * 100, 0)) + '% unique'
                         fileWarnings.append({'type': 'WARNING', 'message': msg, 'recordCount': itemDict['uniqueCount'], 'recordPercent': itemDict['uniquePercent']})
 
-                #--reclass prevalent informational messages to warnings
+                # --reclass prevalent informational messages to warnings
                 elif cat1 == 'INFO' and itemDict['recordPercent'] >= .5:
                     reclass_warning = True
 
@@ -421,9 +419,9 @@ class G2Project:
 
         return statPack
 
-    #-----------------------------
-    #--project functions
-    #-----------------------------
+    # -----------------------------
+    # --project functions
+    # -----------------------------
 
     def loadProjectUri(self, fileSpec):
         ''' creates a project dictionary from a file spec '''
@@ -449,7 +447,7 @@ class G2Project:
             else:
                 fileSpec = file
 
-            #--try to determine file_format
+            # --try to determine file_format
             if 'FILE_FORMAT' not in parmDict:
                 if 'FILE_TYPE' in parmDict:
                     parmDict['FILE_FORMAT'] = parmDict['FILE_TYPE']
@@ -464,7 +462,7 @@ class G2Project:
                         except ValueError:
                             pass
 
-                    #If looks like a compressed file, strip off the first extension (.gz, .gzip, zip) to locate the real extension (.json, .csv)
+                    # If looks like a compressed file, strip off the first extension (.gz, .gzip, zip) to locate the real extension (.json, .csv)
                     if isCompressedFile(fileSpec):
                         remain_fileSpec, _ = os.path.splitext(fileSpec)
                         _, fileExtension = os.path.splitext(remain_fileSpec)
@@ -517,10 +515,10 @@ class G2Project:
 
         return
 
-    #----------------------------------------
+    # ----------------------------------------
     def loadProjectFile(self, projectFileName):
         ''' ensures the project file exists, is valid and kicks off correct processor - csv or json '''
-        #--hopefully its a valid project file
+        # --hopefully its a valid project file
         if os.path.exists(projectFileName):
 
             self.projectFileName = projectFileName
@@ -537,11 +535,11 @@ class G2Project:
                 self.success = False
                 return
 
-            #--load a json project file
+            # --load a json project file
             if self.projectFileFormat == 'JSON':
                 self.loadJsonProject()
 
-            #--its gotta be a csv dialect
+            # --its gotta be a csv dialect
             else:
                 self.loadCsvProject()
 
@@ -553,7 +551,7 @@ class G2Project:
 
         return
 
-    #----------------------------------------
+    # ----------------------------------------
     def loadJsonProject(self):
         ''' validates and loads a json project file into memory '''
         try:
@@ -581,7 +579,7 @@ class G2Project:
 
         return
 
-    #----------------------------------------
+    # ----------------------------------------
     def loadCsvProject(self):
 
         fileData = {
@@ -610,14 +608,14 @@ class G2Project:
         else:
             for line in csvFile:
                 rowData = fileRowParser(line, fileData)
-                if rowData: #--skip blank lines
+                if rowData:  # --skip blank lines
                     self.projectSourceList.append(rowData)
 
         csvFile.close()
 
         return
 
-    #----------------------------------------
+    # ----------------------------------------
     def prepareSourceFiles(self):
         ''' ensure project files referenced exist and are valid '''
 
@@ -628,11 +626,11 @@ class G2Project:
         for sourceDict in self.projectSourceList:
             sourceRow += 1
 
-            #--bypass if disabled
-            if 'ENABLED' in sourceDict and str(sourceDict['ENABLED']).upper() in ('0', 'N','NO'):
+            # --bypass if disabled
+            if 'ENABLED' in sourceDict and str(sourceDict['ENABLED']).upper() in ('0', 'N', 'NO'):
                 continue
 
-            #--validate source file
+            # --validate source file
             sourceDict['FILE_NAME'] = sourceDict['FILE_NAME'].strip()
             if len(sourceDict['FILE_NAME']) == 0:
                 print('ERROR: project file entry ' + str(sourceRow) + ' does not contain a FILE_NAME!')
@@ -651,7 +649,7 @@ class G2Project:
                 print('ERROR: project file entry ' + str(sourceRow) + ' does not contain a valid file format!')
                 self.success = False
 
-            #--csv stuff
+            # --csv stuff
             sourceDict['ENCODING'] = sourceDict['ENCODING'] if 'ENCODING' in sourceDict else 'utf-8-sig'
             sourceDict['DELIMITER'] = sourceDict['DELIMITER'] if 'DELIMITER' in sourceDict else None
 
@@ -669,7 +667,7 @@ class G2Project:
             sourceDict['MULTICHAR_DELIMITER'] = len(sourceDict['DELIMITER']) > 1
             sourceDict['QUOTECHAR'] = sourceDict['QUOTECHAR'] if 'QUOTECHAR' in sourceDict else None
 
-            #--csv mapping stuff
+            # --csv mapping stuff
             if 'MAPPING_FILE' in sourceDict:
                 if not os.path.exists(sourceDict['MAPPING_FILE']):
                     sourceDict['MAPPING_FILE'] = self.projectFilePath + os.path.sep + sourceDict['MAPPING_FILE']
@@ -678,7 +676,8 @@ class G2Project:
                         print('ERROR: Mapping file %s does not exist for project file entry %s' % (sourceDict['MAPPING_FILE'], str(sourceRow)))
                         self.success = False
                     else:
-                        try: mappingFileDict = json.load(open(sourceDict['MAPPING_FILE']))
+                        try:
+                            mappingFileDict = json.load(open(sourceDict['MAPPING_FILE']))
                         except ValueError as err:
                             print('ERROR: Invalid json in mapping file  %s' % (sourceDict['MAPPING_FILE']))
                             print(err)
@@ -688,17 +687,17 @@ class G2Project:
             else:
                 sourceDict['MAPPING_FILE'] = None
 
-            #--validate and map the files for this source
+            # --validate and map the files for this source
             if self.success:
                 if G2S3.isS3Uri(sourceDict['FILE_NAME']):
-                    #--an S3 path so download the file to the temp location
+                    # --an S3 path so download the file to the temp location
                     downloader = G2S3(sourceDict['FILE_NAME'], self.tempFolderPath)
                     downloader.downloadFile()
                     sourceDict['FILE_PATH'] = downloader.tempFilePath
                     sourceDict['FILE_NAME'] = downloader.fileName
                     sourceDict['FILE_SOURCE'] = "S3"
                 elif os.path.exists(sourceDict['FILE_NAME']):
-                    #--adjustment if they gave us full path as file name
+                    # --adjustment if they gave us full path as file name
                     sourceDict['FILE_PATH'] = sourceDict['FILE_NAME']
                     sourceDict['FILE_NAME'] = os.path.basename(sourceDict['FILE_PATH'])
                     sourceDict['FILE_SOURCE'] = 'local'
@@ -713,12 +712,12 @@ class G2Project:
                     self.success = False
                 else:
 
-                    #--test first 100 rows
+                    # --test first 100 rows
                     rowCnt = 0
                     badCnt = 0
                     fileReader = openPossiblyCompressedFile(sourceDict['FILE_PATH'], 'r', sourceDict['ENCODING'])
 
-                    #--get header row if csv
+                    # --get header row if csv
                     if sourceDict['FILE_FORMAT'] not in ('JSON', 'UMF'):
                         sourceDict['HEADER_ROW'] = [x.strip().upper() for x in fileRowParser(next(fileReader), sourceDict)]
 
@@ -747,7 +746,7 @@ class G2Project:
                             if errors:
                                 badCnt += 1
 
-                    #--fails if too many bad records (more than 10 of 100 or all bad)
+                    # --fails if too many bad records (more than 10 of 100 or all bad)
                     if badCnt >= 10 or badCnt == rowCnt:
                         print(f'\nERROR: Pre-test failed {badCnt} bad records in first {rowCnt}')
                         self.success = False
@@ -759,7 +758,7 @@ class G2Project:
 
         return
 
-    #----------------------------------------
+    # ----------------------------------------
     def dictKeysUpper(self, in_dict):
         if type(in_dict) is dict:
             out_dict = {}
@@ -771,11 +770,11 @@ class G2Project:
         else:
             return in_dict
 
-    #-----------------------------
-    #--report functions
-    #-----------------------------
+    # -----------------------------
+    # --report functions
+    # -----------------------------
 
-    def getTestResults(self, reportStyle = 'Full'):
+    def getTestResults(self, reportStyle='Full'):
         statPack = self.getStatPack()
         with io.StringIO() as buf, redirect_stdout(buf):
 

@@ -3,8 +3,8 @@ import os
 import sys
 
 # Search paths checked for INI file requested. Path can be for a local Senzing project
-# (created with G2CreateProject.py) or a 'system install' path - for example using an 
-# asset from Senzing Git Hub mounting the path from the host into a container. 
+# (created with G2CreateProject.py) or a 'system install' path - for example using an
+# asset from Senzing Git Hub mounting the path from the host into a container.
 
 search_paths = []
 
@@ -19,7 +19,7 @@ if 'SENZING_ETC_PATH' in os.environ:
 if 'SENZING_ROOT' in os.environ:
     search_paths.append(os.path.join(os.environ.get('SENZING_ROOT'), 'etc'))
 
-# Some utilities call G2Paths before starting engine etc. If we're not in a container and 
+# Some utilities call G2Paths before starting engine etc. If we're not in a container and
 # SENZING_ROOT isn't set catch here instead of in G2Engine.py for example
 if 'SENZING_ETC_PATH' not in os.environ and 'SENZING_ROOT' not in os.environ:
     print("\nERROR: Environment variable SENZING_ROOT is not set. Did you remember to setup your environment by sourcing the setupEnv file?")
@@ -46,7 +46,7 @@ def show_paths(paths):
     print()
 
 
-def check_file_exists_and_readable(filename):   
+def check_file_exists_and_readable(filename):
 
     if not os.path.exists(filename):
         print(f'\nERROR: {filename} not found\n')
@@ -65,7 +65,7 @@ def __get_file_path(filename):
 
     for path in search_paths:
         candidate_path = os.path.normpath(os.path.join(path, filename))
-        
+
         if os.path.exists(candidate_path):
             ini_file_locations.append(candidate_path)
 
@@ -74,11 +74,11 @@ def __get_file_path(filename):
         show_paths(search_paths)
 
         raise FileNotFoundError(f'[Errno {errno.ENOENT}] {os.strerror(errno.ENOENT)}: {filename} - {msg_args}')
-    
+
     if len(ini_file_locations) > 1:
         print(f'ERROR: {filename} {msg_multi_loc}: ')
         show_paths(ini_file_locations)
-        
+
         raise TooManyFilesException(f'{filename} {msg_multi_loc}. {msg_args}')
 
     return ini_file_locations[0]

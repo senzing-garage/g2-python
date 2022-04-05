@@ -7,9 +7,10 @@ import errno
 import shutil
 import json
 import pathlib
-try: import configparser
-except: import ConfigParser as configparser
-
+try:
+    import configparser
+except:
+    import ConfigParser as configparser
 
 senzing_path = '/opt/senzing/g2'
 jre_dir_name = 'jdk-11.0.10+9-jre'
@@ -49,6 +50,7 @@ folders_to_ignore = [
     pathlib.Path(os.path.join(senzing_path, 'lib', 'jdk-11.0.10+9-jre'))
 ]
 
+
 def find_replace_in_file(filename, old_string, new_string):
     # Safely read the input filename using 'with'
     with open(filename) as f:
@@ -59,8 +61,10 @@ def find_replace_in_file(filename, old_string, new_string):
         s = s.replace(old_string, new_string)
         f.write(s)
 
+
 def dirShouldBeSymlink(source_file_path):
     return source_file_path in symlinks
+
 
 def ignore_folder(dir_to_test):
     test_path = pathlib.Path(dir_to_test)
@@ -69,7 +73,8 @@ def ignore_folder(dir_to_test):
             return True
     return False
 
-def overlayFiles(sourcePath,destPath):
+
+def overlayFiles(sourcePath, destPath):
     files_and_folders = os.listdir(sourcePath)
     for the_file in files_and_folders:
         if os.path.basename(the_file) in files_to_exclude:
@@ -92,29 +97,31 @@ def overlayFiles(sourcePath,destPath):
                 shutil.copy(source_file_path, target_file_path)
             elif os.path.islink(source_file_path):
                 shutil.copy(source_file_path, target_file_path, follow_symlinks=False)
-            elif os.path.isdir(source_file_path): 
+            elif os.path.isdir(source_file_path):
 
-                if dirShouldBeSymlink(source_file_path) == True:
+                if dirShouldBeSymlink(source_file_path):
                     pass
                 else:
                     os.makedirs(target_file_path, exist_ok=True)
-                    overlayFiles(source_file_path,target_file_path)
+                    overlayFiles(source_file_path, target_file_path)
         except Exception as e:
             print(e)
+
 
 def change_permissions_recursive(path, mode):
     os.chmod(path, mode)
     for root, dirs, files in os.walk(path, topdown=False):
-        for dir in [os.path.join(root,d) for d in dirs]:
+        for dir in [os.path.join(root, d) for d in dirs]:
             if not os.path.islink(dir):
                 os.chmod(dir, mode)
         for file in [os.path.join(root, f) for f in files]:
             if not os.path.islink(file):
                 os.chmod(file, mode)
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Update an existing Senzing project with the installed version of Senzing.')
-    parser.add_argument('folder', metavar='Project',help='the path of the folder to update. It must already exist and be a Senzing project folder.')
+    parser.add_argument('folder', metavar='Project', help='the path of the folder to update. It must already exist and be a Senzing project folder.')
     parser.add_argument('-y', '--yes', action='store_true', help='Accept and skip the prompt to update the project')
     args = parser.parse_args()
 
@@ -136,12 +143,12 @@ if __name__ == '__main__':
     # Get current version info
     with open(os.path.join(target_path, 'g2BuildVersion.json')) as json_file:
         start_version_info = json.load(json_file)
-    
+
     # Get new version info
     with open(os.path.join(senzing_path, 'g2BuildVersion.json')) as json_file:
         end_version_info = json.load(json_file)
 
-    if args.yes == True:
+    if args.yes:
         print("Updating Senzing instance at '%s' from version %s to %s." % (target_path, start_version_info['VERSION'], end_version_info['VERSION']))
     else:
         answer = input("Update Senzing instance at '%s' from version %s to %s? (y/n) " % (target_path, start_version_info['VERSION'], end_version_info['VERSION']))
@@ -185,7 +192,7 @@ if __name__ == '__main__':
         shutil.rmtree(jre_to_remove)
 
     # Update most of the files from opt
-    overlayFiles(senzing_path,target_path)
+    overlayFiles(senzing_path, target_path)
 
     # copy over new JRE
     jre_source_path = os.path.join(senzing_path, 'lib', jre_dir_name)
@@ -226,11 +233,11 @@ if __name__ == '__main__':
     # fixups - any edits to existing files, like adding new INI tokens
     # 1) Add in RESOURCEPATH
     ini_content = None
-    g2_module_ini_path = os.path.join(target_path,'etc','G2Module.ini')
+    g2_module_ini_path = os.path.join(target_path, 'etc', 'G2Module.ini')
     with open(g2_module_ini_path, 'r') as configfile:
         ini_content = configfile.readlines()
-    
-    try:        
+
+    try:
         resource_path_exists = False
         for line in ini_content:
             if line.strip().startswith('RESOURCEPATH='):
@@ -239,7 +246,7 @@ if __name__ == '__main__':
 
         if not resource_path_exists:
             index = ini_content.index('[PIPELINE]\n')
-            ini_content.insert(index+1, ' RESOURCEPATH=' + os.path.join(target_path, 'resources') + '\n')
+            ini_content.insert(index + 1, ' RESOURCEPATH=' + os.path.join(target_path, 'resources') + '\n')
             with open(g2_module_ini_path, 'w') as configfile:
                 configfile.writelines(ini_content)
     except ValueError:

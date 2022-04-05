@@ -60,9 +60,9 @@ class Governor:
         """ Tasks to perform when shutting down, e.g., close DB connections """
         return
 
-#---------------------------------------------------------------------
+# ---------------------------------------------------------------------
 # G2Loader
-#---------------------------------------------------------------------
+# ---------------------------------------------------------------------
 
 
 def check_resources_and_startup(returnQueue, thread_count, doPurge):
@@ -1508,7 +1508,7 @@ if __name__ == '__main__':
     # Both -p and -f shouldn't be used together
     file_project_group = g2load_parser.add_mutually_exclusive_group()
     file_project_group.add_argument('-p', '--projectFile', dest='projectFileName', default=None, help='the name of a project CSV or JSON file')
-    file_project_group.add_argument('-f', '--fileSpec', dest='projectFileSpec', default=[], nargs='+', help='the name of a file and parameters to load such as /data/mydata.json/?data_source=?,file_format=?')    # Both -ns and -nsd shouldn't be used together
+    file_project_group.add_argument('-f', '--fileSpec', dest='projectFileSpec', default=[], nargs='+', help='the name of a file and parameters to load such as /data/mydata.json/?data_source=?,file_format=?')  # Both -ns and -nsd shouldn't be used together
 
     # Both -ns and -snd shouldn't be used together
     no_shuf_shuf_no_del = g2load_parser.add_mutually_exclusive_group()

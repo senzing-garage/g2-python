@@ -4,9 +4,12 @@ import io
 import json
 from datetime import datetime
 
+
 class G2UnsupportedFileTypeException(Exception):
+
     def __init__(self, *args, **kwargs):
         super().__init__(self, *args, **kwargs)
+
 
 def peekLine(file_):
 
@@ -43,16 +46,16 @@ def openPossiblyCompressedFile(filename_, options_, encoding_='utf-8-sig'):
     if suffix and suffix.lower() in ('.gz', '.gzip'):
         try:
             f = gzip.open(filename_, options_)
-            #read the first line to make sure we can read this gzip file
+            # read the first line to make sure we can read this gzip file
             peekLine(f)
             return io.TextIOWrapper(io.BufferedReader(f), encoding=encoding_, errors='ignore')
         except IOError:
-# handle regular ZIP (non gzip) files later
-#             if 'Not a gzipped file' in e.message:
-#                 return zipfile.ZipFile(filename_, mode=options_)
+            # handle regular ZIP (non gzip) files later
+            # if 'Not a gzipped file' in e.message:
+            #     return zipfile.ZipFile(filename_, mode=options_)
             raise
 
-    #not a compressed archive
+    # not a compressed archive
     return io.open(filename_, options_, encoding=encoding_)
 
 
@@ -103,7 +106,7 @@ def fileRowParser(line, fileData, rowNum=0, errors_file=None, errors_short=False
     # Its a CSV variant
     else:
 
-        #--handling for multi-character delimiters as csv module does not allow for it
+        # --handling for multi-character delimiters as csv module does not allow for it
         try:
             if fileData['MULTICHAR_DELIMITER']:
                 rowData = [removeQuoteChar(x.strip()) for x in line.split(fileData['DELIMITER'])]

@@ -16,6 +16,7 @@ from G2Health import G2Health
 
 from senzing import G2Engine, G2EngineFlags, G2IniParams, G2ModuleException
 
+
 def print_error_msg(msg, error1, error2='', exit=False):
     ''' Display error msg and optionally exit '''
 
@@ -416,7 +417,7 @@ if __name__ == '__main__':
         else:
             exportFlags = exportFlags | G2EngineFlags.G2_ENTITY_INCLUDE_ALL_RELATIONS
 
-        #if not extended:
+        # if not extended:
         #  exportFlags |= g2_engine.G2_ENTITY_MINIMAL_FORMAT
 
         # Initialize the export

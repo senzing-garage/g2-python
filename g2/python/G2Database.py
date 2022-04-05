@@ -56,17 +56,17 @@ class G2UnsupportedDatabaseType(G2DBException):
         super().__init__(self, *args, **kwargs)
 
 
-#======================
+# ======================
 class G2Database:
-#======================
 
-    #----------------------------------------
+    # ----------------------------------------
     def __init__(self, dbUri):
         """ open the database """
         self.success = False
 
         # --parse the uri
-        try: self.dburi_parse(dbUri)
+        try:
+            self.dburi_parse(dbUri)
         except G2UnsupportedDatabaseType as err:
             print(err)
             return
@@ -106,14 +106,14 @@ class G2Database:
         except Exception as err:
             # print(self)
             raise Exception(err)
-            #### print('ERROR: could not open database ' + self.dsn)
+            # print('ERROR: could not open database ' + self.dsn)
             # print(err)
             # print(type(err))
             # print()
             # return
         else:
             # --attempt to set the schema (if there is one)import
-            if self.schema != None and len(self.schema) != 0:
+            if self.schema is not None and len(self.schema) != 0:
                 if not self.SetSchema():
                     print(self)
                     print('ERROR: could not connect to schema')
@@ -128,7 +128,7 @@ class G2Database:
 
         return
 
-    #----------------------------------------
+    # ----------------------------------------
     def Connect(self):
 
         try:
@@ -146,11 +146,7 @@ class G2Database:
             elif self.dbType == 'POSTGRESQL':
                 conn_str = 'DSN=' + self.dsn + ';UID=' + self.userId + ';PWD=' + self.password + ';'
                 if self.has_pyscopg2:
-                    self.dbo = self.psycopg2.connect(host=self.host,
-                                                port=self.port,
-                                                dbname=self.dsn,
-                                                user=self.userId,
-                                                password=self.password)
+                    self.dbo = self.psycopg2.connect(host=self.host, port=self.port, dbname=self.dsn, user=self.userId, password=self.password)
 
                     # self.dbo.set_session(autocommit=False, isolation_level='READ UNCOMMITTED', readonly=True)
                     self.dbo.set_session(autocommit=True, isolation_level='READ UNCOMMITTED', readonly=True)
@@ -168,17 +164,17 @@ class G2Database:
 
         return
 
-    #----------------------------------------
+    # ----------------------------------------
     def __str__(self):
         ''' return the database we connected to '''
 
         return "\ndbType:" + str(self.dbType) + " dsn:" + str(self.dsn) + " port:" + str(self.port) + " userId:" + str(self.userId) + " password:" + str(self.password) + " schema:" + str(self.schema) + " table:" + str(self.table) + '\n'
 
-    #----------------------------------------
+    # ----------------------------------------
     # -- basic database functions
-    #----------------------------------------
+    # ----------------------------------------
 
-    #----------------------------------------
+    # ----------------------------------------
     def sqlExec(self, sql, parmList=None, **kwargs):
         ''' make a database call '''
         if parmList and type(parmList) not in (list, tuple):
@@ -216,7 +212,7 @@ class G2Database:
                     cursorData['COLUMN_HEADERS'] = [columnData[0].upper() for columnData in exec_cursor.description]
         return cursorData
 
-    #----------------------------------------
+    # ----------------------------------------
     def execMany(self, sql, parmList):
         ''' make a database call '''
 
@@ -225,19 +221,19 @@ class G2Database:
             cursor = self.dbo.cursor().executemany(sql, parmList)
         except Exception as err:
             raise self.TranslateException(err)
-        ####except self.sqlite3.DatabaseError as err:
-        ####    raise self.TranslateException(err)
+        # except self.sqlite3.DatabaseError as err:
+        #     raise self.TranslateException(err)
         else:
             execSuccess = True
         return execSuccess
 
-    #----------------------------------------
+    # ----------------------------------------
     def close(self):
         self.dbo.close()
 
         return
 
-    #----------------------------------------
+    # ----------------------------------------
     def fetchNext(self, cursorData):
         ''' fetch the next row from a cursor '''
         if 'COLUMN_HEADERS' in cursorData:
@@ -253,7 +249,7 @@ class G2Database:
 
         return rowData
 
-    #----------------------------------------
+    # ----------------------------------------
     def fetchRow(self, cursorData):
         ''' fetch the next row from a cursor '''
         if 'COLUMN_HEADERS' in cursorData:
@@ -264,12 +260,12 @@ class G2Database:
 
         return rowData
 
-    #----------------------------------------
+    # ----------------------------------------
     def fetchAllRows(self, cursorData):
         ''' fetch all the rows without column names '''
         return cursorData['OBJECT'].fetchall()
 
-    #----------------------------------------
+    # ----------------------------------------
     def fetchAllDicts(self, cursorData):
         ''' fetch all the rows with column names '''
         rowList = []
@@ -280,12 +276,12 @@ class G2Database:
 
         return rowList
 
-    #----------------------------------------
+    # ----------------------------------------
     def fetchManyRows(self, cursorData, rowCount):
         ''' fetch all the rows without column names '''
         return cursorData['OBJECT'].fetchmany(rowCount)
 
-    #----------------------------------------
+    # ----------------------------------------
     def fetchManyDicts(self, cursorData, rowCount):
         ''' fetch all the rows with column names '''
         rowList = []
@@ -296,7 +292,7 @@ class G2Database:
 
         return rowList
 
-    #---------------------------------------
+    # ---------------------------------------
     def truncateTable(self, tableName_):
         if self.dbType == 'SQLITE3':
             sql = 'DELETE FROM ' + tableName_
@@ -309,7 +305,7 @@ class G2Database:
 
         return cursor
 
-    #---------------------------------------
+    # ---------------------------------------
     def SetSchema(self):
         if self.dbType == 'SQLITE3':
             print('''WARNING: SQLITE3 doesn't support schema URI argument''')
@@ -329,9 +325,9 @@ class G2Database:
 
         return True
 
-    #--------------------
+    # --------------------
     # --utility functions
-    #--------------------
+    # --------------------
 
     def dburi_parse(self, dbUri):
         ''' Parse the database uri string '''
@@ -380,7 +376,7 @@ class G2Database:
             raise G2DBException(f'Failed to parse database URI, check the connection string(s) in your G2Module INI file.') from None
 
         if not uri_dict['DSN']:
-           raise G2DBException(f'Missing database DSN. \n{self.show_connection(uri_dict, False, False)}')
+            raise G2DBException(f'Missing database DSN. \n{self.show_connection(uri_dict, False, False)}')
 
         self.dbType = uri_dict['DBTYPE'] if 'DBTYPE' in uri_dict else None
         self.dsn = uri_dict['DSN'] if 'DSN' in uri_dict else None
@@ -396,7 +392,7 @@ class G2Database:
 
         return uri_dict
 
-    #----------------------------------------
+    # ----------------------------------------
     def pause(self, question=None):
         if not question:
             v_wait = input("PRESS ENTER TO CONTINUE ... ")
@@ -404,12 +400,12 @@ class G2Database:
             v_wait = input(question)
         return v_wait
 
-    #----------------------------------------
+    # ----------------------------------------
     def TranslateException(self, ex):
         '''Translate DB specific exception into a common exception'''
 
-        #### Python3 no longer supports message attribute, uses args
-        #### errMessage = ex.message #--default for all database types
+        # Python3 no longer supports message attribute, uses args
+        # errMessage = ex.message #--default for all database types
 
         if self.dbType == 'DB2':
             errMessage = ex.args[1]
@@ -421,12 +417,12 @@ class G2Database:
                 return G2DBUniqueConstraintViolation(errMessage)
 
         elif self.dbType == 'SQLITE3':
-            #### if type(ex) == self.sqlite3.OperationalError:
-            ####     if errMessage.startswith('no such table'):
-            ####         return G2TableNoExist(errMessage)
-            #### if type(ex) == self.sqlite3.IntegrityError:
-            ####     if 'not unique' in errMessage:
-            #### SQLITE3 only returns 1 arg
+            # if type(ex) == self.sqlite3.OperationalError:
+            #     if errMessage.startswith('no such table'):
+            #         return G2TableNoExist(errMessage)
+            # if type(ex) == self.sqlite3.IntegrityError:
+            #     if 'not unique' in errMessage:
+            # SQLITE3 only returns 1 arg
             errMessage = ex.args[0]
         elif self.dbType in ('MYSQL', 'POSTGRESQL'):
             errMessage = ex.args[1] if len(ex.args) > 1 else ex.args[0]
@@ -437,7 +433,7 @@ class G2Database:
         return G2DBException(errMessage)
 
 
-#----------------------------------------
+# ----------------------------------------
 if __name__ == "__main__":
 
     # --running in debug mode - no parameters

@@ -762,7 +762,7 @@ def processEntities():
 def get_entity_features(g2Engine, esb_data):
     try:
         response = bytearray()
-        retcode = g2Engine.getEntityByEntityID(esb_data[2], G2EngineFlags.G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES, response)
+        retcode = g2Engine.getEntityByEntityID(esb_data[2], response, G2EngineFlags.G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES)
         response = response.decode() if response else ''
     except G2Exception as err:
         return {}

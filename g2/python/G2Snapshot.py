@@ -538,11 +538,8 @@ def processEntities():
                     return
             print()
 
-    # if newStatPack and os.path.exists(csvFilePath):
-    #    print('\nThe %s file still exists.  Please either rename or remove it as well.\n' % csvFilePath)
-    #    with shutDown.get_lock():
-    #        shutDown.value = 1
-    #    return
+    if newStatPack and os.path.exists(csvFilePath):
+        os.remove(csvFilePath)
 
     if newStatPack:
         statPack = {}

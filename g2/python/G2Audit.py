@@ -215,23 +215,24 @@ def erCompare(fileName1, fileName2, outputRoot):
     statpack['SOURCE'] = 'G2Audit'
 
     statpack['ENTITY'] = {}
-    statpack['ENTITY']['STANDARD_COUNT'] = 0
-    statpack['ENTITY']['RESULT_COUNT'] = 0
+    statpack['ENTITY']['PRIOR_COUNT'] = 0
+    statpack['ENTITY']['NEWER_COUNT'] = 0
     statpack['ENTITY']['COMMON_COUNT'] = 0
 
     statpack['CLUSTERS'] = {}
-    statpack['CLUSTERS']['STANDARD_COUNT'] = 0
-    statpack['CLUSTERS']['RESULT_COUNT'] = 0
+    statpack['CLUSTERS']['PRIOR_COUNT'] = 0
+    statpack['CLUSTERS']['NEWER_COUNT'] = 0
     statpack['CLUSTERS']['COMMON_COUNT'] = 0
 
-    statpack['ACCURACY'] = {}
-    statpack['ACCURACY']['PRIOR_POSITIVE'] = 0
-    statpack['ACCURACY']['NEW_POSITIVE'] = 0
-    statpack['ACCURACY']['NEW_NEGATIVE'] = 0
+    statpack['RECORDS'] = {}
+    statpack['RECORDS']['PRIOR_POSITIVE'] = 0
+    statpack['RECORDS']['SAME_POSITIVE'] = 0
+    statpack['RECORDS']['NEW_POSITIVE'] = 0
+    statpack['RECORDS']['NEW_NEGATIVE'] = 0
 
     statpack['PAIRS'] = {}
-    statpack['PAIRS']['RESULT_COUNT'] = 0
-    statpack['PAIRS']['STANDARD_COUNT'] = 0
+    statpack['PAIRS']['NEWER_COUNT'] = 0
+    statpack['PAIRS']['PRIOR_COUNT'] = 0
     statpack['PAIRS']['COMMON_COUNT'] = 0
 
     statpack['SLICE'] = {}
@@ -259,7 +260,7 @@ def erCompare(fileName1, fileName2, outputRoot):
             print(' %s entities processed at %s, %s per second' % (entityCnt, now, eps))
 
         # --store the side2 cluster
-        statpack['ENTITY']['STANDARD_COUNT'] += 1
+        statpack['ENTITY']['PRIOR_COUNT'] += 1
         side2recordIDs = fileMap2['clusters'][side2clusterID]
         side2recordCnt = len(side2recordIDs)
         if debugOn:
@@ -305,9 +306,9 @@ def erCompare(fileName1, fileName2, outputRoot):
         # --count as prior positive and see if any new negatives
         newNegativeCnt = 0
         if side2recordCnt > 1:
-            statpack['CLUSTERS']['STANDARD_COUNT'] += 1
-            statpack['PAIRS']['STANDARD_COUNT'] += ((side2recordCnt * (side2recordCnt - 1)) / 2)
-            statpack['ACCURACY']['PRIOR_POSITIVE'] += side2recordCnt
+            statpack['CLUSTERS']['PRIOR_COUNT'] += 1
+            statpack['PAIRS']['PRIOR_COUNT'] += ((side2recordCnt * (side2recordCnt - 1)) / 2)
+            statpack['RECORDS']['PRIOR_POSITIVE'] += side2recordCnt
             if len(side1clusterIDs) > 1:  # --gonna be some new negatives here
 
                 # --give credit for largest side1cluster
@@ -365,6 +366,7 @@ def erCompare(fileName1, fileName2, outputRoot):
             statpack['ENTITY']['COMMON_COUNT'] += 1
             if side1recordCnt > 1:
                 statpack['CLUSTERS']['COMMON_COUNT'] += 1
+                statpack['RECORDS']['SAME_POSITIVE'] += side1recordCnt
             continue
 
         # --log it to the proper categories
@@ -482,9 +484,11 @@ def erCompare(fileName1, fileName2, outputRoot):
             csvRow.append(auditData['_side1clusterID_'])
             csvRow.append(auditData['_side1score_'] if '_side1score_' in auditData else '')
             if auditData['_auditStatus_'] == 'new negative':
-                statpack['ACCURACY']['NEW_NEGATIVE'] += 1
+                statpack['RECORDS']['NEW_NEGATIVE'] += 1
             elif auditData['_auditStatus_'] == 'new positive':
-                statpack['ACCURACY']['NEW_POSITIVE'] += 1
+                statpack['RECORDS']['NEW_POSITIVE'] += 1
+            elif auditData['_auditStatus_'] == 'same':
+                statpack['RECORDS']['SAME_POSITIVE'] += 1
             if auditData['_auditStatus_'] in ('new negative', 'new positive') and auditData['_side1score_']:
                 if auditData['_side1score_'] not in scoreCounts:
                     scoreCounts[auditData['_side1score_']] = 1
@@ -553,20 +557,20 @@ def erCompare(fileName1, fileName2, outputRoot):
 
     # --get cluster and pair counts for side1
     for side1clusterID in fileMap1['clusters']:
-        statpack['ENTITY']['RESULT_COUNT'] += 1
+        statpack['ENTITY']['NEWER_COUNT'] += 1
         side1recordCnt = len(fileMap1['clusters'][side1clusterID])
         if side1recordCnt == 1:
             continue
-        statpack['CLUSTERS']['RESULT_COUNT'] += 1
-        statpack['PAIRS']['RESULT_COUNT'] += ((side1recordCnt * (side1recordCnt - 1)) / 2)
+        statpack['CLUSTERS']['NEWER_COUNT'] += 1
+        statpack['PAIRS']['NEWER_COUNT'] += ((side1recordCnt * (side1recordCnt - 1)) / 2)
 
     # --entity precision and recall
     statpack['ENTITY']['PRECISION'] = 0
     statpack['ENTITY']['RECALL'] = 0
     statpack['ENTITY']['F1-SCORE'] = 0
-    if statpack['ENTITY']['RESULT_COUNT'] and statpack['ENTITY']['STANDARD_COUNT']:
-        statpack['ENTITY']['PRECISION'] = round((statpack['ENTITY']['COMMON_COUNT'] + .0) / (statpack['ENTITY']['RESULT_COUNT'] + .0), 5)
-        statpack['ENTITY']['RECALL'] = round(statpack['ENTITY']['COMMON_COUNT'] / (statpack['ENTITY']['STANDARD_COUNT'] + .0), 5)
+    if statpack['ENTITY']['NEWER_COUNT'] and statpack['ENTITY']['PRIOR_COUNT']:
+        statpack['ENTITY']['PRECISION'] = round((statpack['ENTITY']['COMMON_COUNT'] + .0) / (statpack['ENTITY']['NEWER_COUNT'] + .0), 5)
+        statpack['ENTITY']['RECALL'] = round(statpack['ENTITY']['COMMON_COUNT'] / (statpack['ENTITY']['PRIOR_COUNT'] + .0), 5)
         if (statpack['ENTITY']['PRECISION'] + statpack['ENTITY']['RECALL']) != 0:
             statpack['ENTITY']['F1-SCORE'] = round(2 * ((statpack['ENTITY']['PRECISION'] * statpack['ENTITY']['RECALL']) / (statpack['ENTITY']['PRECISION'] + statpack['ENTITY']['RECALL'] + .0)), 5)
 
@@ -574,46 +578,64 @@ def erCompare(fileName1, fileName2, outputRoot):
     statpack['CLUSTERS']['PRECISION'] = 0
     statpack['CLUSTERS']['RECALL'] = 0
     statpack['CLUSTERS']['F1-SCORE'] = 0
-    if statpack['CLUSTERS']['RESULT_COUNT'] and statpack['CLUSTERS']['STANDARD_COUNT']:
-        statpack['CLUSTERS']['PRECISION'] = round((statpack['CLUSTERS']['COMMON_COUNT'] + .0) / (statpack['CLUSTERS']['RESULT_COUNT'] + .0), 5)
-        statpack['CLUSTERS']['RECALL'] = round(statpack['CLUSTERS']['COMMON_COUNT'] / (statpack['CLUSTERS']['STANDARD_COUNT'] + .0), 5)
+    if statpack['CLUSTERS']['NEWER_COUNT'] and statpack['CLUSTERS']['PRIOR_COUNT']:
+        statpack['CLUSTERS']['PRECISION'] = round((statpack['CLUSTERS']['COMMON_COUNT'] + .0) / (statpack['CLUSTERS']['NEWER_COUNT'] + .0), 5)
+        statpack['CLUSTERS']['RECALL'] = round(statpack['CLUSTERS']['COMMON_COUNT'] / (statpack['CLUSTERS']['PRIOR_COUNT'] + .0), 5)
         if (statpack['CLUSTERS']['PRECISION'] + statpack['CLUSTERS']['RECALL']) != 0:
             statpack['CLUSTERS']['F1-SCORE'] = round(2 * ((statpack['CLUSTERS']['PRECISION'] * statpack['CLUSTERS']['RECALL']) / (statpack['CLUSTERS']['PRECISION'] + statpack['CLUSTERS']['RECALL'] + .0)), 5)
 
     # --pairs precision and recall
+    statpack['PAIRS']['SAME_POSITIVE'] = statpack['PAIRS']['COMMON_COUNT']
+    statpack['PAIRS']['NEW_POSITIVE'] = statpack['PAIRS']['NEWER_COUNT'] - statpack['PAIRS']['COMMON_COUNT'] if statpack['PAIRS']['NEWER_COUNT'] > statpack['PAIRS']['COMMON_COUNT'] else 0
+    statpack['PAIRS']['NEW_NEGATIVE'] = statpack['PAIRS']['PRIOR_COUNT'] - statpack['PAIRS']['COMMON_COUNT'] if statpack['PAIRS']['PRIOR_COUNT'] > statpack['PAIRS']['COMMON_COUNT'] else 0
+
     statpack['PAIRS']['PRECISION'] = 0
     statpack['PAIRS']['RECALL'] = 0
     statpack['PAIRS']['F1-SCORE'] = 0
-    if statpack['PAIRS']['RESULT_COUNT'] and statpack['PAIRS']['STANDARD_COUNT']:
-        statpack['PAIRS']['PRECISION'] = round(statpack['PAIRS']['COMMON_COUNT'] / (statpack['PAIRS']['RESULT_COUNT'] + .0), 5)
-        statpack['PAIRS']['RECALL'] = round(statpack['PAIRS']['COMMON_COUNT'] / (statpack['PAIRS']['STANDARD_COUNT'] + .0), 5)
+    if statpack['PAIRS']['NEWER_COUNT'] and statpack['PAIRS']['PRIOR_COUNT']:
+        statpack['PAIRS']['PRECISION'] = round(statpack['PAIRS']['SAME_POSITIVE'] / (statpack['PAIRS']['SAME_POSITIVE'] + statpack['PAIRS']['NEW_POSITIVE'] + .0), 5)
+        statpack['PAIRS']['RECALL'] = round(statpack['PAIRS']['SAME_POSITIVE'] / (statpack['PAIRS']['SAME_POSITIVE'] + statpack['PAIRS']['NEW_NEGATIVE'] + .0), 5)
         if (statpack['PAIRS']['PRECISION'] + statpack['PAIRS']['RECALL']) != 0:
             statpack['PAIRS']['F1-SCORE'] = round(2 * ((statpack['PAIRS']['PRECISION'] * statpack['PAIRS']['RECALL']) / (statpack['PAIRS']['PRECISION'] + statpack['PAIRS']['RECALL'] + .0)), 5)
 
-    # --accruacy precision and recall
-    statpack['ACCURACY']['PRECISION'] = 0
-    statpack['ACCURACY']['RECALL'] = 0
-    statpack['ACCURACY']['F1-SCORE'] = 0
-    if statpack['ACCURACY']['PRIOR_POSITIVE']:
-        statpack['ACCURACY']['PRECISION'] = round(statpack['ACCURACY']['PRIOR_POSITIVE'] / (statpack['ACCURACY']['PRIOR_POSITIVE'] + statpack['ACCURACY']['NEW_POSITIVE'] + .0), 5)
-        statpack['ACCURACY']['RECALL'] = round(statpack['ACCURACY']['PRIOR_POSITIVE'] / (statpack['ACCURACY']['PRIOR_POSITIVE'] + statpack['ACCURACY']['NEW_NEGATIVE'] + .0), 5)
-        if (statpack['ACCURACY']['PRECISION'] + statpack['ACCURACY']['RECALL']) != 0:
-            statpack['ACCURACY']['F1-SCORE'] = round(2 * ((statpack['ACCURACY']['PRECISION'] * statpack['ACCURACY']['RECALL']) / (statpack['ACCURACY']['PRECISION'] + statpack['ACCURACY']['RECALL'] + .0)), 5)
+    # --accuracy precision and recall
+    statpack['RECORDS']['PRECISION'] = 0
+    statpack['RECORDS']['RECALL'] = 0
+    statpack['RECORDS']['F1-SCORE'] = 0
+    if statpack['RECORDS']['PRIOR_POSITIVE']:
+        statpack['RECORDS']['PRECISION'] = round(statpack['RECORDS']['SAME_POSITIVE'] / (statpack['RECORDS']['SAME_POSITIVE'] + statpack['RECORDS']['NEW_POSITIVE'] + .0), 5)
+        statpack['RECORDS']['RECALL'] = round(statpack['RECORDS']['SAME_POSITIVE'] / (statpack['RECORDS']['SAME_POSITIVE'] + statpack['RECORDS']['NEW_NEGATIVE'] + .0), 5)
+        if (statpack['RECORDS']['PRECISION'] + statpack['RECORDS']['RECALL']) != 0:
+            statpack['RECORDS']['F1-SCORE'] = round(2 * ((statpack['RECORDS']['PRECISION'] * statpack['RECORDS']['RECALL']) / (statpack['RECORDS']['PRECISION'] + statpack['RECORDS']['RECALL'] + .0)), 5)
 
     # --dump the stats to screen and file
     with open(outputJsonFile, 'w') as outfile:
         json.dump(statpack, outfile)
 
+    # print ('')
+    # print ('%s prior positives ' % statpack['RECORDS']['PRIOR_POSITIVE'])
+    # print ('%s same positives ' % statpack['RECORDS']['SAME_POSITIVE'])
+
+    # print ('%s new positives ' % statpack['RECORDS']['NEW_POSITIVE'])
+    # print ('%s new negatives ' % statpack['RECORDS']['NEW_NEGATIVE'])
+    # print ('%s precision ' % statpack['RECORDS']['PRECISION'])
+    # print ('%s recall ' % statpack['RECORDS']['RECALL'])
+    # print ('%s f1-score ' % statpack['RECORDS']['F1-SCORE'])
     print ('')
-    print ('%s prior positives ' % statpack['ACCURACY']['PRIOR_POSITIVE'])
-    print ('%s new positives ' % statpack['ACCURACY']['NEW_POSITIVE'])
-    print ('%s new negatives ' % statpack['ACCURACY']['NEW_NEGATIVE'])
-    print ('%s precision ' % statpack['ACCURACY']['PRECISION'])
-    print ('%s recall ' % statpack['ACCURACY']['RECALL'])
-    print ('%s f1-score ' % statpack['ACCURACY']['F1-SCORE'])
+    print ('%s prior pairs ' % statpack['PAIRS']['PRIOR_COUNT'])
+    print ('%s newer pairs ' % statpack['PAIRS']['NEWER_COUNT'])
+    print ('%s common pairs ' % statpack['PAIRS']['COMMON_COUNT'])
     print ('')
-    print ('%s prior entities ' % statpack['ENTITY']['STANDARD_COUNT'])
-    print ('%s new entities ' % statpack['ENTITY']['RESULT_COUNT'])
+    print ('%s same positives ' % statpack['PAIRS']['SAME_POSITIVE'])
+    print ('%s new positives ' % statpack['PAIRS']['NEW_POSITIVE'])
+    print ('%s new negatives ' % statpack['PAIRS']['NEW_NEGATIVE'])
+    print ('%s precision ' % statpack['PAIRS']['PRECISION'])
+    print ('%s recall ' % statpack['PAIRS']['RECALL'])
+    print ('%s f1-score ' % statpack['PAIRS']['F1-SCORE'])
+    print ('')
+
+    print ('%s prior entities ' % statpack['ENTITY']['PRIOR_COUNT'])
+    print ('%s new entities ' % statpack['ENTITY']['NEWER_COUNT'])
     print ('%s common entities ' % statpack['ENTITY']['COMMON_COUNT'])
     print ('%s merged entities ' % (statpack['AUDIT']['MERGE']['COUNT'] if 'MERGE' in statpack['AUDIT'] else 0))
     print ('%s split entities ' % (statpack['AUDIT']['SPLIT']['COUNT'] if 'SPLIT' in statpack['AUDIT'] else 0))

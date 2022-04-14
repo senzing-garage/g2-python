@@ -12,13 +12,12 @@ import time
 from datetime import datetime
 
 import G2Paths
-from G2Health import G2Health
 
 from senzing import G2Engine, G2EngineFlags, G2IniParams, G2ModuleException
 
 
 def print_error_msg(msg, error1, error2='', exit=False):
-    ''' Display error msg and optionally exit '''
+    """ Display error msg and optionally exit """
 
     print(textwrap.dedent(f'''\
 
@@ -32,7 +31,7 @@ def print_error_msg(msg, error1, error2='', exit=False):
 
 
 def csv_fetch_next(handle, response, csv_header=None):
-    ''' Fetch next for CSV output '''
+    """ Fetch next for CSV output """
 
     try:
         g2_engine.fetchNext(handle, response)
@@ -54,7 +53,7 @@ def csv_fetch_next(handle, response, csv_header=None):
 
 
 def json_fetch_next(handle, response):
-    ''' Fetch next for JSON output '''
+    """ Fetch next for JSON output """
 
     try:
         g2_engine.fetchNext(handle, response)
@@ -65,7 +64,7 @@ def json_fetch_next(handle, response):
 
 
 def do_stats_output(total_entity_count, start_time, batch_row_count):
-    ''' Print stats if output frequency interval and not disabled with -1. Reset batch row count if triggered '''
+    """ Print stats if output frequency interval and not disabled with -1. Reset batch row count if triggered """
 
     if args.outputFrequency != -1 and total_entity_count % args.outputFrequency == 0:
         time_now = datetime.now().strftime("%I:%M:%S %p").lower()
@@ -80,7 +79,7 @@ def do_stats_output(total_entity_count, start_time, batch_row_count):
 
 
 def csvExport():
-    ''' Export data in CSV format '''
+    """ Export data in CSV format """
 
     fetched_rec_count = bad_count_outer = bad_count_inner = total_row_count = batch_row_count = entity_count = total_entity_count = 0
 
@@ -93,7 +92,7 @@ def csvExport():
         writer = csv.DictWriter(output_file_handle, fieldnames=csv_header, dialect=csv.excel, quoting=csv.QUOTE_ALL)
         writer.writeheader()
     except csv.Error as ex:
-        print_error_msg('Could not create CSV writer for output or write CSF header', ex, True)
+        print_error_msg('Could not create CSV writer for output or write CSF header', ex, exit=True)
 
     start_time = time.time()
 
@@ -157,7 +156,7 @@ def csvExport():
 
 
 def jsonExport():
-    ''' Export data in JSON format '''
+    """ Export data in JSON format """
 
     row_count = batch_row_count = 0
     start_time = time.time()
@@ -185,7 +184,7 @@ def jsonExport():
 
 @contextlib.contextmanager
 def open_file_stdout(file_name):
-    ''' Use with open context to open either a file od stdout '''
+    """ Use with open context to open either a file od stdout """
 
     if file_name != '-':
         h = gzip.open(file_name, 'wt', compresslevel=args.compressFile) if args.compressFile else open(file_name, 'w')
@@ -261,7 +260,7 @@ if __name__ == '__main__':
                                                                                                 When used with CSV output, JSON_DATA isn\'t included for the related entities
                                                                                                 (RELATED_ENTITY_ID) for each resolved entity (RESOLVED_ENTITY_ID). This reduces
                                                                                                 the size of a CSV export by preventing repeating data for related entities. JSON_DATA
-                                                                                                for the related entites is still included in the CSV export and is located in the
+                                                                                                for the related entities is still included in the CSV export and is located in the
                                                                                                 export record where the RELATED_ENTITY_ID = RESOLVED_ENTITY_ID.
 
                                                                                                 WARNING: This is not recommended! To include the JSON_DATA for every CSV record see the
@@ -270,7 +269,7 @@ if __name__ == '__main__':
                                                                                                 '''))
     g2export_parser.add_argument('-of', '--outputFrequency', default=1000, type=int, help=textwrap.dedent('''\
 
-                                                                                            Frequency of export output statisitcs.
+                                                                                            Frequency of export output statistics.
 
                                                                                             Default: %(default)s
 
@@ -386,11 +385,7 @@ if __name__ == '__main__':
         iniFileName = pathlib.Path(G2Paths.get_G2Module_ini_path()) if not args.iniFile else pathlib.Path(args.iniFile[0]).resolve()
         G2Paths.check_file_exists_and_readable(iniFileName)
 
-        # Warn if using out dated parms
-        g2health = G2Health()
-        g2health.checkIniParams(iniFileName)
-
-        # Get the INI paramaters to use
+        # Get the INI parameters to use
         iniParamCreator = G2IniParams()
         g2module_params = iniParamCreator.getJsonINIParams(iniFileName)
 
@@ -436,7 +431,7 @@ if __name__ == '__main__':
                     export_handle = g2_engine.exportCSVEntityReport(csvFields, exportFlags)
                 else:
                     # For JSON output amend the engine flags to obtain additional data
-                    # JSON output to match similar CSV ouput will include additional items, CSV unions flags & csvFields to determine output
+                    # JSON output to match similar CSV output will include additional items, CSV unions flags & csvFields to determine output
                     exportFlags = exportFlags | G2EngineFlags.G2_ENTITY_INCLUDE_RECORD_DATA | G2EngineFlags.G2_ENTITY_INCLUDE_RELATED_RECORD_DATA | G2EngineFlags.G2_ENTITY_INCLUDE_RECORD_MATCHING_INFO | G2EngineFlags.G2_ENTITY_INCLUDE_RELATED_MATCHING_INFO
                     if args.extended:
                         # Note: There is no flag for JSON export to get the related JSON_DATA details to fully mimic CSV output

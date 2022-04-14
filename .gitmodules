@@ -49,9 +49,6 @@
   path = g2updateproject
   url = https://github.com/Senzing/g2updateproject.git
   branch = issue-16.jae.1
-[submodule "g2health"]
-  path = g2health
-  url = https://github.com/Senzing/g2health.git
 [submodule "g2setupconfig"]
   path = g2setupconfig
   url = https://github.com/Senzing/g2setupconfig.git

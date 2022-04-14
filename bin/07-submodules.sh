@@ -19,7 +19,6 @@ SUBMODULES=(
     "g2exception;1.2.0;G2Exception.py"
     "g2explorer;1.8.0;G2Explorer.py"
     "g2export;1.13.0;G2Export.py"
-    "g2health;1.1.0;G2Health.py"
     "g2hasher;1.5.0;G2Hasher.py"
     "g2iniparams;1.1.0;G2IniParams.py"
     "g2loader;1.19.0;G2Loader.py"

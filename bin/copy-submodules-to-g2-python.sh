@@ -20,7 +20,6 @@ SUBMODULES=(
     "g2database;G2Database.py"
     "g2explorer;G2Explorer.py"
     "g2export;G2Export.py"
-    "g2health;G2Health.py"
     "g2loader;G2Loader.py"
     "g2paths;G2Paths.py"
     "g2project;G2Project.py"

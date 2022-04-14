@@ -15,7 +15,6 @@ from contextlib import suppress
 from timeit import default_timer as timer
 
 import G2Paths
-from G2Health import G2Health
 
 from senzing import G2Config, G2ConfigMgr, G2Diagnostic, G2Engine, G2Exception, G2Hasher, G2IniParams, G2ModuleGenericException, G2Product
 
@@ -462,7 +461,7 @@ class G2CmdShell(cmd.Cmd, object):
                             printWithNewLines(f'       {ex}', 'E')
 
     def get_names(self):
-        ''' Hide do_shell from list of APIs. Seperate help section for it  '''
+        ''' Hide do_shell from list of APIs. Separate help section for it  '''
 
         return [n for n in dir(self.__class__) if n not in self.__hidden_methods]
 
@@ -529,7 +528,7 @@ class G2CmdShell(cmd.Cmd, object):
         printWithNewLines(textwrap.dedent('''\
             - restartDebug - Restart G2Command and enable engine debug
 
-            - restart - Restart G2Command, if restartDebug has previouisly been issued, disable engine debug
+            - restart - Restart G2Command, if restartDebug has previously been issued, disable engine debug
             '''), 'S')
 
     def do_shell(self, line):
@@ -2310,7 +2309,7 @@ class G2CmdShell(cmd.Cmd, object):
             print(err)
 
     def do_getAvailableMemory(self, arg):
-        '\nGet the available memrory:  getAvailableMemory\n'
+        '\nGet the available memory:  getAvailableMemory\n'
 
         try:
             args = self.parser.parse_args(['noArgument'] + parse(arg))
@@ -2438,11 +2437,7 @@ if __name__ == '__main__':
     ini_file_name = pathlib.Path(G2Paths.get_G2Module_ini_path()) if not args.iniFile else pathlib.Path(args.iniFile[0]).resolve()
     G2Paths.check_file_exists_and_readable(ini_file_name)
 
-    # Warn if using out dated parms
-    g2health = G2Health()
-    g2health.checkIniParams(ini_file_name)
-
-    # Get the INI paramaters to use
+    # Get the INI parameters to use
     iniParamCreator = G2IniParams()
     g2module_params = iniParamCreator.getJsonINIParams(ini_file_name)
 

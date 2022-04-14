@@ -25,7 +25,6 @@ import G2Paths
 from CompressedFile import (fileRowParser, isCompressedFile,
                             openPossiblyCompressedFile)
 from G2ConfigTables import G2ConfigTables
-from G2Health import G2Health
 from G2Project import G2Project
 
 from senzing import G2Config, G2ConfigMgr, G2Diagnostic, G2Engine, G2Exception, G2IniParams, G2Product, G2ModuleException, G2ModuleLicenseException
@@ -779,7 +778,7 @@ def startLoaderProcessAndThreads(transportThreadCount):
 
         while (numThreadsLeft > 0):
             threadId += 1
-            threadList.append(Process(target=sendToG2, args=(threadId, workQueue, min(args.max_threads_per_process, numThreadsLeft), args.debugTrace, threadStop, workloadStats, dsrcAction)))
+            threadList.append(Process(target=sendToG2, args=(threadId, workQueue, min(args.max_threads_per_process, numThreadsLeft), args.debugTrace, threadStop, args.noWorkloadStats, dsrcAction)))
             numThreadsLeft -= args.max_threads_per_process
 
         for thread in threadList:
@@ -788,10 +787,7 @@ def startLoaderProcessAndThreads(transportThreadCount):
     return threadList, workQueue
 
 
-def sendToG2(threadId_, workQueue_, numThreads_, debugTrace, threadStop, workloadStats, dsrcAction):
-
-    global num_processed
-    num_processed = 0
+def sendToG2(threadId_, workQueue_, numThreads_, debugTrace, threadStop, noWorkloadStats, dsrcAction):
 
     try:
         g2_engine = init_engine('pyG2Engine' + str(threadId_), g2module_params, debugTrace, prime_engine=True, add_start_time=True)
@@ -809,7 +805,7 @@ def sendToG2(threadId_, workQueue_, numThreads_, debugTrace, threadStop, workloa
             threadList = []
 
             for myid in range(numThreads_):
-                threadList.append(threading.Thread(target=g2Thread, args=(str(threadId_) + "-" + str(myid), workQueue_, g2_engine, threadStop, workloadStats, dsrcAction)))
+                threadList.append(threading.Thread(target=g2Thread, args=(str(threadId_) + "-" + str(myid), workQueue_, g2_engine, threadStop, noWorkloadStats, dsrcAction)))
 
             for thread in threadList:
                 thread.start()
@@ -817,14 +813,14 @@ def sendToG2(threadId_, workQueue_, numThreads_, debugTrace, threadStop, workloa
             for thread in threadList:
                 thread.join()
         else:
-            g2Thread(str(threadId_), workQueue_, g2_engine, threadStop, workloadStats, dsrcAction)
+            g2Thread(str(threadId_), workQueue_, g2_engine, threadStop, noWorkloadStats, dsrcAction)
 
     except Exception:
         with threadStop.get_lock():
             threadStop.value = 1
         pass
 
-    if workloadStats and num_processed > 0:
+    if not noWorkloadStats and records_processed.value > 0:
         dump_workload_stats(g2_engine)
 
     with suppress(Exception):
@@ -834,10 +830,8 @@ def sendToG2(threadId_, workQueue_, numThreads_, debugTrace, threadStop, workloa
     return
 
 
-def g2Thread(threadId_, workQueue_, g2Engine_, threadStop, workloadStats, dsrcActionArgs):
+def g2Thread(threadId_, workQueue_, g2Engine_, threadStop, noWorkloadStats, dsrcActionArgs):
     """ g2 thread function """
-
-    global num_processed
 
     def parse_json(row):
         """ Parse record id and data source from a JSON record """
@@ -897,6 +891,7 @@ def g2Thread(threadId_, workQueue_, g2Engine_, threadStop, workloadStats, dsrcAc
         # Is the record from the work queue specifically a redo record to be processed during redo time/mode?
         if is_redo_record:
             dsrcAction = 'X'
+
         # If not, it's a normal ingestion record from file or project
         else:
             # If -D and -X were not specified, check each record for dsrc_action and use it instead of default add mode
@@ -928,6 +923,13 @@ def g2Thread(threadId_, workQueue_, g2Engine_, threadStop, workloadStats, dsrcAc
                     if dsrcAction == 'X':
                         with dsrc_action_reeval_count.get_lock():
                             dsrc_action_reeval_count.value += 1
+
+        if not noWorkloadStats:
+            with records_processed.get_lock():
+                records_processed.value += 1
+
+            if (records_processed.value % (args.max_threads_per_process * args.loadOutputFrequency)) == 0:
+                dump_workload_stats(g2Engine_)
 
         try:
 
@@ -1225,35 +1227,25 @@ def getInitialG2Config_processWrapper(returnQueue, g2module_params, g2ConfigJson
 
 def getInitialG2Config(g2module_params, g2ConfigJson):
 
-    # Get the configuration from the ini parms, this is deprecated and G2Health reports this
-    if has_g2configfile:
-        g2ConfigJson[::] = b''
-        try:
-            g2ConfigJson += json.dumps(json.load(open(has_g2configfile), encoding="utf-8")).encode()
-        except ValueError as err:
-            print(f'ERROR: {has_g2configfile} appears broken!')
-            print(f'        {err}')
-            return False
-    else:
-        # Get the current configuration from the database
-        g2ConfigMgr = G2ConfigMgr()
-        g2ConfigMgr.init('g2ConfigMgr', g2module_params, False)
-        defaultConfigID = bytearray()
-        g2ConfigMgr.getDefaultConfigID(defaultConfigID)
+    # Get the current configuration from the database
+    g2ConfigMgr = G2ConfigMgr()
+    g2ConfigMgr.init('g2ConfigMgr', g2module_params, False)
+    defaultConfigID = bytearray()
+    g2ConfigMgr.getDefaultConfigID(defaultConfigID)
 
-        if len(defaultConfigID) == 0:
-            print('ERROR: No default config stored in database. (see https://senzing.zendesk.com/hc/en-us/articles/360036587313)')
-            return False
-        defaultConfigDoc = bytearray()
-        g2ConfigMgr.getConfig(defaultConfigID, defaultConfigDoc)
+    if len(defaultConfigID) == 0:
+        print('ERROR: No default config stored in database. (see https://senzing.zendesk.com/hc/en-us/articles/360036587313)')
+        return False
+    defaultConfigDoc = bytearray()
+    g2ConfigMgr.getConfig(defaultConfigID, defaultConfigDoc)
 
-        if len(defaultConfigDoc) == 0:
-            print('ERROR: No default config stored in database. (see https://senzing.zendesk.com/hc/en-us/articles/360036587313)')
-            return False
-        g2ConfigJson[::] = b''
-        g2ConfigJson += defaultConfigDoc
-        g2ConfigMgr.destroy()
-        del g2ConfigMgr
+    if len(defaultConfigDoc) == 0:
+        print('ERROR: No default config stored in database. (see https://senzing.zendesk.com/hc/en-us/articles/360036587313)')
+        return False
+    g2ConfigJson[::] = b''
+    g2ConfigJson += defaultConfigDoc
+    g2ConfigMgr.destroy()
+    del g2ConfigMgr
 
     return True
 
@@ -1290,25 +1282,23 @@ def enhanceG2Config(g2Project, g2module_params, g2ConfigJson, configuredDatasour
 
     # Add a new config, if we made changes
     if g2NewConfigRequired is True:
-        if has_g2configfile:
-            with open(has_g2configfile, 'w') as fp:
-                json.dump(json.loads(g2ConfigJson), fp, indent=4, sort_keys=True)
-        else:
-            g2ConfigMgr = G2ConfigMgr()
-            g2ConfigMgr.init("g2ConfigMgr", g2module_params, False)
-            new_config_id = bytearray()
-            try:
-                g2ConfigMgr.addConfig(g2ConfigJson.decode(), 'Updated From G2Loader', new_config_id)
-            except G2Exception as err:
-                print("Error:  Failed to add new config to the datastore")
-                return False
-            try:
-                g2ConfigMgr.setDefaultConfigID(new_config_id)
-            except G2Exception as err:
-                print("Error:  Failed to set new config as default")
-                return False
-            g2ConfigMgr.destroy()
-            del g2ConfigMgr
+        g2ConfigMgr = G2ConfigMgr()
+        g2ConfigMgr.init("g2ConfigMgr", g2module_params, False)
+        new_config_id = bytearray()
+
+        try:
+            g2ConfigMgr.addConfig(g2ConfigJson.decode(), 'Updated From G2Loader', new_config_id)
+        except G2Exception as err:
+            print("Error:  Failed to add new config to the datastore")
+            return False
+
+        try:
+            g2ConfigMgr.setDefaultConfigID(new_config_id)
+        except G2Exception as err:
+            print("Error:  Failed to set new config as default")
+            return False
+        g2ConfigMgr.destroy()
+        del g2ConfigMgr
 
     g2Config.destroy()
     del g2Config
@@ -1442,6 +1432,7 @@ if __name__ == '__main__':
     time_redo = Value('d', 0)
     api_errors = Value('i', 0)
     dsrc_action_diff = Value('i', 0)
+    records_processed = Value('i', 0)
 
     # Human friendly names
     dsrc_action_names = {"A": "Add",
@@ -1481,8 +1472,7 @@ if __name__ == '__main__':
     g2load_parser.add_argument('-T', '--testMode', action='store_true', default=False, help='run in test mode to collect stats without loading, CTRL-C anytime')
     g2load_parser.add_argument('-X', '--reprocess', dest='reprocessMode', action='store_true', default=False, help='force reprocessing of previously loaded file')
     g2load_parser.add_argument('-t', '--debugTrace', action='store_true', default=False, help='output debug trace information')
-    g2load_parser.add_argument('-w', '--workloadStats', action='store_false', default=False, help='DEPRECATED workload statistics on by default, -nw to disable')
-    g2load_parser.add_argument('-nw', '--noWorkloadStats', action='store_false', default=True, help='disable workload statistics information')
+    g2load_parser.add_argument('-nw', '--noWorkloadStats', action='store_true', help='disable workload statistics information')
     g2load_parser.add_argument('-n', '--noRedo', action='store_true', default=False, help='disable redo processing')
     g2load_parser.add_argument('-i', '--redoModeInterval', type=int, default=60, help='time in secs to wait between redo processing checks, only used in redo mode')
     g2load_parser.add_argument('-k', '--knownDatasourcesOnly', dest='configuredDatasourcesOnly', action='store_true', default=False, help='only accepts configured and known data sources')
@@ -1514,7 +1504,6 @@ if __name__ == '__main__':
     no_shuf_shuf_no_del = g2load_parser.add_mutually_exclusive_group()
     no_shuf_shuf_no_del.add_argument('-ns', '--noShuffle', action='store_true', default=False, help='don\'t shuffle input file(s), shuffling improves performance')
     no_shuf_shuf_no_del.add_argument('-snd', '--shuffleNoDelete', action='store_true', default=False, help=f'don\'t delete shuffled source file(s) after G2Loader shuffles them. Adds {SHUF_NO_DEL_TAG} and timestamp to the shuffled file')
-    no_shuf_shuf_no_del.add_argument('-nsd', '--noShuffleDelete', action='store_true', default=False, help='DEPRECATED please use --shuffleNoDelete (-snd)')
 
     # Both -R and -sr shouldn't be used together
     stop_row_redo_node = g2load_parser.add_mutually_exclusive_group()
@@ -1639,27 +1628,13 @@ if __name__ == '__main__':
     else:
         errors_file = ''
 
-    # Check G2Project.ini isn't being used, now deprecated.
-    # Don't try and auto find G2Module.ini, safer to ask to be specified during this change!
-    if args.iniFile and 'G2PROJECT.INI' in args.iniFile[0].upper():
-        print('\nINFO: G2Loader no longer uses G2Project.ini, it is deprecated and uses G2Module.ini instead.')
-        print('      G2Loader attempts to locate a default G2Module.ini (no -c) or use -c to specify path/name to your G2Module.ini')
-        sys.exit(1)
-
     # If ini file isn't specified try and locate it with G2Paths
     iniFileName = pathlib.Path(G2Paths.get_G2Module_ini_path()) if not args.iniFile else pathlib.Path(args.iniFile[0]).resolve()
     G2Paths.check_file_exists_and_readable(iniFileName)
 
-    # Warn if using out dated parms
-    g2health = G2Health()
-    g2health.checkIniParams(iniFileName)
-
     # Get the INI parameters to use
     iniParamCreator = G2IniParams()
     g2module_params = iniParamCreator.getJsonINIParams(iniFileName)
-
-    # Deprecated but still supported at this time, is G2CONFIGFILE being used?
-    has_g2configfile = json.loads(g2module_params)['SQL'].get('G2CONFIGFILE', None)
 
     # Check what DB Type - new API requested for engine to return instead of parsing here when added to engine
     conn_str = json.loads(g2module_params)['SQL'].get('CONNECTION', None)
@@ -1680,7 +1655,7 @@ if __name__ == '__main__':
         ''')) == "YESPURGE":
             sys.exit(0)
 
-    # test mode settings
+    # Test mode settings
     if args.testMode:
         defaultThreadCount = 1
         args.loadOutputFrequency = 10000 if args.loadOutputFrequency == 1000 else args.loadOutputFrequency
@@ -1699,19 +1674,6 @@ if __name__ == '__main__':
         # Exit if checkResourcesProcess failed to start an engine
         if defaultThreadCount == -1:
             sys.exit(1)
-
-    # -w has been deprecated and the default is now output workload stats, noWorkloadStats is checked in place of
-    # workloadStats. -w will be removed in future updates.
-    workloadStats = args.noWorkloadStats
-
-    # -nsd is deprecated, warn and convert until removed
-    if args.noShuffleDelete:
-        print(textwrap.dedent('''
-            WARNING: --noShuffleDelete (-nsd) has been replaced with --shuffleNoDelete (-snd) and will be removed in the future.
-                     Converting --noShuffleDelete to --shuffleNoDelete for this run, please modify scripts etc to use --shuffleNoDelete.
-        '''))
-        args.shuffleNoDelete = True
-        time.sleep(5)
 
     # Setup the governor(s)
     governor_setup()

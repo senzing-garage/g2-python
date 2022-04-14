@@ -20,7 +20,6 @@ from shutil import copyfile
 import G2Paths
 
 try:
-    from G2Health import G2Health
     from senzing import G2Config, G2ConfigMgr, G2Exception, G2IniParams, G2ModuleGenericException
 except Exception:
     pass
@@ -44,7 +43,7 @@ class G2CmdShell(cmd.Cmd, object):
         dotext = 'do_' + text
         return [a[3:] for a in self.get_names() if a.lower().startswith(dotext.lower())]
 
-    def __init__(self, g2_cfg_file, hist_disable, force_mode, file_to_process, ini_file):
+    def __init__(self, g2module_params, hist_disable, force_mode, file_to_process):
         cmd.Cmd.__init__(self)
 
         # Cmd Module settings
@@ -69,8 +68,7 @@ class G2CmdShell(cmd.Cmd, object):
         # Config variables and setup
         self.g2ConfigFileUsed = False
         self.configUpdated = False
-        self.g2configFile = g2_cfg_file
-        self.ini_file_name = ini_file
+        self.g2_module_params = g2module_params
 
         # Processing input file
         self.forceMode = force_mode
@@ -97,57 +95,42 @@ class G2CmdShell(cmd.Cmd, object):
         getConfig_parser.add_argument('configID', type=int)
 
     def getConfig(self):
-        ''' Get configutation from database or set default one if not found '''
+        ''' Get configuration from database or set default one if not found '''
 
-        # Older Senzing versions can use G2CONFIGFILE in G2Module.ini - deprecated
-        if self.g2configFile:
+        # Get the current configuration from the Senzing database
+        defaultConfigID = bytearray()
+        self.g2_configmgr.getDefaultConfigID(defaultConfigID)
 
-            # Get the current configuration from a config file.
-            self.g2ConfigFileUsed = True
+        # If a default config isn't found, create a new default configuration
+        if not defaultConfigID:
 
+            print('\nWARNING: No default config stored in the database, see: https://senzing.zendesk.com/hc/en-us/articles/360036587313')
+            print('\nINFO: Adding a new default configuration to the database...')
+
+            config_handle = self.g2_config.create()
+
+            config_default = bytearray()
+            self.g2_config.save(config_handle, config_default)
+            config_string = config_default.decode()
+
+            # Persist new default config to Senzing Repository
             try:
-                self.cfgData = json.load(open(self.g2configFile), encoding="utf-8")
-            except ValueError as e:
-                print(f'\nERROR: {self.g2configFile} doesn\'t appear to be valid JSON!')
-                print(f'       {e}\n')
-                sys.exit(1)
+                addconfig_id = bytearray()
+                self.g2ConfigMgr.addConfig(config_string, 'New default configuration added by G2ConfigTool.', addconfig_id)
+                self.g2ConfigMgr.setDefaultConfigID(addconfig_id)
+            except G2ModuleGenericException:
+                raise
 
+            self.destroyEngines()
+            sys.exit(1)
         else:
+            config_current = bytearray()
+            self.g2_configmgr.getConfig(defaultConfigID, config_current)
+            config_string = config_current.decode()
 
-            # Get the current configuration from the Senzing database
-            defaultConfigID = bytearray()
-            self.g2_configmgr.getDefaultConfigID(defaultConfigID)
+        self.cfgData = json.loads(config_string)
 
-            # If a default config isn't found, create a new default configuration
-            if not defaultConfigID:
-
-                print('\nWARNING: No default config stored in the database, see: https://senzing.zendesk.com/hc/en-us/articles/360036587313')
-                print('\nINFO: Adding a new default configuration to the database...')
-
-                config_handle = self.g2_config.create()
-
-                config_default = bytearray()
-                self.g2_config.save(config_handle, config_default)
-                config_string = config_default.decode()
-
-                # Persist new default config to Senzing Repository
-                try:
-                    addconfig_id = bytearray()
-                    self.g2ConfigMgr.addConfig(config_string, 'New default configuration added by G2ConfigTool.', addconfig_id)
-                    self.g2ConfigMgr.setDefaultConfigID(addconfig_id)
-                except G2ModuleGenericException:
-                    raise
-
-                self.destroyEngines()
-                sys.exit(1)
-            else:
-                config_current = bytearray()
-                self.g2_configmgr.getConfig(defaultConfigID, config_current)
-                config_string = config_current.decode()
-
-            self.cfgData = json.loads(config_string)
-
-            self.configUpdated = False
+        self.configUpdated = False
 
     def do_quit(self, arg):
 
@@ -200,8 +183,8 @@ class G2CmdShell(cmd.Cmd, object):
             printWithNewLines('Initializing Senzing engines...', 'B')
 
         try:
-            self.g2_configmgr.init('pyG2ConfigMgr', g2module_params, False)
-            self.g2_config.init('pyG2Config', g2module_params, False)
+            self.g2_configmgr.init('pyG2ConfigMgr', self.g2_module_params, False)
+            self.g2_config.init('pyG2Config', self.g2_module_params, False)
         except G2Exception as ex:
             printWithNewLines(f'ERROR: {ex}', 'B')
             # Clean up before exiting
@@ -238,7 +221,7 @@ class G2CmdShell(cmd.Cmd, object):
             self.prettyPrint = True
             printWithNewLines('JSON pretty print is now on', 'B')
 
-    # Hide functions from available list of Commands. Seperate help sections for some
+    # Hide functions from available list of Commands. Separate help sections for some
     def get_names(self):
         return [n for n in dir(self.__class__) if n not in self.__hidden_methods]
 
@@ -424,7 +407,6 @@ class G2CmdShell(cmd.Cmd, object):
                     if not self.forceMode:
                         if input('\nPress enter to continue or (Q)uit... ') in ['q', 'Q']:
                             break
-                            print()
 
         if not save_detected and self.configUpdated:
             if not self.forceMode:
@@ -582,7 +564,7 @@ class G2CmdShell(cmd.Cmd, object):
                     self.initEngines(init_msg=(True if self.isInteractive else False))
                     self.configUpdated = False
 
-# ===== Autocompleters =====
+# ===== Auto completers =====
 
     def complete_exportToFile(self, text, line, begidx, endidx):
         if re.match("exportToFile +", line):
@@ -606,7 +588,7 @@ class G2CmdShell(cmd.Cmd, object):
 
         return completes
 
-    # Auto completers for approproate commands
+    # Auto completers for appropriate commands
     def complete_getAttribute(self, text, line, begidx, endidx):
         return self.codes_completes('CFG_ATTR', 'ATTR_CODE', text)
 
@@ -1178,7 +1160,7 @@ class G2CmdShell(cmd.Cmd, object):
             # --check to see if the element is already in the feature
             for i in range(len(self.cfgData['G2_CONFIG']['CFG_CFBOM']) - 1, -1, -1):
                 if self.cfgData['G2_CONFIG']['CFG_CFBOM'][i]['CFCALL_ID'] == cfcallID and self.cfgData['G2_CONFIG']['CFG_CFBOM'][i]['FELEM_ID'] == felemID:
-                    printWithNewLines('Comparison function for feature %s aleady contains element %s!' % (parmData['FEATURE'], parmData['ELEMENT']), 'B')
+                    printWithNewLines('Comparison function for feature %s already contains element %s!' % (parmData['FEATURE'], parmData['ELEMENT']), 'B')
                     return
 
             # --add the feature element
@@ -1239,7 +1221,7 @@ class G2CmdShell(cmd.Cmd, object):
             # --check to see if the element is already in the feature
             for i in range(len(self.cfgData['G2_CONFIG']['CFG_DFBOM']) - 1, -1, -1):
                 if self.cfgData['G2_CONFIG']['CFG_DFBOM'][i]['DFCALL_ID'] == dfcallID and self.cfgData['G2_CONFIG']['CFG_DFBOM'][i]['FELEM_ID'] == felemID:
-                    printWithNewLines('Distinct function for feature %s aleady contains element %s!' % (parmData['FEATURE'], parmData['ELEMENT']), 'B')
+                    printWithNewLines('Distinct function for feature %s already contains element %s!' % (parmData['FEATURE'], parmData['ELEMENT']), 'B')
                     return
 
             # --add the feature element
@@ -1836,7 +1818,7 @@ class G2CmdShell(cmd.Cmd, object):
                     printWithNewLines('No elements marked "expressed" for expression routine', 'B')
                     return
                 if cfuncID > 0 and comparedCnt == 0:
-                    printWithNewLines('No elements marked "compared" for comparsion routine', 'B')
+                    printWithNewLines('No elements marked "compared" for comparison routine', 'B')
                     return
 
             # --insert the feature
@@ -1879,7 +1861,7 @@ class G2CmdShell(cmd.Cmd, object):
 
             # --add the distinct value call (not supported through here yet)
             dfcallID = 0
-            dfuncID = 0  # --more efficent to leave it null
+            dfuncID = 0  # --more efficient to leave it null
             if dfuncID > 0:
                 for i in range(len(self.cfgData['G2_CONFIG']['CFG_DFCALL'])):
                     if self.cfgData['G2_CONFIG']['CFG_DFCALL'][i]['DFCALL_ID'] > dfcallID:
@@ -2002,7 +1984,7 @@ class G2CmdShell(cmd.Cmd, object):
                     if self.doDebug:
                         debug(newRecord, 'CFBOM build')
 
-                # --standardize display_level to just display while maintainin backwards compatibility
+                # --standardize display_level to just display while maintaining backwards compatibility
                 # -- also note that display_delem has been deprecated and does nothing
                 if 'DISPLAY' in elementRecord:
                     elementRecord['DISPLAY_LEVEL'] = 1 if elementRecord['DISPLAY'].upper() == 'YES' else 0
@@ -2401,7 +2383,7 @@ class G2CmdShell(cmd.Cmd, object):
         '''
         \n\taddAttribute {"attribute": "<attribute_name>"}
         \n\n\taddAttribute {"attribute": "<attribute_name>", "class": "<class_type>", "feature": "<feature_name>", "element": "<element_type>"}
-        \n\n\tFor additional example structures, use getAttribute or listAttributess\n
+        \n\n\tFor additional example structures, use getAttribute or listAttributes\n
         '''
 
         if not argCheck('addAttribute', arg, self.do_addAttribute.__doc__):
@@ -2848,7 +2830,7 @@ class G2CmdShell(cmd.Cmd, object):
             # -- check for duplicated return codes
             for i in range(len(self.cfgData['G2_CONFIG']['CFG_CFRTN']) - 1, -1, -1):
                 if self.cfgData['G2_CONFIG']['CFG_CFRTN'][i]['CFUNC_ID'] == cfuncID and self.cfgData['G2_CONFIG']['CFG_CFRTN'][i]['CFUNC_RTNVAL'] == parmData['SCORENAME']:
-                    printWithNewLines('Comparison function aleady contains return code %s!' % (parmData['SCORENAME']), 'B')
+                    printWithNewLines('Comparison function already contains return code %s!' % (parmData['SCORENAME']), 'B')
                     return
 
             maxID = []
@@ -3718,7 +3700,7 @@ class G2CmdShell(cmd.Cmd, object):
     def do_templateAdd(self, arg):
         '''
         \nFull syntax:
-        \n\ttemplateAdd {"feature": "<name>", "template": "<template>", "behavior": "<optional-overide>", "comparison": "<optional-overide>}
+        \n\ttemplateAdd {"feature": "<name>", "template": "<template>", "behavior": "<optional-override>", "comparison": "<optional-override>}
         \n\nTypical use: (behavior and comparison are optional)
         \n\ttemplateAdd {"feature": "customer_number", "template": "global_id"}
         \n\ttemplateAdd {"feature": "customer_number", "template": "global_id", "behavior": "F1E"}
@@ -3728,7 +3710,7 @@ class G2CmdShell(cmd.Cmd, object):
 
         validTemplates = {}
 
-        validTemplates['GLOBAL_ID'] = {'DESCRIPTION': 'globally unique identifer (like an ssn, a credit card, or a medicare_id)',
+        validTemplates['GLOBAL_ID'] = {'DESCRIPTION': 'globally unique identifier (like an ssn, a credit card, or a medicare_id)',
                                        'BEHAVIOR': ['F1', 'F1E', 'F1ES'],
                                        'CANDIDATES': ['No'],
                                        'STANDARDIZE': ['PARSE_ID'],
@@ -3823,7 +3805,7 @@ class G2CmdShell(cmd.Cmd, object):
         if not standardize:
             standardize = validTemplates[template]['STANDARDIZE'][0]
         if standardize not in validTemplates[template]['STANDARDIZE']:
-            printWithNewLines('standarize code supplied is not valid for template', 'B')
+            printWithNewLines('standardize code supplied is not valid for template', 'B')
             return
 
         if not expression:
@@ -4663,18 +4645,11 @@ if __name__ == '__main__':
     ini_file_name = pathlib.Path(G2Paths.get_G2Module_ini_path()) if not args.ini_file_name else pathlib.Path(args.ini_file_name).resolve()
     G2Paths.check_file_exists_and_readable(ini_file_name)
 
-    # Warn if using out dated parms
-    g2health = G2Health()
-    g2health.checkIniParams(ini_file_name)
-
-    # Older Senzing using G2CONFIGFILE, e.g, G2CONFIGFILE=/opt/senzing/g2/python/g2config.json
+    # Get the INI parameters to use
     iniParamCreator = G2IniParams()
-    g2ConfigFile = iniParamCreator.getINIParam(ini_file_name, 'SQL', 'G2CONFIGFILE')
-
-    # Get the INI paramaters to use
     g2module_params = iniParamCreator.getJsonINIParams(ini_file_name)
 
-    cmd_obj = G2CmdShell(g2ConfigFile, args.histDisable, args.forceMode, args.fileToProcess, ini_file_name)
+    cmd_obj = G2CmdShell(g2module_params, args.histDisable, args.forceMode, args.fileToProcess)
 
     if args.fileToProcess:
         cmd_obj.fileloop()

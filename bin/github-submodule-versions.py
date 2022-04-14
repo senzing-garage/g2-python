@@ -114,9 +114,6 @@ repositories = {
     "g2export": {
         "artifacts": ["G2Export.py"]
     },
-    "g2health": {
-        "artifacts": ["G2Health.py"]
-    },
     "g2hasher": {
         "artifacts": ["G2Hasher.py"]
     },

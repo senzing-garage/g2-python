@@ -2,10 +2,10 @@
 
 import argparse
 import json
+import os
 import shutil
 import sys
 import textwrap
-import os
 from pathlib import Path
 
 
@@ -57,13 +57,29 @@ def get_ignored(path, filenames):
     return ret
 
 
-def change_permissions_recursive(path, mode):
-    os.chmod(path, mode)
-    for root, dirs, files in os.walk(path, topdown=False):
+def set_folder_permissions_recursive(project_root_path, folder_permissions, folders_to_ignore=[]):
+    os.chmod(project_root_path, folder_permissions)
+    for root, dirs, _ in os.walk(project_root_path, topdown=True):
+        dirs[:] = [d for d in dirs if d not in folders_to_ignore]
         for dir in [os.path.join(root, d) for d in dirs]:
             if not os.path.islink(dir):
-                os.chmod(dir, mode)
+                os.chmod(dir, folder_permissions)
+
+
+def set_permissions_on_files_in_folder(folder_path, permissions, files_to_ignore=[]):
+    for file in os.listdir(folder_path):
+        if file in files_to_ignore:
+            continue
+        file_path = os.path.join(folder_path, file)
+        if os.path.isfile(file_path):
+            os.chmod(file_path, permissions)
+
+
+def set_permissions_on_files_in_folder_recursive(path, mode, files_to_ignore=[]):
+    for root, _, files in os.walk(path, topdown=False):
         for file in [os.path.join(root, f) for f in files]:
+            if file in files_to_ignore:
+                continue
             if not os.path.islink(file):
                 os.chmod(file, mode)
 
@@ -137,7 +153,45 @@ if __name__ == '__main__':
         for p in senzing_path_subs:
             find_replace_in_file(f, p[0], str(p[1]))
 
-    # Set permissions to 750
-    change_permissions_recursive(target_path, 0o750)
+    # Folder permissions
+    set_folder_permissions_recursive(target_path, 0o770, folders_to_ignore=['jdk-11.0.10+9-jre'])
+
+    # root
+    set_permissions_on_files_in_folder(target_path, 0o660)
+    os.chmod(os.path.join(target_path, 'setupEnv'), 0o770)
+
+    # bin
+    set_permissions_on_files_in_folder(os.path.join(target_path, 'bin'), 0o770)
+
+    # etc
+    set_permissions_on_files_in_folder(os.path.join(target_path, 'etc'), 0o660)
+
+    # lib
+    set_permissions_on_files_in_folder(os.path.join(target_path, 'lib'), 0o660, files_to_ignore=['g2.jar', 'g2rst.jar'])
+    os.chmod(os.path.join(target_path, 'lib', 'g2.jar'), 0o664)
+    os.chmod(os.path.join(target_path, 'lib', 'g2rst.jar'), 0o664)
+
+    # python
+    set_permissions_on_files_in_folder_recursive(os.path.join(target_path, 'python'), 0o660)
+    os.chmod(os.path.join(target_path, 'python', 'G2Audit.py'), 0o770)
+    os.chmod(os.path.join(target_path, 'python', 'G2Command.py'), 0o770)
+    os.chmod(os.path.join(target_path, 'python', 'G2ConfigTool.py'), 0o770)
+    os.chmod(os.path.join(target_path, 'python', 'G2Database.py'), 0o770)
+    os.chmod(os.path.join(target_path, 'python', 'G2Explorer.py'), 0o770)
+    os.chmod(os.path.join(target_path, 'python', 'G2Export.py'), 0o770)
+    os.chmod(os.path.join(target_path, 'python', 'G2Loader.py'), 0o770)
+    os.chmod(os.path.join(target_path, 'python', 'G2SetupConfig.py'), 0o770)
+    os.chmod(os.path.join(target_path, 'python', 'G2Snapshot.py'), 0o770)
+    os.chmod(os.path.join(target_path, 'python', 'SenzingGo.py'), 0o770)
+
+    # resources
+    set_permissions_on_files_in_folder_recursive(os.path.join(target_path, 'resources'), 0o660)
+    os.chmod(os.path.join(target_path, 'resources', 'templates', 'setupEnv'), 0o770)
+
+    # sdk
+    set_permissions_on_files_in_folder_recursive(os.path.join(target_path, 'sdk'), 0o664)
+
+    # var
+    set_permissions_on_files_in_folder_recursive(os.path.join(target_path, 'var'), 0o660)
 
     print('Successfully created.')

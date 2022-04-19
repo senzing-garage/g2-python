@@ -42,6 +42,33 @@ files_to_remove = [
     os.path.join('python', 'demo', 'ofac', 'cust.json'),
     os.path.join('python', 'demo', 'ofac', 'ofac.json'),
     os.path.join('python', 'demo', 'ofac', 'project.json'),
+    os.path.join('resources', 'config', 'g2core-config-upgrade-1.9-to-1.10.gtc'),
+    os.path.join('resources', 'config', 'g2core-config-upgrade-1.10-to-1.10.1.gtc'),
+    os.path.join('resources', 'config', 'g2core-config-upgrade-1.10-to-1.11.gtc'),
+    os.path.join('resources', 'config', 'g2core-config-upgrade-1.10.1-to-1.11.2.gtc'),
+    os.path.join('resources', 'config', 'g2core-config-upgrade-1.11-to-1.11.2.gtc'),
+    os.path.join('resources', 'config', 'g2core-config-upgrade-1.11.2-to-1.12.gtc'),
+    os.path.join('resources', 'config', 'g2core-config-upgrade-1.12-to-1.13.gtc'),
+    os.path.join('resources', 'config', 'g2core-config-upgrade-1.13-to-1.14.gtc'),
+    os.path.join('resources', 'config', 'g2core-config-upgrade-1.14-to-1.15.gtc'),
+    os.path.join('resources', 'config', 'g2core-config-upgrade-1.15-to-2.0.gtc'),
+    os.path.join('resources', 'config', 'g2core-config-upgrade-2.0-to-2.5.gtc'),
+]
+paths_to_move = [
+    (os.path.join('sdk', 'python'), os.path.join('sdk', 'python_prior_to_3.0')),
+    (os.path.join('python', 'demo', 'truth'), os.path.join('python', 'demo', 'truth_prior_to_3.0')),
+]
+files_to_move = [
+    ('G2Config.py', os.path.join('python'), os.path.join('python', 'prior_to_3.0')),
+    ('G2ConfigMgr.py', os.path.join('python'), os.path.join('python', 'prior_to_3.0')),
+    ('G2Diagnostic.py', os.path.join('python'), os.path.join('python', 'prior_to_3.0')),
+    ('G2Engine.py', os.path.join('python'), os.path.join('python', 'prior_to_3.0')),
+    ('G2Exception.py', os.path.join('python'), os.path.join('python', 'prior_to_3.0')),
+    ('G2Hasher.py', os.path.join('python'), os.path.join('python', 'prior_to_3.0')),
+    ('G2Health.py', os.path.join('python'), os.path.join('python', 'prior_to_3.0')),
+    ('G2IniParams.py', os.path.join('python'), os.path.join('python', 'prior_to_3.0')),
+    ('G2Product.py', os.path.join('python'), os.path.join('python', 'prior_to_3.0')),
+    ('g2purge.umf', os.path.join('python'), os.path.join('python', 'prior_to_3.0')),
 ]
 symlinks = [
     os.path.join(senzing_path, 'data')
@@ -108,13 +135,29 @@ def overlayFiles(sourcePath, destPath):
             print(e)
 
 
-def change_permissions_recursive(path, mode):
-    os.chmod(path, mode)
-    for root, dirs, files in os.walk(path, topdown=False):
+def set_folder_permissions_recursive(project_root_path, folder_permissions, folders_to_ignore=[]):
+    os.chmod(project_root_path, folder_permissions)
+    for root, dirs, _ in os.walk(project_root_path, topdown=True):
+        dirs[:] = [d for d in dirs if d not in folders_to_ignore]
         for dir in [os.path.join(root, d) for d in dirs]:
             if not os.path.islink(dir):
-                os.chmod(dir, mode)
+                os.chmod(dir, folder_permissions)
+
+
+def set_permissions_on_files_in_folder(folder_path, permissions, files_to_ignore=[]):
+    for file in os.listdir(folder_path):
+        if file in files_to_ignore:
+            continue
+        file_path = os.path.join(folder_path, file)
+        if os.path.isfile(file_path):
+            os.chmod(file_path, permissions)
+
+
+def set_permissions_on_files_in_folder_recursive(path, mode, files_to_ignore=[]):
+    for root, _, files in os.walk(path, topdown=False):
         for file in [os.path.join(root, f) for f in files]:
+            if file in files_to_ignore:
+                continue
             if not os.path.islink(file):
                 os.chmod(file, mode)
 
@@ -179,6 +222,13 @@ if __name__ == '__main__':
         except (FileNotFoundError, OSError):
             # ok if file doesn't exist or the folder is not empty
             pass
+
+    for p in paths_to_move:
+        shutil.move(os.path.join(target_path, p[0]), os.path.join(target_path, p[1]))
+
+    for f in files_to_move:
+        os.makedirs(os.path.join(target_path,f[2]), exist_ok=True)
+        shutil.copyfile(os.path.join(target_path, f[1], f[0]), os.path.join(target_path, f[2], f[0]))
 
     # Remove JRE (if it exists)
     jre_to_remove = None
@@ -254,7 +304,45 @@ if __name__ == '__main__':
 
     # End of fixups
 
-    # Set permissions to 750
-    change_permissions_recursive(target_path, 0o750)
+    # Folder permissions
+    set_folder_permissions_recursive(target_path, 0o770, folders_to_ignore=['jdk-11.0.10+9-jre'])
+
+    # root
+    set_permissions_on_files_in_folder(target_path, 0o660)
+    os.chmod(os.path.join(target_path, 'setupEnv'), 0o770)
+
+    # bin
+    set_permissions_on_files_in_folder(os.path.join(target_path, 'bin'), 0o770)
+
+    # etc
+    set_permissions_on_files_in_folder(os.path.join(target_path, 'etc'), 0o660)
+
+    # lib
+    set_permissions_on_files_in_folder(os.path.join(target_path, 'lib'), 0o660, files_to_ignore=['g2.jar', 'g2rst.jar'])
+    os.chmod(os.path.join(target_path, 'lib', 'g2.jar'), 0o664)
+    os.chmod(os.path.join(target_path, 'lib', 'g2rst.jar'), 0o664)
+
+    # python
+    set_permissions_on_files_in_folder_recursive(os.path.join(target_path, 'python'), 0o660)
+    os.chmod(os.path.join(target_path, 'python', 'G2Audit.py'), 0o770)
+    os.chmod(os.path.join(target_path, 'python', 'G2Command.py'), 0o770)
+    os.chmod(os.path.join(target_path, 'python', 'G2ConfigTool.py'), 0o770)
+    os.chmod(os.path.join(target_path, 'python', 'G2Database.py'), 0o770)
+    os.chmod(os.path.join(target_path, 'python', 'G2Explorer.py'), 0o770)
+    os.chmod(os.path.join(target_path, 'python', 'G2Export.py'), 0o770)
+    os.chmod(os.path.join(target_path, 'python', 'G2Loader.py'), 0o770)
+    os.chmod(os.path.join(target_path, 'python', 'G2SetupConfig.py'), 0o770)
+    os.chmod(os.path.join(target_path, 'python', 'G2Snapshot.py'), 0o770)
+    os.chmod(os.path.join(target_path, 'python', 'SenzingGo.py'), 0o770)
+
+    # resources
+    set_permissions_on_files_in_folder_recursive(os.path.join(target_path, 'resources'), 0o660)
+    os.chmod(os.path.join(target_path, 'resources', 'templates', 'setupEnv'), 0o770)
+
+    # sdk
+    set_permissions_on_files_in_folder_recursive(os.path.join(target_path, 'sdk'), 0o664)
+
+    # var
+    set_permissions_on_files_in_folder_recursive(os.path.join(target_path, 'var'), 0o660)
 
     print("Project successfully updated from %s to %s. Please refer to https://senzing.com/releases/#api-releases for any additional upgrade instructions." % (start_version_info['VERSION'], end_version_info['VERSION']))

@@ -3,6 +3,7 @@
 import optparse
 import os
 import sys
+import json
 import textwrap
 from importlib import import_module
 
@@ -72,20 +73,27 @@ class G2Database:
             return
 
         # --import correct modules for DB type
-        self.has_pyscopg2 = False
+        self.using_pyscopg2 = False
+        self.using_cx_Oracle = False
         if self.dbType in ('MYSQL', 'DB2', 'POSTGRESQL', 'MSSQL'):
             if self.dbType == 'POSTGRESQL':
                 # Ensure have required args
                 try:
                     self.psycopg2 = import_module('psycopg2')
-                    self.has_pyscopg2 = True
+                    self.using_pyscopg2 = True
                 except ImportError as ex:
                     print('WARNING: postgres database driver (psycopg2) recommended')
-            if not self.has_pyscopg2:
+            if not self.using_pyscopg2:
                 try:
                     self.pyodbc = import_module('pyodbc')
                 except ImportError as err:
                     raise ImportError('ERROR: could not import pyodbc module\n\nPlease check the Senzing help center: https://senzing.zendesk.com/hc/en-us/search?utf8=%E2%9C%93&query=pyodbc\n\t')
+        elif self.dbType == 'OCI':
+            try:
+                self.cx_Oracle = import_module('cx_Oracle')
+                self.using_cx_Oracle = True
+            except ImportError as ex:
+                raise ImportError('ERROR: could not import cx_Oracle')
         else:
             try:
                 self.sqlite3 = import_module('sqlite3')
@@ -145,18 +153,17 @@ class G2Database:
                 self.dbo = self.pyodbc.connect('DSN=' + self.dsn + '; UID=' + self.userId + '; PWD=' + self.password, autocommit=True)
             elif self.dbType == 'POSTGRESQL':
                 conn_str = 'DSN=' + self.dsn + ';UID=' + self.userId + ';PWD=' + self.password + ';'
-                if self.has_pyscopg2:
+                if self.using_pyscopg2:
                     self.dbo = self.psycopg2.connect(host=self.host, port=self.port, dbname=self.dsn, user=self.userId, password=self.password)
-
-                    # self.dbo.set_session(autocommit=False, isolation_level='READ UNCOMMITTED', readonly=True)
                     self.dbo.set_session(autocommit=True, isolation_level='READ UNCOMMITTED', readonly=True)
                 else:
                     self.dbo = self.pyodbc.connect(conn_str, autocommit=True)
             elif self.dbType == 'MSSQL':
                 self.dbo = self.pyodbc.connect('DSN=' + self.dsn + '; UID=' + self.userId + '; PWD=' + self.password, autocommit=True)
+            elif self.dbType == 'OCI':
+                self.dbo = self.cx_Oracle.connect(user=self.userId, password=self.password, dsn=f"{self.host}:{self.port}/{self.schema}", encoding="UTF-8")
             else:
-                print('ERROR: Unsupported DB Type: ' + self.dbType)
-                return False
+                raise Exception('Unsupported DB Type: ' + self.dbType)
         except Exception as err:
             raise self.TranslateException(err)
         except self.sqlite3.DatabaseError as err:
@@ -165,14 +172,19 @@ class G2Database:
         return
 
     # ----------------------------------------
-    def __str__(self):
-        ''' return the database we connected to '''
-
-        return "\ndbType:" + str(self.dbType) + " dsn:" + str(self.dsn) + " port:" + str(self.port) + " userId:" + str(self.userId) + " password:" + str(self.password) + " schema:" + str(self.schema) + " table:" + str(self.table) + '\n'
-
-    # ----------------------------------------
     # -- basic database functions
     # ----------------------------------------
+
+    # ----------------------------------------
+    def sqlPrep(self, sql):
+        if self.using_pyscopg2:
+            sql = sql.replace('?', '%s')
+        elif self.using_cx_Oracle:
+            i = 0
+            while '?' in sql:
+                i += 1
+                sql = sql.replace('?', f":{i}", 1)
+        return sql
 
     # ----------------------------------------
     def sqlExec(self, sql, parmList=None, **kwargs):
@@ -185,15 +197,13 @@ class G2Database:
         cursorData['ITERSIZE'] = kwargs['itersize'] if 'itersize' in kwargs else None
 
         try:
-            if cursorData['NAME'] and self.has_pyscopg2:
+            if cursorData['NAME'] and self.using_pyscopg2:
                 exec_cursor = self.dbo.cursor(cursorData['NAME'])
                 if cursorData['ITERSIZE']:
                     exec_cursor.itersize = cursorData['ITERSIZE']
             else:
                 exec_cursor = self.dbo.cursor()
             if parmList:
-                if self.has_pyscopg2:
-                    sql = sql.replace('?', '%s')
                 exec_cursor.execute(sql, parmList)
             else:
                 exec_cursor.execute(sql)
@@ -211,21 +221,6 @@ class G2Database:
                 if exec_cursor.description:
                     cursorData['COLUMN_HEADERS'] = [columnData[0].upper() for columnData in exec_cursor.description]
         return cursorData
-
-    # ----------------------------------------
-    def execMany(self, sql, parmList):
-        ''' make a database call '''
-
-        execSuccess = False
-        try:
-            cursor = self.dbo.cursor().executemany(sql, parmList)
-        except Exception as err:
-            raise self.TranslateException(err)
-        # except self.sqlite3.DatabaseError as err:
-        #     raise self.TranslateException(err)
-        else:
-            execSuccess = True
-        return execSuccess
 
     # ----------------------------------------
     def close(self):
@@ -369,6 +364,14 @@ class G2Database:
                 if uri_dict['DBTYPE'] in ('POSTGRESQL', 'MYSQL'):
                     uri_dict['HOST'] = uri_dict['DSN']
                     uri_dict['DSN'] = justDsnSch.split(':')[2]
+                # oracle syntax is port/database or sid (placing in schema field)
+                # e.g. CONNECTION=oci://userid:password@//192.168.1.111:1521/G2PDB
+                elif uri_dict['DBTYPE'] == 'OCI':
+                    uri_dict['HOST'] = uri_dict['DSN'].replace('/','') #--get rid of the // if they used it
+                    items = uri_dict['PORT'].split('/')
+                    uri_dict['PORT'] = items[0]
+                    uri_dict['SCHEMA'] = items[1]
+
             else:  # Just dsn with no port
                 uri_dict['DSN'] = justDsnSch
 
@@ -387,7 +390,8 @@ class G2Database:
         self.table = uri_dict['TABLE'] if 'TABLE' in uri_dict else None
         self.schema = uri_dict['SCHEMA'] if 'SCHEMA' in uri_dict else None
 
-        if self.dbType not in ('DB2', 'MYSQL', 'SQLITE3', 'POSTGRESQL', 'MSSQL'):
+        if self.dbType not in ('DB2', 'MYSQL', 'SQLITE3', 'POSTGRESQL', 'MSSQL', 'OCI'):
+            print(json.dumps(uri_dict, indent=4))
             raise G2UnsupportedDatabaseType('ERROR: ' + self.dbType + ' is an unsupported database type')
 
         return uri_dict
@@ -427,7 +431,7 @@ class G2Database:
         elif self.dbType in ('MYSQL', 'POSTGRESQL'):
             errMessage = ex.args[1] if len(ex.args) > 1 else ex.args[0]
         else:
-            return G2UnsupportedDatabaseType('ERROR: ' + self.dbType + ' is an unsupported database type')
+            errMessage = ex
 
         # return G2DBUnknownException(errMessage)
         return G2DBException(errMessage)

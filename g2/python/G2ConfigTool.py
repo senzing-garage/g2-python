@@ -3774,7 +3774,7 @@ class G2CmdShell(cmd.Cmd, object):
 
         standardize = parmData['STANDARDIZE'].upper() if 'STANDARDIZE' in parmData else None
         expression = parmData['EXPRESSION'].upper() if 'EXPRESSION' in parmData else None
-        candidates = parmData['CANDIDATES'].upper() if 'Candidates' in parmData else None
+        candidates = parmData['CANDIDATES'].upper() if 'CANDIDATES' in parmData else None
 
         if not feature:
             printWithNewLines('A new feature name is required', 'B')

@@ -228,7 +228,7 @@ if __name__ == '__main__':
 
     for f in files_to_move:
         os.makedirs(os.path.join(target_path,f[2]), exist_ok=True)
-        shutil.copyfile(os.path.join(target_path, f[1], f[0]), os.path.join(target_path, f[2], f[0]))
+        shutil.move(os.path.join(target_path, f[1], f[0]), os.path.join(target_path, f[2], f[0]))
 
     # Remove JRE (if it exists)
     jre_to_remove = None

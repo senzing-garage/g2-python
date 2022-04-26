@@ -224,11 +224,26 @@ if __name__ == '__main__':
             pass
 
     for p in paths_to_move:
-        shutil.move(os.path.join(target_path, p[0]), os.path.join(target_path, p[1]))
+        backup_path = os.path.join(target_path, p[1])
+        new_backup_path_template = backup_path + '_{}'
+        i = 0
+        while os.path.exists(backup_path):
+            backup_path = new_backup_path_template.format(str(i))
+            i = i + 1
+            
+        try:
+            shutil.move(os.path.join(target_path, p[0]), backup_path)
+        except Error:
+            # ok if folder doesn't exist
+            pass
 
     for f in files_to_move:
         os.makedirs(os.path.join(target_path,f[2]), exist_ok=True)
-        shutil.move(os.path.join(target_path, f[1], f[0]), os.path.join(target_path, f[2], f[0]))
+        try:
+            shutil.move(os.path.join(target_path, f[1], f[0]), os.path.join(target_path, f[2], f[0]))
+        except FileNotFoundError:
+            # ok if file doesn't exist
+            pass
 
     # Remove JRE (if it exists)
     jre_to_remove = None

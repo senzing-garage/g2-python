@@ -233,7 +233,7 @@ if __name__ == '__main__':
             
         try:
             shutil.move(os.path.join(target_path, p[0]), backup_path)
-        except Error:
+        except (FileNotFoundError, OSError):
             # ok if folder doesn't exist
             pass
 
@@ -241,7 +241,7 @@ if __name__ == '__main__':
         os.makedirs(os.path.join(target_path,f[2]), exist_ok=True)
         try:
             shutil.move(os.path.join(target_path, f[1], f[0]), os.path.join(target_path, f[2], f[0]))
-        except FileNotFoundError:
+        except (FileNotFoundError, OSError):
             # ok if file doesn't exist
             pass
 

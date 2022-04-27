@@ -7,6 +7,8 @@ import errno
 import shutil
 import json
 import pathlib
+from contextlib import suppress
+
 try:
     import configparser
 except:
@@ -210,18 +212,12 @@ if __name__ == '__main__':
 
     # Clean up old files/folders from old releases that are not in the current release
     for f in files_to_remove:
-        try:
+        with suppress(FileNotFoundError, OSError):
             os.remove(os.path.join(target_path, f))
-        except (FileNotFoundError, OSError):
-            # ok if file doesn't exist, or can't be removed for some other reason (permissions, etc)
-            pass
 
     for p in paths_to_remove:
-        try:
+        with suppress(FileNotFoundError, OSError):
             os.rmdir(os.path.join(target_path, p))
-        except (FileNotFoundError, OSError):
-            # ok if file doesn't exist or the folder is not empty
-            pass
 
     for p in paths_to_move:
         backup_path = os.path.join(target_path, p[1])
@@ -231,19 +227,13 @@ if __name__ == '__main__':
             backup_path = new_backup_path_template.format(str(i))
             i = i + 1
             
-        try:
+        with suppress(FileNotFoundError, OSError):
             shutil.move(os.path.join(target_path, p[0]), backup_path)
-        except (FileNotFoundError, OSError):
-            # ok if folder doesn't exist
-            pass
 
     for f in files_to_move:
         os.makedirs(os.path.join(target_path,f[2]), exist_ok=True)
-        try:
+        with suppress(FileNotFoundError, OSError):
             shutil.move(os.path.join(target_path, f[1], f[0]), os.path.join(target_path, f[2], f[0]))
-        except (FileNotFoundError, OSError):
-            # ok if file doesn't exist
-            pass
 
     # Remove JRE (if it exists)
     jre_to_remove = None
@@ -266,9 +256,10 @@ if __name__ == '__main__':
     shutil.copytree(jre_source_path, jre_target_path)
 
     # soft link in data
-    try:
-        if os.path.exists(os.path.join(target_path, 'data')):
-            os.remove(os.path.join(target_path, 'data'))
+    with suppress(FileNotFoundError, OSError):
+        os.remove(os.path.join(target_path, 'data'))
+
+    try:        
         os.symlink('/opt/senzing/data/3.0.0', os.path.join(target_path, 'data'))
     except Exception as e:
         print(e)

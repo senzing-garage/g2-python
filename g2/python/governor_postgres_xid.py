@@ -1,18 +1,18 @@
 # --------------------------------------------------------------------------------------------------------------
 # Class: Governor
-# 
-# Sample to demonstrate G2Loader calling Govern after each record read. Detects XID age in Postgres database(s), 
-# if the threshold age is detected all threads are paused until the resume age value (or less) is detected, 
+#
+# Sample to demonstrate G2Loader calling Govern after each record read. Detects XID age in Postgres database(s),
+# if the threshold age is detected all threads are paused until the resume age value (or less) is detected,
 # upon this detection threads and processing is resumed.
 #
-# XID age is reduced with the Postgres vacuum command. This sample doesn't attempt to issue the vacuum command; 
+# XID age is reduced with the Postgres vacuum command. This sample doesn't attempt to issue the vacuum command;
 # the user running G2Loader may not have the privelges to do so. When the age threshold is detected and G2Loader
 # pauses, manually issue a vacuum command.
 #
-# Senzing can run in a clustered database mode where the engine handles up to 3 seperate DBs itself: 
+# Senzing can run in a clustered database mode where the engine handles up to 3 seperate DBs itself:
 # https://senzing.zendesk.com/hc/en-us/articles/360010599254-Scaling-Out-Your-Database-With-Clustering
 #
-# This sample uses the native Python Postgres driver psycopg2. 
+# This sample uses the native Python Postgres driver psycopg2.
 # Full details on installation: https://www.psycopg.org/docs/install.html
 # Basic installation: pip3 install psycopg2 --user
 #
@@ -26,8 +26,20 @@ import time
 from datetime import datetime
 from importlib import import_module
 
-from G2Exception import G2DBException
-from G2IniParams import G2IniParams
+# -----------------------------------------------------------------------------
+# Exceptions
+# -----------------------------------------------------------------------------
+
+
+class G2DBException(Exception):
+    '''Base exception for G2 DB related python code'''
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(self, *args, **kwargs)
+
+# -----------------------------------------------------------------------------
+# Class: Governor
+# -----------------------------------------------------------------------------
 
 
 class Governor:
@@ -43,7 +55,7 @@ class Governor:
         console_handler.setFormatter(gov_formatter)
         self.gov_logger.addHandler(console_handler)
 
-        # General 
+        # General
         self.kwargs = kwargs
         self.valid_frequencies = ['record', 'source']
         self.ignore_ini_stanzas = ['PIPELINE', 'HYBRID']
@@ -56,14 +68,14 @@ class Governor:
         # Set defaults, overide at governor init if required
         #
         # frequency = row or source. The frequency the governor runs at, this must be specfied
-        # interval = Governor called every row x number of records - used for per record or redo governor not per source 
+        # interval = Governor called every row x number of records - used for per record or redo governor not per source
         # check_time = In addition to checking every interval, check every x seconds too
         # xid_age = Value of Postgres XID age to pause at for a vacuum to be completed (high water mark to pause at)
         # wait_time = Period in seconds to pause processing for between each check of XID age once triggered
         # resume_age = XID age to resume processing at (low water mark lower than xid_age)
         # govern_debug = To call debug functions (if used)
         # use_logging = Future use
-        # pre_post_msgs = Show pre and post messages? 
+        # pre_post_msgs = Show pre and post messages?
 
         self.type = kwargs.get('type', '-- Unspecified --')
         self.frequency = kwargs.get('frequency', None)
@@ -87,7 +99,7 @@ class Governor:
             self.psycopg2 = import_module('psycopg2')
         except ImportError as ex:
             raise G2DBException(textwrap.dedent(f'''\n\
-                
+
                 - The Postgres native Python connector psycopg2 is required to use this governor.
                   This governor is used by default with G2Loader.py when using Postgres as the Senzing database.
 
@@ -96,7 +108,7 @@ class Governor:
                     - pip3 install psycopg2 --user
 
                 - If you are just getting started and seeing this message you can disable this governor with the -gpd argument with G2Loader.py.
-                  This isn't recommended for normal use but is acceptable for testing and low data volumes. 
+                  This isn't recommended for normal use but is acceptable for testing and low data volumes.
         '''))
 
         if not self.g2module_params:
@@ -105,8 +117,7 @@ class Governor:
             try:
                 self.g2module_params = json.loads(self.g2module_params)
             except JSONDecodeError as ex:
-                raise(f'Couldn\'t decode parameters to JSON for G2Module.')
-
+                raise ValueError(f'Couldn\'t decode parameters to JSON for G2Module.')
 
         if not self.frequency:
             raise ValueError(f'Creating governor, frequency=<freq> must be specified. Where <freq> is one of {self.valid_frequencies}')
@@ -136,16 +147,15 @@ class Governor:
                 except:
                     raise ValueError(f'Creating governor, invalid {check[0]} {check[1]}. Should be {check[3]} not {type(check[1])}')
 
-
-        # Track number of per record calls when governor is frequency = row 
+        # Track number of per record calls when governor is frequency = row
         self.record_num = 1
 
-        # Check G2Module parms, are we configured for running a Senzing clustered DB instance? 
+        # Check G2Module parms, are we configured for running a Senzing clustered DB instance?
         self.sql_backend = self.g2module_params.get("SQL", {}).get("BACKEND", False)
         self.connect_hybrid = True if self.sql_backend and self.sql_backend.strip() == 'HYBRID' else False
 
         # Collect connection string(s)
-        for stanza in {k:v for (k,v) in self.g2module_params.items() if k.upper() not in self.ignore_ini_stanzas}:
+        for stanza in {k: v for (k, v) in self.g2module_params.items() if k.upper() not in self.ignore_ini_stanzas}:
             for line_value in self.g2module_params[stanza].values():
                 if 'postgresql://' in line_value.lower():
                     self.connect_strs.append(line_value)
@@ -161,15 +171,15 @@ class Governor:
 
         # Build data structure for each connection, a cursor to use against the connection and it's DSN (for messages)
         for connect_str in self.connect_strs:
-            try: 
+            try:
                 connect_parsed = self.dburi_parse(connect_str)
             except G2DBException as ex:
-                raise
+                raise ex
             else:
                 (dbo, cursor) = self.connect_cursor(connect_parsed)
-                self.connect_dict[connect_str] = [dbo, cursor, connect_parsed['DSN']] 
+                self.connect_dict[connect_str] = [dbo, cursor, connect_parsed['DSN']]
 
-                # String of all the DB names without other connection details. k[2] is the dsn 
+                # String of all the DB names without other connection details. k[2] is the dsn
                 self.db_names = ', '.join(k[2] for k in self.connect_dict.values())
 
         self.govern_post()
@@ -189,7 +199,6 @@ class Governor:
 
         return
 
-
     def govern_pre(self, *args, **kwargs):
         ''' Tasks to perform before creating governor '''
 
@@ -202,7 +211,6 @@ class Governor:
 
         return
 
-
     def govern_post(self, *args, **kwargs):
         '''  Tasks to perform after creating governor '''
 
@@ -210,7 +218,7 @@ class Governor:
 
             self.print_or_log(textwrap.indent(textwrap.dedent(f'''\
                   Successfully created:
-    
+
                     Type:               {self.type}
                     Frequency:          {self.frequency}
                     Interval:           {self.interval if self.frequency == 'record' else 'None - Only used for frequency type of record'}
@@ -223,7 +231,6 @@ class Governor:
 
         return
 
-
     def govern_cleanup(self, *args, **kwargs):
         '''  Tasks to perform when shutting down, e.g., close DB connections '''
 
@@ -234,7 +241,7 @@ class Governor:
         return
 
     def record_action(self):
-        ''' Action to be performed when record or time interval is met, for each DB (single or clustered) 
+        ''' Action to be performed when record or time interval is met, for each DB (single or clustered)
             db_objs - 0 = connection, 1 = cursor, 2 = DSN
         '''
 
@@ -245,17 +252,17 @@ class Governor:
             for db_objs in self.connect_dict.values():
 
                 try:
-                    db_objs[1].execute(self.sql_stmt, (db_objs[2], )) 
+                    db_objs[1].execute(self.sql_stmt, (db_objs[2],))
                     current_age = db_objs[1].fetchone()[0]
                 except self.psycopg2.DatabaseError as ex:
                     raise ex
                 except Exception as ex:
                     raise ex
-                
+
                 if current_age > self.xid_age:
                     self.print_or_log(textwrap.indent(textwrap.dedent(f'''\n\
                         WARNING: Transaction ID (XID) age threshold reached. Ingestion paused, vacuum required on database(s) to resume
-                              
+
                               Triggering governor:    {self.type}
                               XID age trigger:        {self.xid_age}
                               XID age currently:      {current_age}
@@ -264,25 +271,23 @@ class Governor:
                               DB Clustering:          {self.connect_hybrid}
                               DB(s) to vacuum:        {self.db_names}
                               '''), '  '), 'WARN')
-    
-                    # Wait for a manual vacuum to lower XID age < resume_age 
+
+                    # Wait for a manual vacuum to lower XID age < resume_age
                     while current_age > self.resume_age:
                             self.print_or_log(f'\t{datetime.now().strftime("%I:%M%p")} - Current XID age: {current_age}, Target age: {self.resume_age} - Sleeping for {self.wait_time}s...', 'WARN')
                             time.sleep(self.wait_time)
                             db_objs[1].execute(self.sql_stmt, [db_objs[2]])
                             current_age = db_objs[1].fetchone()[0]
-    
+
                     print()
 
             # Update the last checked time
             self.next_check_time = time.time() + self.check_time_interval
 
-
     def source_action(self):
         ''' Action to be performed when triggered for each source, e.g. in multi-source project  '''
 
         return
-
 
     def connect_cursor(self, parsed_uri):
         ''' For each DB return connection and cursor '''
@@ -308,7 +313,6 @@ class Governor:
 
         return (dbo, cursor)
 
-
     def dburi_parse(self, dbUri):
         ''' Parse the database uri string '''
 
@@ -318,25 +322,25 @@ class Governor:
 
             # Pull off the table parameter if supplied
             uri_dict['TABLE'] = uri_dict['SCHEMA'] = uri_dict['PORT'] = None
-    
+
             if '/?' in dbUri:
                 (dbUri, parm) = tuple(dbUri.split('/?'))
                 for item in parm.split('&'):
                     (parmType, parmValue) = tuple(item.split('='))
                     uri_dict['TABLE'] = parmValue if parmType.upper() == 'TABLE' else None
                     uri_dict['SCHEMA'] = parmValue if parmType.upper() == 'SCHEMA' else None
-    
+
             # Get database type
             (uri_dict['DBTYPE'], dbUriData) = dbUri.split('://') if '://' in dbUri else ('UNKNOWN', dbUri)
             uri_dict['DBTYPE'] = uri_dict['DBTYPE'].upper()
-    
+
             # Separate login and dsn info
             (justUidPwd, justDsnSch) = dbUriData.split('@') if '@' in dbUriData else (':', dbUriData)
             justDsnSch = justDsnSch.rstrip('/')
-    
+
             # Separate uid and password
-            (uri_dict['USERID'], uri_dict['PASSWORD']) = justUidPwd.split(':') if ':' in justUidPwd else (justUidPwd, '') 
-    
+            (uri_dict['USERID'], uri_dict['PASSWORD']) = justUidPwd.split(':') if ':' in justUidPwd else (justUidPwd, '')
+
             # Separate dsn and port
             if justDsnSch[1:3] == ":\\":
                 uri_dict['DSN'] = justDsnSch
@@ -347,19 +351,18 @@ class Governor:
                 # e.g. CONNECTION=postgresql://userid:password@localhost:5432:postgres
                 # postgres == odbc.ini datasource entry
                 if uri_dict['DBTYPE'] in ('POSTGRESQL', 'MYSQL'):
-                    uri_dict['HOST'] = uri_dict['DSN'] 
+                    uri_dict['HOST'] = uri_dict['DSN']
                     uri_dict['DSN'] = justDsnSch.split(':')[2]
-            else: # Just dsn with no port
+            else:  # Just dsn with no port
                 uri_dict['DSN'] = justDsnSch
 
         except (IndexError, ValueError) as ex:
             raise G2DBException(f'Failed to parse database URI, check the connection string(s) in your G2Module INI file.') from None
 
-        if not uri_dict['DSN']: 
-           raise G2DBException(f'Missing database DSN. \n{self.show_connection(uri_dict, False, False)}')  
+        if not uri_dict['DSN']:
+            raise G2DBException(f'Missing database DSN. \n{self.show_connection(uri_dict, False, False)}')
 
         return uri_dict
-
 
     def show_connection(self, uri_dict, show_pwd=False, print_not_return=True):
         ''' Show connection details and redact password if requested. Print directly or return only the parsed URI dict'''
@@ -376,7 +379,6 @@ class Governor:
             return
 
         return conn_string
-
 
     def print_or_log(self, msg, level_='INFO'):
         ''' Use logging or print for output '''

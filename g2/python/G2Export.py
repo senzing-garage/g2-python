@@ -12,14 +12,12 @@ import time
 from datetime import datetime
 
 import G2Paths
-from G2Engine import G2Engine
-from G2Exception import G2ModuleException
-from G2Health import G2Health
-from G2IniParams import G2IniParams
+
+from senzing import G2Engine, G2EngineFlags, G2IniParams, G2ModuleException
 
 
 def print_error_msg(msg, error1, error2='', exit=False):
-    ''' Display error msg and optionally exit '''
+    """ Display error msg and optionally exit """
 
     print(textwrap.dedent(f'''\
 
@@ -33,7 +31,7 @@ def print_error_msg(msg, error1, error2='', exit=False):
 
 
 def csv_fetch_next(handle, response, csv_header=None):
-    ''' Fetch next for CSV output '''
+    """ Fetch next for CSV output """
 
     try:
         g2_engine.fetchNext(handle, response)
@@ -55,7 +53,7 @@ def csv_fetch_next(handle, response, csv_header=None):
 
 
 def json_fetch_next(handle, response):
-    ''' Fetch next for JSON output '''
+    """ Fetch next for JSON output """
 
     try:
         g2_engine.fetchNext(handle, response)
@@ -66,7 +64,7 @@ def json_fetch_next(handle, response):
 
 
 def do_stats_output(total_entity_count, start_time, batch_row_count):
-    ''' Print stats if output frequency interval and not disabled with -1. Reset batch row count if triggered '''
+    """ Print stats if output frequency interval and not disabled with -1. Reset batch row count if triggered """
 
     if args.outputFrequency != -1 and total_entity_count % args.outputFrequency == 0:
         time_now = datetime.now().strftime("%I:%M:%S %p").lower()
@@ -81,7 +79,7 @@ def do_stats_output(total_entity_count, start_time, batch_row_count):
 
 
 def csvExport():
-    ''' Export data in CSV format '''
+    """ Export data in CSV format """
 
     fetched_rec_count = bad_count_outer = bad_count_inner = total_row_count = batch_row_count = entity_count = total_entity_count = 0
 
@@ -94,7 +92,7 @@ def csvExport():
         writer = csv.DictWriter(output_file_handle, fieldnames=csv_header, dialect=csv.excel, quoting=csv.QUOTE_ALL)
         writer.writeheader()
     except csv.Error as ex:
-        print_error_msg('Could not create CSV writer for output or write CSF header', ex, True)
+        print_error_msg('Could not create CSV writer for output or write CSF header', ex, exit=True)
 
     start_time = time.time()
 
@@ -158,7 +156,7 @@ def csvExport():
 
 
 def jsonExport():
-    ''' Export data in JSON format '''
+    """ Export data in JSON format """
 
     row_count = batch_row_count = 0
     start_time = time.time()
@@ -186,7 +184,7 @@ def jsonExport():
 
 @contextlib.contextmanager
 def open_file_stdout(file_name):
-    ''' Use with open context to open either a file od stdout '''
+    """ Use with open context to open either a file od stdout """
 
     if file_name != '-':
         h = gzip.open(file_name, 'wt', compresslevel=args.compressFile) if args.compressFile else open(file_name, 'w')
@@ -262,7 +260,7 @@ if __name__ == '__main__':
                                                                                                 When used with CSV output, JSON_DATA isn\'t included for the related entities
                                                                                                 (RELATED_ENTITY_ID) for each resolved entity (RESOLVED_ENTITY_ID). This reduces
                                                                                                 the size of a CSV export by preventing repeating data for related entities. JSON_DATA
-                                                                                                for the related entites is still included in the CSV export and is located in the
+                                                                                                for the related entities is still included in the CSV export and is located in the
                                                                                                 export record where the RELATED_ENTITY_ID = RESOLVED_ENTITY_ID.
 
                                                                                                 WARNING: This is not recommended! To include the JSON_DATA for every CSV record see the
@@ -271,7 +269,7 @@ if __name__ == '__main__':
                                                                                                 '''))
     g2export_parser.add_argument('-of', '--outputFrequency', default=1000, type=int, help=textwrap.dedent('''\
 
-                                                                                            Frequency of export output statisitcs.
+                                                                                            Frequency of export output statistics.
 
                                                                                             Default: %(default)s
 
@@ -347,7 +345,7 @@ if __name__ == '__main__':
                  ********** Warning **********
 
                  G2Export isn't intended for exporting large numbers of entities and associated data source record information.
-                 Beyond 100M+ data source records isn't suggested. For exporting overview entity and relationship data for 
+                 Beyond 100M+ data source records isn't suggested. For exporting overview entity and relationship data for
                  analytical purposes outside of Senzing please review the following article:
 
                  https://senzing.zendesk.com/hc/en-us/articles/360010716274--Advanced-Replicating-the-Senzing-results-to-a-Data-Warehouse
@@ -362,17 +360,16 @@ if __name__ == '__main__':
         # Some CSV exports can be large especially with extended data. Is checked and increased in csv_fetch_next()
         csv.field_size_limit(300000)
 
-        # Extended format (with REF_SCORE, ENTITY_TYPE, ERRULE_CODE) hard coded to false for now. Applies to CSV output
+        # Extended format (with ENTITY_TYPE, ERRULE_CODE) hard coded to false for now. Applies to CSV output
         extendedFormat = False
 
         # Fields to use with CSV output, list of fields to request data
         # For CSV these are unioned with the data returned by the flags to give final output
-        csvFields = ['RESOLVED_ENTITY_ID', 'RELATED_ENTITY_ID', 'MATCH_LEVEL', 'MATCH_KEY', 'DATA_SOURCE', 'RECORD_ID', 'LENS_CODE']
+        csvFields = ['RESOLVED_ENTITY_ID', 'RELATED_ENTITY_ID', 'MATCH_LEVEL', 'MATCH_KEY', 'DATA_SOURCE', 'RECORD_ID']
         if args.extended:
             csvFields.insert(2, 'RESOLVED_ENTITY_NAME')
             csvFields.insert(6, 'JSON_DATA')
         if extendedFormat:  # Hard coded to false for now
-            csvFields.append('REF_SCORE')
             csvFields.append('ENTITY_TYPE')
             csvFields.append('ERRULE_CODE')
         csvFields = ','.join(csvFields)
@@ -388,11 +385,7 @@ if __name__ == '__main__':
         iniFileName = pathlib.Path(G2Paths.get_G2Module_ini_path()) if not args.iniFile else pathlib.Path(args.iniFile[0]).resolve()
         G2Paths.check_file_exists_and_readable(iniFileName)
 
-        # Warn if using out dated parms
-        g2health = G2Health()
-        g2health.checkIniParams(iniFileName)
-
-        # Get the INI paramaters to use
+        # Get the INI parameters to use
         iniParamCreator = G2IniParams()
         g2module_params = iniParamCreator.getJsonINIParams(iniFileName)
 
@@ -400,26 +393,26 @@ if __name__ == '__main__':
         try:
             print('\nStarting Senzing engine...', file=msg_output_handle)
             g2_engine = G2Engine()
-            g2_engine.initV2('pyG2Export', g2module_params, False)
+            g2_engine.init('pyG2Export', g2module_params, False)
         except G2ModuleException as ex:
             print_error_msg(f'Error: Could not start the G2 engine using {iniFileName}', ex, exit=True)
 
         # Determine data requested with engine flags
-        exportFlags = g2_engine.G2_EXPORT_INCLUDE_ALL_ENTITIES
+        exportFlags = G2EngineFlags.G2_EXPORT_INCLUDE_ALL_ENTITIES
         if args.outputFilter == 1:
             pass
         elif args.outputFilter == 2:
-            exportFlags = exportFlags | g2_engine.G2_EXPORT_INCLUDE_POSSIBLY_SAME | g2_engine.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS
+            exportFlags = exportFlags | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_SAME | G2EngineFlags.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS
         elif args.outputFilter == 3:
-            exportFlags = exportFlags | g2_engine.G2_EXPORT_INCLUDE_POSSIBLY_SAME | g2_engine.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | g2_engine.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS | g2_engine.G2_ENTITY_INCLUDE_POSSIBLY_RELATED_RELATIONS
+            exportFlags = exportFlags | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_SAME | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | G2EngineFlags.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS | G2EngineFlags.G2_ENTITY_INCLUDE_POSSIBLY_RELATED_RELATIONS
         elif args.outputFilter == 4:
-            exportFlags = exportFlags | g2_engine.G2_EXPORT_INCLUDE_POSSIBLY_SAME | g2_engine.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | g2_engine.G2_EXPORT_INCLUDE_NAME_ONLY | g2_engine.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS | g2_engine.G2_ENTITY_INCLUDE_POSSIBLY_RELATED_RELATIONS | g2_engine.G2_ENTITY_INCLUDE_NAME_ONLY_RELATIONS
+            exportFlags = exportFlags | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_SAME | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | G2EngineFlags.G2_EXPORT_INCLUDE_NAME_ONLY | G2EngineFlags.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS | G2EngineFlags.G2_ENTITY_INCLUDE_POSSIBLY_RELATED_RELATIONS | G2EngineFlags.G2_ENTITY_INCLUDE_NAME_ONLY_RELATIONS
         elif args.outputFilter >= 5:
-            exportFlags = exportFlags | g2_engine.G2_EXPORT_INCLUDE_POSSIBLY_SAME | g2_engine.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | g2_engine.G2_EXPORT_INCLUDE_NAME_ONLY | g2_engine.G2_EXPORT_INCLUDE_DISCLOSED | g2_engine.G2_ENTITY_INCLUDE_ALL_RELATIONS
+            exportFlags = exportFlags | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_SAME | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | G2EngineFlags.G2_EXPORT_INCLUDE_NAME_ONLY | G2EngineFlags.G2_EXPORT_INCLUDE_DISCLOSED | G2EngineFlags.G2_ENTITY_INCLUDE_ALL_RELATIONS
         else:
-            exportFlags = exportFlags | g2_engine.G2_ENTITY_INCLUDE_ALL_RELATIONS
+            exportFlags = exportFlags | G2EngineFlags.G2_ENTITY_INCLUDE_ALL_RELATIONS
 
-        #if not extended:
+        # if not extended:
         #  exportFlags |= g2_engine.G2_ENTITY_MINIMAL_FORMAT
 
         # Initialize the export
@@ -435,15 +428,15 @@ if __name__ == '__main__':
             # Create CSV or JSON export handle to fetch from
             try:
                 if args.outputFormat == 'CSV':
-                    export_handle = g2_engine.exportCSVEntityReportV2(csvFields, exportFlags)
+                    export_handle = g2_engine.exportCSVEntityReport(csvFields, exportFlags)
                 else:
                     # For JSON output amend the engine flags to obtain additional data
-                    # JSON output to match similar CSV ouput will include additional items, CSV unions flags & csvFields to determine output
-                    exportFlags = exportFlags | g2_engine.G2_ENTITY_INCLUDE_RECORD_DATA | g2_engine.G2_ENTITY_INCLUDE_RELATED_RECORD_DATA | g2_engine.G2_ENTITY_INCLUDE_RECORD_MATCHING_INFO | g2_engine.G2_ENTITY_INCLUDE_RELATED_MATCHING_INFO
+                    # JSON output to match similar CSV output will include additional items, CSV unions flags & csvFields to determine output
+                    exportFlags = exportFlags | G2EngineFlags.G2_ENTITY_INCLUDE_RECORD_DATA | G2EngineFlags.G2_ENTITY_INCLUDE_RELATED_RECORD_DATA | G2EngineFlags.G2_ENTITY_INCLUDE_RECORD_MATCHING_INFO | G2EngineFlags.G2_ENTITY_INCLUDE_RELATED_MATCHING_INFO
                     if args.extended:
                         # Note: There is no flag for JSON export to get the related JSON_DATA details to fully mimic CSV output
                         #       Would need to getRecord() and inject the JSON_DATA
-                        exportFlags = exportFlags | g2_engine.G2_ENTITY_INCLUDE_ENTITY_NAME | g2_engine.G2_ENTITY_INCLUDE_RECORD_JSON_DATA
+                        exportFlags = exportFlags | G2EngineFlags.G2_ENTITY_INCLUDE_ENTITY_NAME | G2EngineFlags.G2_ENTITY_INCLUDE_RECORD_JSON_DATA
                     export_handle = g2_engine.exportJSONEntityReport(exportFlags)
             except G2ModuleException as ex:
                 print_error_msg('Could not initialize export', ex, exit=True)

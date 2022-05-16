@@ -25,7 +25,6 @@ class G2Project:
         self.mappingFiles = {}
 
         self.dataSourceDict = g2ConfigTables.loadConfig('CFG_DSRC')
-        self.entityTypeDict = g2ConfigTables.loadConfig('CFG_ETYPE')
         self.featureDict = g2ConfigTables.loadConfig('CFG_FTYPE')
         self.attributeDict = g2ConfigTables.loadConfig('CFG_ATTR')
 
@@ -257,8 +256,6 @@ class G2Project:
             # --so if the data source was not specified for the file its in the json record and needs to be validated
             elif 'DATA_SOURCE' not in sourceDict and jsonDict['DATA_SOURCE'].upper() not in self.dataSourceDict:
                 messageList.append(['ERROR', 'Invalid data source: ' + jsonDict['DATA_SOURCE'].upper()])
-            if 'ENTITY_TYPE' in jsonDict and jsonDict['ENTITY_TYPE'].upper() not in self.entityTypeDict:
-                messageList.append(['ERROR', 'Invalid entity type: ' + jsonDict['ENTITY_TYPE'].upper()])
 
             # --record_id
             if 'RECORD_ID' not in jsonDict:
@@ -555,7 +552,7 @@ class G2Project:
     def loadJsonProject(self):
         ''' validates and loads a json project file into memory '''
         try:
-            projectData = json.load(open(self.projectFileName), encoding="utf-8")
+            projectData = json.load(open(self.projectFileName, encoding="utf-8"))
         except Exception as err:
             print('ERROR: project file ' + repr(err))
             self.success = False
@@ -870,3 +867,4 @@ class G2Project:
         print(hdrFormat.format(*headerRow2))
         for row in tableData:
             print(rowFormat.format(*row))
+

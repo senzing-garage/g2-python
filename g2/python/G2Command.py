@@ -1761,6 +1761,27 @@ class G2CmdShell(cmd.Cmd, object):
         except G2Exception as err:
             print(err)
 
+
+    def do_getRedoRecord(self, arg):
+        '\nGet a redo record from the redo queue:  getRedoRecord\n'
+
+        try:
+            args = self.parser.parse_args(['noArgument'] + parse(arg))
+        except SystemExit:
+            print(self.do_getRedoRecord.__doc__)
+            return
+
+        try:
+            response = bytearray()
+            self.g2_module.getRedoRecord(response)
+            if response:
+                print('response: {}'.format(response.decode()))
+            else:
+                print('\nNo response!\n')
+        except G2Exception as err:
+            print(err)
+
+
     def do_processRedoRecord(self, arg):
         '\nProcess a redo record:  processRedoRecord\n'
 

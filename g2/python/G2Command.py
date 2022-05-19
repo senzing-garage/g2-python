@@ -43,7 +43,7 @@ class G2CmdShell(cmd.Cmd, object):
         self.doc_header = 'Senzing APIs'
         self.misc_header = 'Help Topics (help <topic>)'
         self.undoc_header = 'Misc Commands'
-        self.__hidden_methods = ('do_shell', 'do_EOF', 'do_help')
+        self.__hidden_methods = ('do_shell', 'do_EOF', 'do_help', 'do_getRedoRecord')
 
         self.g2_module = G2Engine()
         self.g2_hasher_module = G2Hasher()

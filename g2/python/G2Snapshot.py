@@ -36,11 +36,18 @@ except:
     # Fall back to pre-Senzing-Python-SDK style of imports.
     try:
         import G2Paths
+        from G2IniParams import G2IniParams
         from G2Product import G2Product
+        from G2Config import G2Config
+        from G2ConfigMgr import G2ConfigMgr
+        from G2Diagnostic import G2Diagnostic
+        from G2Engine import G2Engine
         from G2Exception import G2Exception
+        from G2Database import G2Database
     except:
         print('\nPlease export PYTHONPATH=<path to senzing python directory>\n')
         sys.exit(1)
+    G2EngineFlags = G2Engine
 
 
 # -----------------------------------
@@ -75,42 +82,6 @@ def setup_entity_queue_db(thread_id, threadStop, entity_queue, resume_queue):
 
 
 # -------------------------------------
-def setup_entity_queue_api(thread_count, threadStop, entity_queue, resume_queue):
-    # multi-threaded API
-    try:
-        g2Engine = G2Engine()
-        g2Engine.init('G2Snapshot', iniParams, False)
-    except G2Exception as ex:
-        print(f"\nG2Exception: {ex}\n")
-        with shutDown.get_lock():
-            shutDown.value = 1
-        return
-    thread_list = []
-    for thread_id in range(thread_count):
-        thread_list.append(threading.Thread(target=process_entity_queue_api, args=(thread_id, threadStop, entity_queue, resume_queue, g2Engine)))
-    for thread in thread_list:
-        thread.start()
-    for thread in thread_list:
-        thread.join()
-    g2Engine.destroy()
-
-
-# -------------------------------------
-def setup_entity_queue_api_single(thread_id, threadStop, entity_queue, resume_queue):
-    # single-threaded API
-    try:
-        g2Engine = G2Engine()
-        g2Engine.init('G2Snapshot%s' % thread_id, iniParams, False)
-    except G2Exception as ex:
-        print(f"\nG2Exception: {ex}\n")
-        with shutDown.get_lock():
-            shutDown.value = 1
-        return
-    process_entity_queue_api(thread_id, threadStop, entity_queue, resume_queue, g2Engine)
-    g2Engine.destroy()
-
-
-# -------------------------------------
 def process_entity_queue_db(thread_id, threadStop, entity_queue, resume_queue, local_dbo):
     while threadStop.value == 0:  # or entity_queue.empty() == False:
         queue_data = queue_read(entity_queue)
@@ -120,18 +91,6 @@ def process_entity_queue_db(thread_id, threadStop, entity_queue, resume_queue, l
             if resume_rows:
                 queue_write(resume_queue, resume_rows)
     # print('process_entity_queue %s shut down with %s left in the queue' % (thread_id, entity_queue.qsize()))
-
-
-# -------------------------------------
-def process_entity_queue_api(thread_id, threadStop, entity_queue, resume_queue, g2_engine):
-    while threadStop.value == 0:  # entity_queue.empty() == False:
-        queue_data = queue_read(entity_queue)
-        if queue_data:
-            # print('read entity_queue %s' % row)
-            resume_rows = get_resume_api(g2_engine, queue_data)
-            if resume_rows:
-                queue_write(resume_queue, resume_rows)
-    # print('process_entity_queue2 %s shut down with %s left in the queue' % (thread_id, entity_queue.qsize()))
 
 
 # -------------------------------------
@@ -258,70 +217,6 @@ def complete_resume_api(rowData):
     rowData['MATCH_LEVEL'] = int(rowData['MATCH_LEVEL'])
 
     return rowData
-
-# -------------------------------------
-def get_resume_api(g2Engine, resolved_id):
-
-    resume_rows = []
-
-    getFlags = 0
-    # getFlags = G2EngineFlags.G2_ENTITY_DEFAULT_FLAGS
-    # getFlags = getFlags | G2EngineFlags.G2_ENTITY_INCLUDE_ENTITY_NAME
-    getFlags = getFlags | G2EngineFlags.G2_ENTITY_INCLUDE_RECORD_DATA
-    # getFlags = getFlags | G2EngineFlags.G2_ENTITY_INCLUDE_RECORD_MATCHING_INFO
-    # getFlags = getFlags | G2EngineFlags.G2_ENTITY_INCLUDE_RECORD_FORMATTED_DATA
-    if relationshipFilter in (2, 3):
-        getFlags = getFlags | G2EngineFlags.G2_ENTITY_INCLUDE_ALL_RELATIONS
-        # getFlags = getFlags | G2EngineFlags.G2_ENTITY_INCLUDE_RELATED_ENTITY_NAME
-        getFlags = getFlags | G2EngineFlags.G2_ENTITY_INCLUDE_RELATED_MATCHING_INFO
-        getFlags = getFlags | G2EngineFlags.G2_ENTITY_INCLUDE_RELATED_RECORD_SUMMARY
-
-    try:
-        response = bytearray()
-        retcode = g2Engine.getEntityByEntityID(int(resolved_id), response, getFlags)
-        response = response.decode() if response else ''
-    except G2Exception as err:
-        print(str(err))
-        with shutDown.get_lock():
-            shutDown.value = 1
-        return resume_rows
-
-    if not response:
-        return resume_rows
-
-    try:
-        jsonData = json.loads(response)
-    except:
-        print('json parse error:\n\t ', response)
-        return resume_rows
-
-    for record in jsonData['RESOLVED_ENTITY']['RECORDS']:
-        resume_rows.append({
-            'RESOLVED_ENTITY_ID': jsonData['RESOLVED_ENTITY']['ENTITY_ID'],
-            'RELATED_ENTITY_ID': 0,
-            'MATCH_LEVEL': 1,
-            'IS_AMBIGUOUS': 0,
-            'IS_DISCLOSED': 0,
-            'MATCH_KEY': 'n/a',
-            'DATA_SOURCE': record['DATA_SOURCE'],
-            'RECORD_ID': record['RECORD_ID']
-        })
-    if 'RELATED_ENTITIES' in jsonData:
-        for relation in jsonData['RELATED_ENTITIES']:
-            for record in relation['RECORD_SUMMARY']:
-                resume_rows.append({
-                    'RESOLVED_ENTITY_ID': jsonData['RESOLVED_ENTITY']['ENTITY_ID'],
-                    'RELATED_ENTITY_ID': relation['ENTITY_ID'],
-                    'MATCH_LEVEL': relation['MATCH_LEVEL'],
-                    'IS_AMBIGUOUS': relation['IS_AMBIGUOUS'],
-                    'IS_DISCLOSED': relation['IS_DISCLOSED'],
-                    'MATCH_KEY': relation['MATCH_KEY'],
-                    'DATA_SOURCE': record['DATA_SOURCE'],
-                    'RECORD_ID': 'n/a'
-                })
-
-    return resume_rows
-
 
 # -------------------------------------
 def process_resume(statPack, resume_rows, csvFileHandle):
@@ -543,7 +438,10 @@ def processEntities(threadCount):
     if not threadCount:
         try:
             g2Diag = G2Diagnostic()
-            g2Diag.init('pyG2Diagnostic', iniParams, False)
+            if api_version_major > 2:
+                g2Diag.init('pyG2Diagnostic', iniParams, False)
+            else:
+                g2Diag.initV2('pyG2Diagnostic', iniParams, False)
             physical_cores = g2Diag.getPhysicalCores()
             logical_cores = g2Diag.getLogicalCores()
             calc_cores_factor = 4  # if physical_cores != logical_cores else 1.2
@@ -590,33 +488,15 @@ def processEntities(threadCount):
     if newStatPack:
         statPack = initializeStatPack()
 
-    #g2Dbo = G2Database(g2dbUri)
-    #if not g2Dbo.success:
-    #    print('\nCould not connect to database\n')
-    #    return 1
-
     entity_queue = Queue(threadCount * 10)
     resume_queue = Queue(threadCount * 10)
     thread_list = []
 
-    print('starting %s %s threads ...' % (threadCount, ('api' if use_api else 'database')))
+    print(f"starting {threadCount} threads ...")
     process_list = []
 
-    if not use_api:  # sql only mode
-        for thread_id in range(threadCount - 1):
-            process_list.append(Process(target=setup_entity_queue_db, args=(thread_id, threadStop, entity_queue, resume_queue)))
-
-    else:  # api
-        unusedThreads = threadCount - 1
-        while unusedThreads > 0:
-            if unusedThreads > 16:
-                thisThreadCount = 16
-                unusedThreads -= 16
-            else:
-                thisThreadCount = unusedThreads
-                unusedThreads = 0
-            process_list.append(Process(target=setup_entity_queue_api, args=(thisThreadCount, threadStop, entity_queue, resume_queue)))
-
+    for thread_id in range(threadCount - 1):
+        process_list.append(Process(target=setup_entity_queue_db, args=(thread_id, threadStop, entity_queue, resume_queue)))
     process_list.append(Process(target=setup_resume_queue, args=(statPack, 99, threadStop, resume_queue)))
     for process in process_list:
         process.start()
@@ -645,7 +525,10 @@ def processEntities(threadCount):
                'join OBS_ENT b on b.OBS_ENT_ID = a.OBS_ENT_ID ' \
                'where a.RES_ENT_ID between ? and ? and b.DSRC_ID = ' + str(datasourceFilterID)
 
-    sql0 = g2Dbo.sqlPrep(sql0)
+    if api_version_major > 2:
+        sql0 = g2Dbo.sqlPrep(sql0)
+    elif g2Dbo.dbType == 'POSTGRESQL':
+        sql0 = sql0.replace('?', '%s')
 
     batchStartTime = time.time()
     entityCount = 0
@@ -747,7 +630,10 @@ def processEntities(threadCount):
 def get_entity_features(g2Engine, esb_data):
     try:
         response = bytearray()
-        retcode = g2Engine.getEntityByEntityID(esb_data[2], response, G2EngineFlags.G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES)
+        if api_version_major > 2:
+            retcode = g2Engine.getEntityByEntityID(esb_data[2], response, G2EngineFlags.G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES)
+        else:
+            retcode = g2Engine.getEntityByEntityIDV2(esb_data[2], G2EngineFlags.G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES, response)
         response = response.decode() if response else ''
     except G2Exception as err:
         return {}
@@ -875,7 +761,7 @@ def processEntitiesAPIOnly():
                     'DATA_SOURCE',
                     'RECORD_ID']
     try:
-        exportHandle = g2Engine.exportCSVEntityReport(",".join(exportFields), exportFlags)
+        exportHandle = g2Engine.exportCSVEntityReportV2(",".join(exportFields), exportFlags)
         exportHeaders = nextExportRecord(exportHandle)
     except G2Exception as err:
         print('\n%s\n' % str(err))
@@ -940,7 +826,10 @@ def calculateESBStats():
 
     try:
         g2Engine = G2Engine()
-        g2Engine.init('G2Snapshot-esb', iniParams, False)
+        if api_version_major > 2:
+            g2Engine.init('pyG2SnapshotEsb', iniParams, False)
+        else:
+            g2Engine.initV2('pyG2SnapshotEsb', iniParams, False)
     except G2Exception as ex:
         print(f"\nG2Exception: {ex}\n")
         with shutDown.get_lock():
@@ -981,7 +870,7 @@ def calculateESBStats():
     print(f"{cnt} entities processed, done!")
 
     # final display and updates
-    statPack['API_VERSION'] = apiVersion['BUILD_VERSION']
+    statPack['API_VERSION'] = api_version['BUILD_VERSION']
     statPack['RUN_DATE'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print()
     for stat in statPack:
@@ -1046,7 +935,7 @@ if __name__ == '__main__':
     argParser.add_argument('-a', '--for_audit', action='store_true', default=False, help='export csv file for audit')
     argParser.add_argument('-k', '--chunk_size', type=int, default=chunkSize, help='defaults to %s' % chunkSize)
     argParser.add_argument('-t', '--thread_count', type=int, default=threadCount, help='defaults to %s' % threadCount)
-    argParser.add_argument('-u', '--use_api', action='store_true', default=False, help='use api instead of sql to get resume')
+    argParser.add_argument('-u', '--use_api', action='store_true', default=False, help='use export api instead of sql to perform snapshot')
     argParser.add_argument('-q', '--quiet', action='store_true', default=False, help="doesn't ask to confirm before overwrite files")
 
     args = argParser.parse_args()
@@ -1080,10 +969,8 @@ if __name__ == '__main__':
     # get the version information
     try:
         g2Product = G2Product()
-        apiVersion = json.loads(g2Product.version())
-        if apiVersion['VERSION'][0:1] < '3':
-            print('\nThis program requires Senzing API version 3.0 or higher\n')
-            sys.exit(1)
+        api_version = json.loads(g2Product.version())
+        api_version_major = int(api_version['VERSION'][0:1])
     except G2Exception as err:
         print(err)
         sys.exit(1)
@@ -1093,7 +980,10 @@ if __name__ == '__main__':
         g2Engine = G2Engine()
         iniParamCreator = G2IniParams()
         iniParams = iniParamCreator.getJsonINIParams(configFileName)
-        g2Engine.init('G2Explorer', iniParams, False)
+        if api_version_major > 2:
+            g2Engine.init('pyG2Snapshot', iniParams, False)
+        else:
+            g2Engine.initV2('pyG2Snapshot', iniParams, False)
     except G2Exception as err:
         print('\n%s\n' % str(err))
         sys.exit(1)
@@ -1101,7 +991,10 @@ if __name__ == '__main__':
     # get needed config data
     try:
         g2ConfigMgr = G2ConfigMgr()
-        g2ConfigMgr.init('pyG2ConfigMgr', iniParams, False)
+        if api_version_major > 2:
+            g2ConfigMgr.init('pyG2ConfigMgr', iniParams, False)
+        else:
+            g2ConfigMgr.initV2('pyG2ConfigMgr', iniParams, False)
         defaultConfigID = bytearray()
         g2ConfigMgr.getDefaultConfigID(defaultConfigID)
         defaultConfigDoc = bytearray()
@@ -1228,8 +1121,15 @@ if __name__ == '__main__':
                            'where a.RES_ENT_ID = ?'
 
         #--adjusts the parameter syntax based on the database type
-        sqlEntities = g2Dbo.sqlPrep(sqlEntities)
-        sqlRelations = g2Dbo.sqlPrep(sqlRelations)
+        if api_version_major > 2:
+            sqlEntities = g2Dbo.sqlPrep(sqlEntities)
+        elif g2Dbo.dbType == 'POSTGRESQL':
+            sqlEntities = sqlEntities.replace('?', '%s')
+
+        if api_version_major > 2:
+            sqlRelations = g2Dbo.sqlPrep(sqlRelations)
+        elif g2Dbo.dbType == 'POSTGRESQL':
+            sqlRelations = sqlRelations.replace('?', '%s')
 
         processEntities(threadCount)
 

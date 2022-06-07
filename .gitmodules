@@ -49,3 +49,6 @@
 [submodule "g2explorer"]
   path = g2explorer
   url = https://github.com/Senzing/g2explorer.git
+[submodule "g2iniparams"]
+	path = g2iniparams
+	url = https://github.com/Senzing/g2iniparams.git

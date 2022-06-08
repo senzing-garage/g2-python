@@ -18,9 +18,10 @@ from datetime import datetime
 from shutil import copyfile
 
 import G2Paths
+from G2IniParams import G2IniParams
 
 try:
-    from senzing import G2Config, G2ConfigMgr, G2Exception, G2IniParams, G2ModuleGenericException
+    from senzing import G2Config, G2ConfigMgr, G2Exception, G2ModuleGenericException
 except Exception:
     pass
 

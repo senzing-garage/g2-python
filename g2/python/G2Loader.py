@@ -26,8 +26,9 @@ from CompressedFile import (fileRowParser, isCompressedFile,
                             openPossiblyCompressedFile)
 from G2ConfigTables import G2ConfigTables
 from G2Project import G2Project
+from G2IniParams import G2IniParams
 
-from senzing import G2Config, G2ConfigMgr, G2Diagnostic, G2Engine, G2Exception, G2IniParams, G2Product, G2ModuleException, G2ModuleLicenseException
+from senzing import G2Config, G2ConfigMgr, G2Diagnostic, G2Engine, G2Exception, G2Product, G2ModuleException, G2ModuleLicenseException
 
 # -----------------------------------------------------------------------------
 # Exceptions

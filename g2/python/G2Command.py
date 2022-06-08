@@ -16,7 +16,8 @@ from timeit import default_timer as timer
 
 import G2Paths
 
-from senzing import G2Config, G2ConfigMgr, G2Diagnostic, G2Engine, G2Exception, G2Hasher, G2IniParams, G2ModuleGenericException, G2Product
+from senzing import G2Config, G2ConfigMgr, G2Diagnostic, G2Engine, G2Exception, G2Hasher, G2ModuleGenericException, G2Product
+from G2IniParams import G2IniParams
 
 try:
     import readline

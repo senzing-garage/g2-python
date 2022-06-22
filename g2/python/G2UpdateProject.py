@@ -324,9 +324,8 @@ if __name__ == '__main__':
     set_permissions_on_files_in_folder(os.path.join(target_path, 'etc'), 0o660)
 
     # lib
-    set_permissions_on_files_in_folder(os.path.join(target_path, 'lib'), 0o660, files_to_ignore=['g2.jar', 'g2rst.jar'])
+    set_permissions_on_files_in_folder(os.path.join(target_path, 'lib'), 0o660, files_to_ignore=['g2.jar'])
     os.chmod(os.path.join(target_path, 'lib', 'g2.jar'), 0o664)
-    os.chmod(os.path.join(target_path, 'lib', 'g2rst.jar'), 0o664)
 
     # python
     set_permissions_on_files_in_folder_recursive(os.path.join(target_path, 'python'), 0o660)

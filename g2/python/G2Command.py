@@ -44,7 +44,7 @@ class G2CmdShell(cmd.Cmd, object):
         self.doc_header = 'Senzing APIs'
         self.misc_header = 'Help Topics (help <topic>)'
         self.undoc_header = 'Misc Commands'
-        self.__hidden_methods = ('do_shell', 'do_EOF', 'do_help', 'do_getRedoRecord')
+        self.__hidden_methods = ('do_shell', 'do_EOF', 'do_help', 'do_getRedoRecord', 'do_getEntityDetails', 'do_getRelationshipDetails', 'do_getEntityResume', 'do_getEntityListBySize', 'do_getDataSourceCounts', 'do_getMappingStatistics', 'do_getGenericFeatures', 'do_getEntitySizeBreakdown', 'do_getFeature', 'do_getResolutionStatistics', 'do_findEntitiesByFeatureIDs', 'do_getPhysicalCores', 'do_getLogicalCores', 'do_getTotalSystemMemory', 'do_getAvailableMemory')
 
         self.g2_module = G2Engine()
         self.g2_hasher_module = G2Hasher()

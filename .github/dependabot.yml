@@ -1,26 +1,13 @@
-# Based on
-# - https://github.com/srggrs/assign-one-project-github-action
+# Please see the documentation for all configuration options:
+# https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
 
-name: Add dependabot pull requests to project
-
-on:
-  pull_request:
-    types:
-      - opened
-      - reopened
-      
-env:
-  GITHUB_TOKEN: ${{ secrets.SENZING_GITHUB_ACCESS_TOKEN }}
-  CREATOR: ${{ github.event.pull_request.user.login }}
-
-jobs:
-  assign_one_project:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Assign pull request to project
-      env:
-          BOOL: ${{ contains( env.CREATOR, 'dependabot' ) }}
-      uses: Senzing/github-action-add-issue-to-project@main
-      if: ${{ env.BOOL == 'true' }}
-      with:
-        project: 'https://github.com/orgs/Senzing/projects/8'
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "daily"

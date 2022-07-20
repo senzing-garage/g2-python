@@ -1477,7 +1477,7 @@ if __name__ == '__main__':
     g2load_parser.add_argument('-n', '--noRedo', action='store_true', default=False, help='disable redo processing')
     g2load_parser.add_argument('-i', '--redoModeInterval', type=int, default=60, help='time in secs to wait between redo processing checks, only used in redo mode')
     g2load_parser.add_argument('-k', '--knownDatasourcesOnly', dest='configuredDatasourcesOnly', action='store_true', default=False, help='only accepts configured and known data sources')
-    g2load_parser.add_argument('-mtp', '--maxThreadsPerProcess', dest='max_threads_per_process', default=16, type=int, help='maximum threads per process, default=%(default)s')
+    g2load_parser.add_argument('-mtp', '--maxThreadsPerProcess', dest='max_threads_per_process', default=64, type=int, help='maximum threads per process, default=%(default)s')
     g2load_parser.add_argument('-g', '--governor', default=None, help='user supplied governor to load and call during processing', nargs=1)
     g2load_parser.add_argument('-gpd', '--governorDisable', action='store_true', default=False, help='disable default Postgres governor, when repository is Postgres')
     g2load_parser.add_argument('-tmp', '--tmpPath', default=tmp_path, help=f'use this path instead of {tmp_path} (For S3 files)', nargs='?')
@@ -1635,7 +1635,7 @@ if __name__ == '__main__':
 
     # Get the INI parameters to use
     iniParamCreator = G2IniParams()
-    g2module_params = iniParamCreator.getJsonINIParams(iniFileName)
+    g2module_params =  os.getenv("SENZING_ENGINE_CONFIGURATION_JSON", iniParamCreator.getJsonINIParams(iniFileName))
 
     # Check what DB Type - new API requested for engine to return instead of parsing here when added to engine
     conn_str = json.loads(g2module_params)['SQL'].get('CONNECTION', None)

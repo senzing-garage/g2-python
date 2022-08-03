@@ -6,10 +6,10 @@
 # upon this detection threads and processing is resumed.
 #
 # XID age is reduced with the Postgres vacuum command. This sample doesn't attempt to issue the vacuum command;
-# the user running G2Loader may not have the privelges to do so. When the age threshold is detected and G2Loader
+# the user running G2Loader may not have the privileges to do so. When the age threshold is detected and G2Loader
 # pauses, manually issue a vacuum command.
 #
-# Senzing can run in a clustered database mode where the engine handles up to 3 seperate DBs itself:
+# Senzing can run in a clustered database mode where the engine handles up to 3 separate DBs itself:
 # https://senzing.zendesk.com/hc/en-us/articles/360010599254-Scaling-Out-Your-Database-With-Clustering
 #
 # This sample uses the native Python Postgres driver psycopg2.
@@ -32,7 +32,7 @@ from importlib import import_module
 
 
 class G2DBException(Exception):
-    '''Base exception for G2 DB related python code'''
+    """ Base exception for G2 DB related python code """
 
     def __init__(self, *args, **kwargs):
         super().__init__(self, *args, **kwargs)
@@ -44,7 +44,7 @@ class G2DBException(Exception):
 
 class Governor:
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, thread_stop, *args, **kwargs):
 
         # Setup logging if caller uses it - Stream Loader uses logging, G2Loader doesn't yet
         self.gov_logger = logging.getLogger(__name__)
@@ -65,7 +65,10 @@ class Governor:
         self.sql_stmt = "SELECT age(datfrozenxid) FROM pg_database WHERE datname = (%s);"
         self.threads_lock = threading.Lock()
 
-        # Set defaults, overide at governor init if required
+        # To check if main threads from G2Loader stopped, or CTRL-C pressed to exit
+        self.thread_stop = thread_stop
+
+        # Set defaults, override at governor init if required
         #
         # frequency = row or source. The frequency the governor runs at, this must be specfied
         # interval = Governor called every row x number of records - used for per record or redo governor not per source
@@ -97,7 +100,7 @@ class Governor:
         # Ensure have required args
         try:
             self.psycopg2 = import_module('psycopg2')
-        except ImportError as ex:
+        except ImportError:
             raise G2DBException(textwrap.dedent(f'''\n\
 
                 - The Postgres native Python connector psycopg2 is required to use this governor.
@@ -116,7 +119,7 @@ class Governor:
         else:
             try:
                 self.g2module_params = json.loads(self.g2module_params)
-            except JSONDecodeError as ex:
+            except JSONDecodeError:
                 raise ValueError(f'Couldn\'t decode parameters to JSON for G2Module.')
 
         if not self.frequency:
@@ -186,8 +189,11 @@ class Governor:
 
         return
 
+    def __del__(self):
+        self.govern_cleanup()
+
     def govern(self, *args, **kwargs):
-        ''' Trigger action based on frequency '''
+        """ Trigger action based on frequency """
 
         if self.frequency == 'record':
             self.record_num += 1
@@ -200,7 +206,7 @@ class Governor:
         return
 
     def govern_pre(self, *args, **kwargs):
-        ''' Tasks to perform before creating governor '''
+        """ Tasks to perform before creating governor """
 
         if self.pre_post_msgs:
 
@@ -212,7 +218,7 @@ class Governor:
         return
 
     def govern_post(self, *args, **kwargs):
-        '''  Tasks to perform after creating governor '''
+        """  Tasks to perform after creating governor """
 
         if self.pre_post_msgs:
 
@@ -232,7 +238,7 @@ class Governor:
         return
 
     def govern_cleanup(self, *args, **kwargs):
-        '''  Tasks to perform when shutting down, e.g., close DB connections '''
+        """  Tasks to perform when shutting down, e.g., close DB connections """
 
         for db_objs in self.connect_dict.values():
             db_objs[1].close()
@@ -241,9 +247,9 @@ class Governor:
         return
 
     def record_action(self):
-        ''' Action to be performed when record or time interval is met, for each DB (single or clustered)
+        """ Action to be performed when record or time interval is met, for each DB (single or clustered)
             db_objs - 0 = connection, 1 = cursor, 2 = DSN
-        '''
+        """
 
         # Serialize threads to perform expensive work and check if a pause and vacuum is needed
         with self.threads_lock:
@@ -274,10 +280,14 @@ class Governor:
 
                     # Wait for a manual vacuum to lower XID age < resume_age
                     while current_age > self.resume_age:
-                            self.print_or_log(f'\t{datetime.now().strftime("%I:%M%p")} - Current XID age: {current_age}, Target age: {self.resume_age} - Sleeping for {self.wait_time}s...', 'WARN')
-                            time.sleep(self.wait_time)
-                            db_objs[1].execute(self.sql_stmt, [db_objs[2]])
-                            current_age = db_objs[1].fetchone()[0]
+                        
+                        self.print_or_log(f'\t{datetime.now().strftime("%I:%M%p")} - Database: {db_objs[2]}, Current XID age: {current_age}, Target age: {self.resume_age} - Sleeping for {self.wait_time}s...', 'WARN')
+                        time.sleep(self.wait_time)
+                        db_objs[1].execute(self.sql_stmt, [db_objs[2]])
+                        current_age = db_objs[1].fetchone()[0]
+                        # If G2Loader fails or catches CTRL-C, break to end this loop and exit governor
+                        if self.thread_stop.value != 0:
+                            break
 
                     print()
 
@@ -285,12 +295,12 @@ class Governor:
             self.next_check_time = time.time() + self.check_time_interval
 
     def source_action(self):
-        ''' Action to be performed when triggered for each source, e.g. in multi-source project  '''
+        """ Action to be performed when triggered for each source, e.g. in multi-source project  """
 
         return
 
     def connect_cursor(self, parsed_uri):
-        ''' For each DB return connection and cursor '''
+        """ For each DB return connection and cursor """
 
         try:
             dbo = self.psycopg2.connect(host=parsed_uri['HOST'],
@@ -311,10 +321,10 @@ class Governor:
         except Exception as ex:
             raise ex
 
-        return (dbo, cursor)
+        return dbo, cursor
 
-    def dburi_parse(self, dbUri):
-        ''' Parse the database uri string '''
+    def dburi_parse(self, dburi):
+        """ Parse the database uri string """
 
         uri_dict = {}
 
@@ -323,40 +333,40 @@ class Governor:
             # Pull off the table parameter if supplied
             uri_dict['TABLE'] = uri_dict['SCHEMA'] = uri_dict['PORT'] = None
 
-            if '/?' in dbUri:
-                (dbUri, parm) = tuple(dbUri.split('/?'))
+            if '/?' in dburi:
+                (dburi, parm) = tuple(dburi.split('/?'))
                 for item in parm.split('&'):
-                    (parmType, parmValue) = tuple(item.split('='))
-                    uri_dict['TABLE'] = parmValue if parmType.upper() == 'TABLE' else None
-                    uri_dict['SCHEMA'] = parmValue if parmType.upper() == 'SCHEMA' else None
+                    (parm_type, parm_value) = tuple(item.split('='))
+                    uri_dict['TABLE'] = parm_value if parm_type.upper() == 'TABLE' else None
+                    uri_dict['SCHEMA'] = parm_value if parm_type.upper() == 'SCHEMA' else None
 
             # Get database type
-            (uri_dict['DBTYPE'], dbUriData) = dbUri.split('://') if '://' in dbUri else ('UNKNOWN', dbUri)
+            (uri_dict['DBTYPE'], db_uri_data) = dburi.split('://') if '://' in dburi else ('UNKNOWN', dburi)
             uri_dict['DBTYPE'] = uri_dict['DBTYPE'].upper()
 
             # Separate login and dsn info
-            (justUidPwd, justDsnSch) = dbUriData.split('@') if '@' in dbUriData else (':', dbUriData)
-            justDsnSch = justDsnSch.rstrip('/')
+            (just_uid_pwd, just_dsn_sch) = db_uri_data.split('@') if '@' in db_uri_data else (':', db_uri_data)
+            just_dsn_sch = just_dsn_sch.rstrip('/')
 
             # Separate uid and password
-            (uri_dict['USERID'], uri_dict['PASSWORD']) = justUidPwd.split(':') if ':' in justUidPwd else (justUidPwd, '')
+            (uri_dict['USERID'], uri_dict['PASSWORD']) = just_uid_pwd.split(':') if ':' in just_uid_pwd else (just_uid_pwd, '')
 
             # Separate dsn and port
-            if justDsnSch[1:3] == ":\\":
-                uri_dict['DSN'] = justDsnSch
-            elif ':' in justDsnSch:
-                uri_dict['DSN'] = justDsnSch.split(':')[0]
-                uri_dict['PORT'] = justDsnSch.split(':')[1]
+            if just_dsn_sch[1:3] == ":\\":
+                uri_dict['DSN'] = just_dsn_sch
+            elif ':' in just_dsn_sch:
+                uri_dict['DSN'] = just_dsn_sch.split(':')[0]
+                uri_dict['PORT'] = just_dsn_sch.split(':')[1]
                 # PostgreSQL & MySQL use a slightly different connection string
                 # e.g. CONNECTION=postgresql://userid:password@localhost:5432:postgres
                 # postgres == odbc.ini datasource entry
                 if uri_dict['DBTYPE'] in ('POSTGRESQL', 'MYSQL'):
                     uri_dict['HOST'] = uri_dict['DSN']
-                    uri_dict['DSN'] = justDsnSch.split(':')[2]
+                    uri_dict['DSN'] = just_dsn_sch.split(':')[2]
             else:  # Just dsn with no port
-                uri_dict['DSN'] = justDsnSch
+                uri_dict['DSN'] = just_dsn_sch
 
-        except (IndexError, ValueError) as ex:
+        except (IndexError, ValueError):
             raise G2DBException(f'Failed to parse database URI, check the connection string(s) in your G2Module INI file.') from None
 
         if not uri_dict['DSN']:
@@ -365,7 +375,7 @@ class Governor:
         return uri_dict
 
     def show_connection(self, uri_dict, show_pwd=False, print_not_return=True):
-        ''' Show connection details and redact password if requested. Print directly or return only the parsed URI dict'''
+        """ Show connection details and redact password if requested. Print directly or return only the parsed URI dict """
 
         if not show_pwd:
             orig_pwd = uri_dict['PASSWORD']
@@ -381,7 +391,7 @@ class Governor:
         return conn_string
 
     def print_or_log(self, msg, level_='INFO'):
-        ''' Use logging or print for output '''
+        """ Use logging or print for output """
 
         if self.use_logging:
             self.gov_logger.log(getattr(logging, level_.upper()), msg.strip())

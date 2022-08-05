@@ -4,6 +4,7 @@ import argparse
 import contextlib
 import csv
 import gzip
+import os
 import pathlib
 import subprocess
 import sys
@@ -13,7 +14,7 @@ from datetime import datetime
 
 import G2Paths
 
-from senzing import G2Engine, G2EngineFlags, G2ModuleException
+from senzing import G2Engine, G2EngineFlags, G2Exception
 from G2IniParams import G2IniParams
 
 
@@ -36,7 +37,7 @@ def csv_fetch_next(handle, response, csv_header=None):
 
     try:
         g2_engine.fetchNext(handle, response)
-    except G2ModuleException as ex:
+    except G2Exception as ex:
         print_error_msg('Could not fetch next export record', ex, exit=True)
 
     # If no csv_header is sent we fetched the header row initially. Decode, strip and split into list
@@ -50,7 +51,7 @@ def csv_fetch_next(handle, response, csv_header=None):
         print(f'    Increased CSV field limit size to: {csv.field_size_limit()}', file=msg_output_handle)
     export_record_dict = next(csv.DictReader([export_record], fieldnames=csv_header)) if export_record else None
 
-    return (export_record, export_record_dict)
+    return export_record, export_record_dict
 
 
 def json_fetch_next(handle, response):
@@ -58,7 +59,7 @@ def json_fetch_next(handle, response):
 
     try:
         g2_engine.fetchNext(handle, response)
-    except G2ModuleException as ex:
+    except G2Exception as ex:
         print_error_msg('Could not fetch next export record', ex, exit=True)
 
     return response.decode()
@@ -71,15 +72,15 @@ def do_stats_output(total_entity_count, start_time, batch_row_count):
         time_now = datetime.now().strftime("%I:%M:%S %p").lower()
         rows_per_sec = int(float(batch_row_count) / (float(time.time() - start_time if time.time() - start_time != 0 else 1)))
         ents_per_sec = int(float(args.outputFrequency) / (float(time.time() - start_time if time.time() - start_time != 0 else 1)))
-        print(f'  {total_entity_count} entities processed at {time_now} ({ents_per_sec} per second), {rows_per_sec} rows per second', file=msg_output_handle)
+        print(f'  {total_entity_count:,} entities processed at {time_now} ({ents_per_sec:,} per second), {rows_per_sec:,} rows per second', file=msg_output_handle)
 
         start_time = time.time()
         batch_row_count = 0
 
-    return (start_time, batch_row_count)
+    return start_time, batch_row_count
 
 
-def csvExport():
+def csv_export():
     """ Export data in CSV format """
 
     fetched_rec_count = bad_count_outer = bad_count_inner = total_row_count = batch_row_count = entity_count = total_entity_count = 0
@@ -98,7 +99,7 @@ def csvExport():
     start_time = time.time()
 
     # Read rows from the export handle
-    (export_record, export_record_dict) = csv_fetch_next(export_handle, fetch_next_response, csv_header)
+    export_record, export_record_dict = csv_fetch_next(export_handle, fetch_next_response, csv_header)
 
     while export_record:
 
@@ -148,15 +149,15 @@ def csvExport():
             writer.writerows(row_list)
         except Exception as ex:
             print_error_msg('Writing to CSV file', ex)
-            return (total_row_count, (bad_count_outer + bad_count_inner), 1)
+            return total_row_count, (bad_count_outer + bad_count_inner), 1
         total_row_count += len(row_list)
 
         (start_time, batch_row_count) = do_stats_output(total_entity_count, start_time, batch_row_count)
 
-    return (total_row_count, (bad_count_outer + bad_count_inner), 0)
+    return total_row_count, (bad_count_outer + bad_count_inner), 0
 
 
-def jsonExport():
+def json_export():
     """ Export data in JSON format """
 
     row_count = batch_row_count = 0
@@ -174,13 +175,13 @@ def jsonExport():
             output_file_handle.write(export_record)
         except IOError as ex:
             print_error_msg('Writing to JSON file', ex)
-            return (row_count, 0, 1)
+            return row_count, 0, 1
 
-        (start_time, batch_row_count) = do_stats_output(row_count, start_time, batch_row_count)
+        start_time, batch_row_count = do_stats_output(row_count, start_time, batch_row_count)
 
         export_record = json_fetch_next(export_handle, fetch_next_response)
 
-    return (row_count, 0, 0)
+    return row_count, 0, 0
 
 
 @contextlib.contextmanager
@@ -212,7 +213,7 @@ if __name__ == '__main__':
     }
 
     g2export_parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter, allow_abbrev=False)
-    g2export_parser.add_argument('-c', '--iniFile', default=None, nargs=1, help=textwrap.dedent('''\
+    g2export_parser.add_argument('-c', '--iniFile', dest='ini_file_name', default=None, nargs=1, help=textwrap.dedent('''\
 
                                                                                         Path and file name of optional G2Module.ini to use.
 
@@ -361,7 +362,7 @@ if __name__ == '__main__':
         # Some CSV exports can be large especially with extended data. Is checked and increased in csv_fetch_next()
         csv.field_size_limit(300000)
 
-        # Extended format (with ENTITY_TYPE, ERRULE_CODE) hard coded to false for now. Applies to CSV output
+        # Extended format (with ERRULE_CODE) hard coded to false for now. Applies to CSV output
         extendedFormat = False
 
         # Fields to use with CSV output, list of fields to request data
@@ -371,110 +372,116 @@ if __name__ == '__main__':
             csvFields.insert(2, 'RESOLVED_ENTITY_NAME')
             csvFields.insert(6, 'JSON_DATA')
         if extendedFormat:  # Hard coded to false for now
-            csvFields.append('ENTITY_TYPE')
             csvFields.append('ERRULE_CODE')
         csvFields = ','.join(csvFields)
 
         # Check G2Project.ini isn't being used, now deprecated
         # Don't try and auto find G2Module.ini, safer to ask to be specified during this change!
-        if args.iniFile and 'G2PROJECT.INI' in args.iniFile[0].upper():
+        if args.ini_file_name and 'G2PROJECT.INI' in args.ini_file_name[0].upper():
             print('\nINFO: G2Export no longer uses G2Project.ini, it is deprecated and uses G2Module.ini instead.', file=msg_output_handle)
             print('      G2Export attempts to locate a default G2Module.ini (no -c) or use -c to specify path/name to your G2Module.ini', file=msg_output_handle)
             sys.exit(0)
 
-        # If ini file isn't specified try and locate it with G2Paths
-        iniFileName = pathlib.Path(G2Paths.get_G2Module_ini_path()) if not args.iniFile else pathlib.Path(args.iniFile[0]).resolve()
-        G2Paths.check_file_exists_and_readable(iniFileName)
+    #Check if INI file or env var is specified, otherwise use default INI file
+    ini_file_name = None
 
-        # Get the INI parameters to use
+    if args.ini_file_name:
+        ini_file_name = pathlib.Path(args.ini_file_name[0])
+    elif os.getenv("SENZING_ENGINE_CONFIGURATION_JSON"):
+        g2module_params = os.getenv("SENZING_ENGINE_CONFIGURATION_JSON")
+    else:
+        ini_file_name = pathlib.Path(G2Paths.get_G2Module_ini_path())
+
+    if ini_file_name:
+        G2Paths.check_file_exists_and_readable(ini_file_name)
         iniParamCreator = G2IniParams()
-        g2module_params = iniParamCreator.getJsonINIParams(iniFileName)
+        g2module_params = iniParamCreator.getJsonINIParams(ini_file_name)
 
-        # Initialise an engine
+    # Initialise an engine
+    try:
+        print('\nStarting Senzing engine...', file=msg_output_handle)
+        g2_engine = G2Engine()
+        g2_engine.init('pyG2Export', g2module_params, False)
+    except G2Exception as ex:
+        print_error_msg(f'Error: Could not start the G2 engine using {ini_file_name}', ex, exit=True)
+
+    # Determine data requested with engine flags
+    exportFlags = G2EngineFlags.G2_EXPORT_INCLUDE_ALL_ENTITIES
+    if args.outputFilter == 1:
+        pass
+    elif args.outputFilter == 2:
+        exportFlags = exportFlags | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_SAME | G2EngineFlags.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS
+    elif args.outputFilter == 3:
+        exportFlags = exportFlags | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_SAME | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | G2EngineFlags.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS | G2EngineFlags.G2_ENTITY_INCLUDE_POSSIBLY_RELATED_RELATIONS
+    elif args.outputFilter == 4:
+        exportFlags = exportFlags | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_SAME | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | G2EngineFlags.G2_EXPORT_INCLUDE_NAME_ONLY | G2EngineFlags.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS | G2EngineFlags.G2_ENTITY_INCLUDE_POSSIBLY_RELATED_RELATIONS | G2EngineFlags.G2_ENTITY_INCLUDE_NAME_ONLY_RELATIONS
+    elif args.outputFilter >= 5:
+        exportFlags = exportFlags | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_SAME | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | G2EngineFlags.G2_EXPORT_INCLUDE_NAME_ONLY | G2EngineFlags.G2_EXPORT_INCLUDE_DISCLOSED | G2EngineFlags.G2_ENTITY_INCLUDE_ALL_RELATIONS
+    else:
+        exportFlags = exportFlags | G2EngineFlags.G2_ENTITY_INCLUDE_ALL_RELATIONS
+
+    # if not extended:
+    #  exportFlags |= g2_engine.G2_ENTITY_MINIMAL_FORMAT
+
+    # Initialize the export
+    print('\nExecuting export...', file=msg_output_handle)
+    if args.outputFrequency == -1:
+        print('\n\tExport statistics output was disabled.', file=msg_output_handle)
+
+    export_start = time.time()
+
+    # Open file or stdout for export output
+    with open_file_stdout(output_file_name) as output_file_handle:
+
+        # Create CSV or JSON export handle to fetch from
         try:
-            print('\nStarting Senzing engine...', file=msg_output_handle)
-            g2_engine = G2Engine()
-            g2_engine.init('pyG2Export', g2module_params, False)
-        except G2ModuleException as ex:
-            print_error_msg(f'Error: Could not start the G2 engine using {iniFileName}', ex, exit=True)
+            if args.outputFormat == 'CSV':
+                export_handle = g2_engine.exportCSVEntityReport(csvFields, exportFlags)
+            else:
+                # For JSON output amend the engine flags to obtain additional data
+                # JSON output to match similar CSV output will include additional items, CSV unions flags & csvFields to determine output
+                exportFlags = exportFlags | G2EngineFlags.G2_ENTITY_INCLUDE_RECORD_DATA | G2EngineFlags.G2_ENTITY_INCLUDE_RELATED_RECORD_DATA | G2EngineFlags.G2_ENTITY_INCLUDE_RECORD_MATCHING_INFO | G2EngineFlags.G2_ENTITY_INCLUDE_RELATED_MATCHING_INFO
+                if args.extended:
+                    # Note: There is no flag for JSON export to get the related JSON_DATA details to fully mimic CSV output
+                    #       Would need to getRecord() and inject the JSON_DATA
+                    exportFlags = exportFlags | G2EngineFlags.G2_ENTITY_INCLUDE_ENTITY_NAME | G2EngineFlags.G2_ENTITY_INCLUDE_RECORD_JSON_DATA
+                export_handle = g2_engine.exportJSONEntityReport(exportFlags)
+        except G2Exception as ex:
+            print_error_msg('Could not initialize export', ex, exit=True)
 
-        # Determine data requested with engine flags
-        exportFlags = G2EngineFlags.G2_EXPORT_INCLUDE_ALL_ENTITIES
-        if args.outputFilter == 1:
-            pass
-        elif args.outputFilter == 2:
-            exportFlags = exportFlags | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_SAME | G2EngineFlags.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS
-        elif args.outputFilter == 3:
-            exportFlags = exportFlags | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_SAME | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | G2EngineFlags.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS | G2EngineFlags.G2_ENTITY_INCLUDE_POSSIBLY_RELATED_RELATIONS
-        elif args.outputFilter == 4:
-            exportFlags = exportFlags | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_SAME | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | G2EngineFlags.G2_EXPORT_INCLUDE_NAME_ONLY | G2EngineFlags.G2_ENTITY_INCLUDE_POSSIBLY_SAME_RELATIONS | G2EngineFlags.G2_ENTITY_INCLUDE_POSSIBLY_RELATED_RELATIONS | G2EngineFlags.G2_ENTITY_INCLUDE_NAME_ONLY_RELATIONS
-        elif args.outputFilter >= 5:
-            exportFlags = exportFlags | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_SAME | G2EngineFlags.G2_EXPORT_INCLUDE_POSSIBLY_RELATED | G2EngineFlags.G2_EXPORT_INCLUDE_NAME_ONLY | G2EngineFlags.G2_EXPORT_INCLUDE_DISCLOSED | G2EngineFlags.G2_ENTITY_INCLUDE_ALL_RELATIONS
-        else:
-            exportFlags = exportFlags | G2EngineFlags.G2_ENTITY_INCLUDE_ALL_RELATIONS
+        row_count, bad_rec_count, exit_code = csv_export() if args.outputFormat == 'CSV' else json_export()
 
-        # if not extended:
-        #  exportFlags |= g2_engine.G2_ENTITY_MINIMAL_FORMAT
+    export_finish = time.time()
 
-        # Initialize the export
-        print('\nExecuting export...', file=msg_output_handle)
-        if args.outputFrequency == -1:
-            print('\n\tExport statistics output was disabled.', file=msg_output_handle)
+    # If compression requested try and collect stats from gunzip. If anything fails report on it in the final output
+    if args.compressFile:
+        try:
+            process_output = subprocess.Popen(['gunzip', '--list', '--quiet', output_file_name], stdout=subprocess.PIPE, universal_newlines=True)
+            stdout, _ = process_output.communicate()
+            # Create a new list from the output, split and strip every element
+            gunzip_details = [element.strip() for element in stdout.split()]
+            size_compressed = int(gunzip_details[0]) / 1024 / 1024
+            size_uncompressed = int(gunzip_details[1]) / 1024 / 1024
+            comp_details = f'Level: {args.compressFile} - Compressed: {int(size_compressed)} MB - Uncompressed: {int(size_uncompressed)} MB - Ratio: {gunzip_details[2]}'
+        except Exception as ex:
+            comp_details = f'Collecting compression details failed: {ex}'
 
-        export_start = time.time()
+    # Display information for reference
+    print(textwrap.dedent(f'''
+                            Configuration parameters:    {ini_file_name if ini_file_name else 'Read from SENZING_ENGINE_CONFIGURATION_JSON env var'}
+                            Export output file:          {output_file_name if output_file_name != '-' else 'stdout'}
+                            Export output format:        {args.outputFormat}
+                            Export filter level:         {args.outputFilter} - {filter_levels[args.outputFilter]}
+                            Exported rows:               {row_count:,}
+                            Bad rows skipped:            {bad_rec_count}
+                            Start time:                  {datetime.fromtimestamp(export_start).strftime('%I:%M:%S%p').lower()}
+                            End time:                    {datetime.fromtimestamp(export_finish).strftime('%I:%M:%S%p').lower()}
+                            Execution time:              {round((export_finish - export_start) / 60, 1)} mins
+                            Compression details:         {comp_details if args.compressFile else 'Compression not requested'}
+                           '''), file=msg_output_handle)
 
-        # Open file or stdout for export output
-        with open_file_stdout(output_file_name) as output_file_handle:
+    print('Export completed successfully.' if not exit_code else 'ERROR: Export did NOT complete successfully!', file=msg_output_handle)
 
-            # Create CSV or JSON export handle to fetch from
-            try:
-                if args.outputFormat == 'CSV':
-                    export_handle = g2_engine.exportCSVEntityReport(csvFields, exportFlags)
-                else:
-                    # For JSON output amend the engine flags to obtain additional data
-                    # JSON output to match similar CSV output will include additional items, CSV unions flags & csvFields to determine output
-                    exportFlags = exportFlags | G2EngineFlags.G2_ENTITY_INCLUDE_RECORD_DATA | G2EngineFlags.G2_ENTITY_INCLUDE_RELATED_RECORD_DATA | G2EngineFlags.G2_ENTITY_INCLUDE_RECORD_MATCHING_INFO | G2EngineFlags.G2_ENTITY_INCLUDE_RELATED_MATCHING_INFO
-                    if args.extended:
-                        # Note: There is no flag for JSON export to get the related JSON_DATA details to fully mimic CSV output
-                        #       Would need to getRecord() and inject the JSON_DATA
-                        exportFlags = exportFlags | G2EngineFlags.G2_ENTITY_INCLUDE_ENTITY_NAME | G2EngineFlags.G2_ENTITY_INCLUDE_RECORD_JSON_DATA
-                    export_handle = g2_engine.exportJSONEntityReport(exportFlags)
-            except G2ModuleException as ex:
-                print_error_msg('Could not initialize export', ex, exit=True)
+    g2_engine.destroy()
 
-            (row_count, bad_rec_count, exit_code) = csvExport() if args.outputFormat == 'CSV' else jsonExport()
-
-        export_finish = time.time()
-
-        # If compression requested try and collect stats from gunzip. If anything fails report on it in the final output
-        if args.compressFile:
-            try:
-                process_output = subprocess.Popen(['gunzip', '--list', '--quiet', output_file_name], stdout=subprocess.PIPE, universal_newlines=True)
-                stdout, _ = process_output.communicate()
-                # Create a new list from the output, split and strip every element
-                gunzip_details = [element.strip() for element in stdout.split()]
-                size_compressed = int(gunzip_details[0]) / 1024 / 1024
-                size_uncompressed = int(gunzip_details[1]) / 1024 / 1024
-                comp_details = f'Level: {args.compressFile} - Compressed: {int(size_compressed)} MB - Uncompressed: {int(size_uncompressed)} MB - Ratio: {gunzip_details[2]}'
-            except Exception as ex:
-                comp_details = f'Collecting compression details failed: {ex}'
-
-        # Display information for reference
-        print(textwrap.dedent(f'''
-                                Configuration parameters:    {iniFileName}
-                                Export output file:          {output_file_name if output_file_name != '-' else 'stdout'}
-                                Export output format:        {args.outputFormat}
-                                Export filter level:         {args.outputFilter} - {filter_levels[args.outputFilter]}
-                                Exported rows:               {row_count:,}
-                                Bad rows skipped:            {bad_rec_count}
-                                Start time:                  {datetime.fromtimestamp(export_start).strftime('%I:%M:%S%p').lower()}
-                                End time:                    {datetime.fromtimestamp(export_finish).strftime('%I:%M:%S%p').lower()}
-                                Execution time:              {round((export_finish - export_start) / 60, 1)} mins
-                                Compression details:         {comp_details if args.compressFile else 'Compression not requested'}
-                               '''), file=msg_output_handle)
-
-        print('Export completed successfully.' if not exit_code else 'ERROR: Export did NOT complete successfully!', file=msg_output_handle)
-
-        g2_engine.destroy()
-
-        sys.exit(exit_code)
+    sys.exit(exit_code)

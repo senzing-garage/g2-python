@@ -34,10 +34,12 @@ except:
 # Import from Senzing
 try:
     import G2Paths
-    from G2Database import G2Database
-    from G2IniParams import G2IniParams
-    from senzing import G2ConfigMgr, G2Diagnostic, G2Engine, G2EngineFlags, G2Exception, G2Product
-except:
+    try:
+        from G2IniParams import G2IniParams
+        from senzing import G2ConfigMgr, G2Diagnostic, G2Engine, G2EngineFlags, G2Exception, G2Product
+    except:
+        from senzing import G2ConfigMgr, G2Diagnostic, G2Engine, G2EngineFlags, G2Exception, G2Product, G2IniParams
+except Exception as err:
 
     # Fall back to pre-Senzing-Python-SDK style of imports.
     try:
@@ -50,7 +52,7 @@ except:
         from G2Engine import G2Engine
         from G2Exception import G2Exception
     except:
-        print('\nPlease export PYTHONPATH=<path to senzing python directory>\n')
+        print(f"\nCould not import Senzing modules:\n{err}\n")
         sys.exit(1)
 
 # ---------------------------
@@ -1998,6 +2000,8 @@ class G2CmdShell(cmd.Cmd):
             get detail <entity_id>        {colorize('adding the "detail" tag displays each record rather than a summary by data source', 'dim')}
             get features <entity_id>      {colorize('adding the "features" tag displays the entity features rather than the resume', 'dim')}
 
+        {colorize('Notes:', 'highlight2')}
+            {colorize('Add the keyword ', 'dim')}ALL{colorize(' to display all the attributes of the entity if there are more than 50.', 'dim')}
         '''))
 
 
@@ -2014,32 +2018,33 @@ class G2CmdShell(cmd.Cmd):
         else:
             dataSourceFilter = None
 
-        if 'DETAIL ' in arg.upper():
-            showDetail = True
-            arg = arg.upper().replace('DETAIL ', '')
-        else:
-            showDetail = False
+        showDetail = False
+        showFeatures = False
+        showAll = False
+        arg_tokens = []
+        for token in arg.split():
+            if token.upper() == 'DETAIL':
+                showDetail = True
+            elif token.upper().startswith('FEATURE'):
+                showFeatures = True
+            elif token.upper() == 'ALL':
+                showAll = True
+            else:
+                arg_tokens.append(token)
 
-        if 'FEATURES ' in arg.upper():
-            showFeatures = True
-            arg = arg.upper().replace('FEATURES ', '')
-        else:
-            showFeatures = False
-
-        if len(arg.split()) == 2 and arg.split()[0].upper() == 'SEARCH':
-            lastToken = arg.split()[1]
+        if len(arg_tokens) == 2 and arg_tokens[0].upper() == 'SEARCH':
+            lastToken = arg_tokens[1]
             if not lastToken.isdigit() or lastToken == '0' or int(lastToken) > len(self.lastSearchResult):
                 print_message('Invalid search index from the prior search', 'error')
                 return -1 if calledDirect else 0
             else:
-                arg = str(self.lastSearchResult[int(lastToken) - 1])
+                arg_tokens = [str(self.lastSearchResult[int(lastToken) - 1])]
 
-        argList = arg.split()
-        if len(argList) not in (1, 2):
+        if len(arg_tokens) not in (1, 2):
             print_message('Incorrect number of parameters', 'warning')
             return -1 if calledDirect else 0
 
-        if len(argList) == 1 and not argList[0].isnumeric():
+        if len(arg_tokens) == 1 and not arg_tokens[0].isnumeric():
             print_message('Entity ID must be numeric', 'error')
             return -1 if calledDirect else 0
 
@@ -2053,10 +2058,10 @@ class G2CmdShell(cmd.Cmd):
                        'G2_ENTITY_INCLUDE_RELATED_MATCHING_INFO',
                        'G2_ENTITY_INCLUDE_RELATED_RECORD_SUMMARY']
         try:
-            if len(argList) == 1:
-                resolvedJson = execute_api_call('getEntityByEntityID', getFlagList, int(argList[0]))
+            if len(arg_tokens) == 1:
+                resolvedJson = execute_api_call('getEntityByEntityID', getFlagList, int(arg_tokens[0]))
             else:
-                resolvedJson = execute_api_call('getEntityByRecordID', getFlagList, argList)
+                resolvedJson = execute_api_call('getEntityByRecordID', getFlagList, arg_tokens)
         except Exception as err:
             print_message(err, 'error')
             return -1 if calledDirect else 0
@@ -2102,7 +2107,7 @@ class G2CmdShell(cmd.Cmd):
                 # summarize by data source
                 for dataSource in sorted(dataSources):
                     if dataSources[dataSource]:
-                        recordData, entityData, otherData = self.formatRecords(dataSources[dataSource], reportType)
+                        recordData, entityData, otherData = self.formatRecords(dataSources[dataSource], reportType, showAll)
                         row = [recordData, entityData, otherData]
                     else:
                         row = [dataSource, ' ** suppressed ** ', '']
@@ -2115,7 +2120,7 @@ class G2CmdShell(cmd.Cmd):
                     if dataSourceFilter and record['DATA_SOURCE'] not in dataSourceFilter:
                         additionalDataSources = True
                         continue
-                    recordData, entityData, otherData = self.formatRecords(record, 'entityDetail')
+                    recordData, entityData, otherData = self.formatRecords(record, reportType, showAll)
                     row = [recordData, entityData, otherData]
                     recordList.append(row)
 
@@ -2167,7 +2172,7 @@ class G2CmdShell(cmd.Cmd):
         return 0
 
     # ---------------------------
-    def formatRecords(self, recordList, reportType):
+    def formatRecords(self, recordList, reportType, showAll):
         dataSource = 'unknown'
         recordIdList = []
         primaryNameList = []
@@ -2189,8 +2194,6 @@ class G2CmdShell(cmd.Cmd):
                     matchData['matchKey'] = record['MATCH_KEY']
                     matchData['ruleCode'] = self.getRuleDesc(record['ERRULE_CODE'])
                     recordIdData += '\n' + colorize_match_data(matchData)
-                if record['ERRULE_CODE']:
-                    recordIdData += '\n  ' + colorize(self.getRuleDesc(record['ERRULE_CODE']), 'dim')
             recordIdList.append(recordIdData)
 
             for item in record['NAME_DATA']:
@@ -2214,10 +2217,10 @@ class G2CmdShell(cmd.Cmd):
         entityDataList = list(set(primaryNameList)) + list(set(otherNameList)) + sorted(set(attributeList)) + sorted(set(identifierList)) + list(set(addressList)) + list(set(phoneList))
         otherDataList = sorted(set(otherList))
 
-        if reportType == 'detail':
-            columnHeightLimit = 1000
+        if showAll:
+            columnHeightLimit = 999999
         else:
-            columnHeightLimit = 20
+            columnHeightLimit = 50
 
         recordData = '\n'.join(recordDataList[:columnHeightLimit])
         if len(recordDataList) > columnHeightLimit:
@@ -2592,7 +2595,7 @@ class G2CmdShell(cmd.Cmd):
 
         entityId = None
         buildOutDegree = 1
-        max_children_display = 10
+        max_children_display = 25
         argList = arg.split()
         if argList[-1].upper() == 'ALL':
             max_children_display = 999999
@@ -4643,7 +4646,7 @@ if __name__ == '__main__':
 
     # capture the command line arguments
     argParser = argparse.ArgumentParser()
-    argParser.add_argument('-c', '--config_file_name', dest='ini_file_name', default=iniFileName, help='name of the g2.ini file, defaults to %s' % iniFileName)
+    argParser.add_argument('-c', '--config_file_name', dest='ini_file_name', default=None, help='name of the g2.ini file, defaults to %s' % iniFileName)
     argParser.add_argument('-s', '--snapshot_json_file', dest='snapshot_file_name', default=None, help='the name of a json statistics file computed by G2Snapshot.py')
     argParser.add_argument('-a', '--audit_json_file', dest='audit_file_name', default=None, help='the name of a json statistics file computed by G2Audit.py')
     argParser.add_argument('-w', '--webapp_url', dest='webapp_url', default=None, help='the url to the senzing webapp if available')
@@ -4651,7 +4654,6 @@ if __name__ == '__main__':
     argParser.add_argument('-H', '--histDisable', dest='histDisable', action='store_true', default=False, help='disable history file usage')
 
     args = argParser.parse_args()
-    iniFileName = args.ini_file_name
     snapshotFileName = args.snapshot_file_name
     auditFileName = args.audit_file_name
     webapp_url = args.webapp_url
@@ -4693,7 +4695,20 @@ if __name__ == '__main__':
     try:
         g2Engine = G2Engine()
         iniParamCreator = G2IniParams()
-        iniParams = iniParamCreator.getJsonINIParams(iniFileName)
+
+        if args.ini_file_name:
+
+            iniParams = iniParamCreator.getJsonINIParams(args.ini_file_name)
+
+        elif os.getenv("SENZING_ENGINE_CONFIGURATION_JSON"):
+
+            iniParams = os.getenv("SENZING_ENGINE_CONFIGURATION_JSON")
+
+        else:
+
+            iniParams = iniParamCreator.getJsonINIParams(iniFileName)
+
+        
         if api_version_major > 2:
             g2Engine.init('pyG2Explorer', iniParams, False)
         else:

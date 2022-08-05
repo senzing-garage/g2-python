@@ -685,7 +685,7 @@ class G2CmdShell(cmd.Cmd, object):
                 return
 
         try:
-            self.cfgData = json.load(open(arg), encoding="utf-8")
+            self.cfgData = json.load(open(arg, encoding="utf-8"))
         except ValueError as e:
             print(f'\nERROR: {arg} doesn\'t appear to be valid JSON, configuration not imported!')
             print(f'ERROR: {e}\n')
@@ -4642,13 +4642,21 @@ if __name__ == '__main__':
     argParser.add_argument('-H', '--histDisable', dest='histDisable', action='store_true', default=False, help='disable history file usage')
     args = argParser.parse_args()
 
-    # If ini file isn't specified try and locate it with G2Paths
-    ini_file_name = pathlib.Path(G2Paths.get_G2Module_ini_path()) if not args.ini_file_name else pathlib.Path(args.ini_file_name).resolve()
-    G2Paths.check_file_exists_and_readable(ini_file_name)
+    #Check if INI file or env var is specified, otherwise use default INI file
+    iniFileName = None
 
-    # Get the INI parameters to use
-    iniParamCreator = G2IniParams()
-    g2module_params = iniParamCreator.getJsonINIParams(ini_file_name)
+    if args.ini_file_name:
+        iniFileName = pathlib.Path(args.ini_file_name)
+    elif os.getenv("SENZING_ENGINE_CONFIGURATION_JSON"):
+        g2module_params = os.getenv("SENZING_ENGINE_CONFIGURATION_JSON")
+    else:
+        iniFileName = pathlib.Path(G2Paths.get_G2Module_ini_path())
+
+    if iniFileName:
+        G2Paths.check_file_exists_and_readable(iniFileName)
+        iniParamCreator = G2IniParams()
+        g2module_params = iniParamCreator.getJsonINIParams(iniFileName)
+
 
     cmd_obj = G2CmdShell(g2module_params, args.histDisable, args.forceMode, args.fileToProcess)
 

@@ -111,6 +111,7 @@ class G2Project:
 
     # ----------------------------------------
     def testJsonRecord(self, jsonDict, rowNum, sourceDict):
+
         mappingErrors = []
         mappedAttributeList = []
         mappedFeatures = {}
@@ -252,10 +253,16 @@ class G2Project:
             # --required missing values
             if 'DATA_SOURCE' not in jsonDict and 'DATA_SOURCE' not in sourceDict:
                 messageList.append(['ERROR', 'Data source missing'])
-            # --this next condition is confusing because if they specified data source for the file (sourceDict) it will be added automatically
+            # Which one should be used? Easy to assume wrong one, error and allow user to correct
+            if 'DATA_SOURCE' in jsonDict and 'DATA_SOURCE' in sourceDict and jsonDict['DATA_SOURCE'] != sourceDict['DATA_SOURCE']:
+                messageList.append(['ERROR', f'Data source specified in record {jsonDict["DATA_SOURCE"]} and command line {sourceDict["DATA_SOURCE"]}'])
+            # --this next condition is confusing because if they specified data source for the file (sourcedict) it will be added automatically
             # --so if the data source was not specified for the file its in the json record and needs to be validated
             elif 'DATA_SOURCE' not in sourceDict and jsonDict['DATA_SOURCE'].upper() not in self.dataSourceDict:
                 messageList.append(['ERROR', 'Invalid data source: ' + jsonDict['DATA_SOURCE'].upper()])
+            # If the data source is specified on the command line, warn it will be added. This doesn't apply to data sources in records
+            elif 'DATA_SOURCE' in sourceDict and sourceDict['DATA_SOURCE'] and sourceDict['DATA_SOURCE'] not in self.dataSourceDict:
+                messageList.append(['INFO', 'Data source doesn\'t exist, will be added: ' + sourceDict['DATA_SOURCE']])
 
             # --record_id
             if 'RECORD_ID' not in jsonDict:
@@ -494,7 +501,7 @@ class G2Project:
                         fileList = []
 
                 if not fileList:
-                    print('ERROR: File specification did not return any files!')
+                    print('\nERROR: File specification did not return any files!')
                     self.success = False
                 else:
                     self.projectFileName = 'n/a'
@@ -735,13 +742,10 @@ class G2Project:
                                 badCnt += 1
                         else:  # test json or csv record
                             mappingResponse = self.testJsonRecord(rowData, rowCnt, sourceDict)
-                            errors = False
                             for mappingError in mappingResponse[0]:
                                 if mappingError[0] == 'ERROR':
-                                    errors = True
                                     print(f'    {mappingError[0]}: Row {rowCnt} - {mappingError[1]}')
-                            if errors:
-                                badCnt += 1
+                                    badCnt += 1
 
                     # --fails if too many bad records (more than 10 of 100 or all bad)
                     if badCnt >= 10 or badCnt == rowCnt:
@@ -773,6 +777,7 @@ class G2Project:
 
     def getTestResults(self, reportStyle='Full'):
         statPack = self.getStatPack()
+
         with io.StringIO() as buf, redirect_stdout(buf):
 
             print('\nTEST RESULTS')

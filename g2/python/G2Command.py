@@ -2455,13 +2455,28 @@ if __name__ == '__main__':
     first_loop = True
     restart = False
 
-    # If ini file isn't specified try and locate it with G2Paths
-    ini_file_name = pathlib.Path(G2Paths.get_G2Module_ini_path()) if not args.iniFile else pathlib.Path(args.iniFile[0]).resolve()
-    G2Paths.check_file_exists_and_readable(ini_file_name)
 
-    # Get the INI parameters to use
-    iniParamCreator = G2IniParams()
-    g2module_params = iniParamCreator.getJsonINIParams(ini_file_name)
+    # Check for G2Module.ini command line argument
+    if args.iniFile:
+
+        ini_file_name = pathlib.Path(args.iniFile[0])
+        G2Paths.check_file_exists_and_readable(ini_file_name)
+        iniParamCreator = G2IniParams()
+        g2module_params = iniParamCreator.getJsonINIParams(ini_file_name)
+
+    # Check for environment variable
+    elif os.getenv("SENZING_ENGINE_CONFIGURATION_JSON"):
+
+        g2module_params = os.getenv("SENZING_ENGINE_CONFIGURATION_JSON")
+
+    # Use default config
+    else:
+
+        ini_file_name = pathlib.Path(G2Paths.get_G2Module_ini_path())
+        G2Paths.check_file_exists_and_readable(ini_file_name)
+        iniParamCreator = G2IniParams()
+        g2module_params = iniParamCreator.getJsonINIParams(ini_file_name)
+
 
     # Execute a file of commands
     if args.fileToProcess:

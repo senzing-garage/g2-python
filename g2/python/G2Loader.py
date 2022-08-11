@@ -24,14 +24,15 @@ import DumpStack
 import G2Paths
 from CompressedFile import fileRowParser, isCompressedFile, openPossiblyCompressedFile
 from G2ConfigTables import G2ConfigTables
+from G2IniParams import G2IniParams
 from G2Project import G2Project
 
-from senzing import G2Config, G2ConfigMgr, G2Diagnostic, G2Engine, G2Exception, G2IniParams, G2Product, G2ModuleLicenseException
+from senzing import G2Config, G2ConfigMgr, G2Diagnostic, G2Engine, G2Exception, G2Product, G2ModuleLicenseException
 
 __all__ = []
-__version__ = '2.1.0'  # See https://www.python.org/dev/peps/pep-0396/
+__version__ = '2.1.1'  # See https://www.python.org/dev/peps/pep-0396/
 __date__ = '2018-09-18'
-__updated__ = '2022-08-03'
+__updated__ = '2022-08-11'
 
 # -----------------------------------------------------------------------------
 # Exceptions

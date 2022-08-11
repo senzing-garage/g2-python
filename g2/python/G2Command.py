@@ -33,7 +33,7 @@ class G2CmdShell(cmd.Cmd, object):
         dotext = 'do_' + text
         return [a[3:] for a in self.get_names() if a.lower().startswith(dotext.lower())]
 
-    def __init__(self, debug_trace, hist_disable, ini_file=None):
+    def __init__(self, debug_trace, hist_disable):
 
         cmd.Cmd.__init__(self)
 
@@ -2456,23 +2456,17 @@ if __name__ == '__main__':
     restart = False
 
 
-    # Check for G2Module.ini command line argument
+    #Check if INI file or env var is specified, otherwise use default INI file
+    ini_file_name = None
+
     if args.iniFile:
-
         ini_file_name = pathlib.Path(args.iniFile[0])
-        G2Paths.check_file_exists_and_readable(ini_file_name)
-        iniParamCreator = G2IniParams()
-        g2module_params = iniParamCreator.getJsonINIParams(ini_file_name)
-
-    # Check for environment variable
     elif os.getenv("SENZING_ENGINE_CONFIGURATION_JSON"):
-
         g2module_params = os.getenv("SENZING_ENGINE_CONFIGURATION_JSON")
-
-    # Use default config
     else:
-
         ini_file_name = pathlib.Path(G2Paths.get_G2Module_ini_path())
+
+    if ini_file_name:
         G2Paths.check_file_exists_and_readable(ini_file_name)
         iniParamCreator = G2IniParams()
         g2module_params = iniParamCreator.getJsonINIParams(ini_file_name)
@@ -2481,7 +2475,7 @@ if __name__ == '__main__':
     # Execute a file of commands
     if args.fileToProcess:
 
-        cmd_obj = G2CmdShell(args.debugTrace, args.histDisable, ini_file_name)
+        cmd_obj = G2CmdShell(args.debugTrace, args.histDisable)
         cmd_obj.fileloop(args.fileToProcess)
 
     # Start command shell
@@ -2495,7 +2489,7 @@ if __name__ == '__main__':
             if 'cmd_obj' in locals() and cmd_obj.ret_quit():
                 break
 
-            cmd_obj = G2CmdShell(debug_trace, args.histDisable, ini_file_name)
+            cmd_obj = G2CmdShell(debug_trace, args.histDisable)
             cmd_obj.cmdloop()
 
             restart = True if cmd_obj.ret_restart() or cmd_obj.ret_restart_debug() else False

@@ -3,6 +3,7 @@
 import argparse
 import csv
 import os
+import pathlib
 import random
 import signal
 import sys
@@ -916,11 +917,6 @@ if __name__ == '__main__':
     procStartTime = time.time()
     progressInterval = 10000
 
-    # defaults
-    try:
-        configFileName = G2Paths.get_G2Module_ini_path()
-    except:
-        configFileName = ''
     outputFileRoot = os.getenv('SENZING_OUTPUT_FILE_ROOT') if os.getenv('SENZING_OUTPUT_FILE_ROOT', None) else None
     sampleSize = int(os.getenv('SENZING_SAMPLE_SIZE')) if os.getenv('SENZING_SAMPLE_SIZE', None) and os.getenv('SENZING_SAMPLE_SIZE').isdigit() else 1000
     datasourceFilter = os.getenv('SENZING_DATASOURCE_FILTER', None)
@@ -930,7 +926,7 @@ if __name__ == '__main__':
 
     # capture the command line arguments
     argParser = argparse.ArgumentParser()
-    argParser.add_argument('-c', '--config_file_name', dest='config_file_name', default=None, help='name of the senzing config file, defaults to %s' % configFileName)
+    argParser.add_argument('-c', '--config_file_name', dest='config_file_name', default=None, help='Path and name of optional G2Module.ini file to use.')
     argParser.add_argument('-o', '--output_file_root', default=outputFileRoot, help='root name for files created such as "/project/snapshots/snapshot1"')
     argParser.add_argument('-s', '--sample_size', type=int, default=sampleSize, help='defaults to %s' % sampleSize)
     argParser.add_argument('-d', '--datasource_filter', help='data source code to analayze, defaults to all')
@@ -952,21 +948,21 @@ if __name__ == '__main__':
     use_api = args.use_api
     quietOn = args.quiet
 
-    # get parameters from ini file
-    if not os.path.exists(configFileName):
-        print('')
-        print('An ini file was not found, please supply with the -c parameter.')
-        print('')
-        sys.exit(1)
-    iniParser = configparser.ConfigParser()
-    iniParser.read(configFileName)
-    try:
-        g2dbUri = iniParser.get('SQL', 'CONNECTION')
-    except:
-        print('')
-        print('CONNECTION parameter not found in [SQL] section of the ini file')
-        print('')
-        sys.exit(1)
+    #Check if INI file or env var is specified, otherwise use default INI file
+    ini_file_name = None
+
+    if args.config_file_name:
+        ini_file_name = pathlib.Path(args.config_file_name)
+    elif os.getenv("SENZING_ENGINE_CONFIGURATION_JSON"):
+        iniParams = os.getenv("SENZING_ENGINE_CONFIGURATION_JSON")
+    else:
+        ini_file_name = pathlib.Path(G2Paths.get_G2Module_ini_path())
+
+    if ini_file_name:
+        G2Paths.check_file_exists_and_readable(ini_file_name)
+        iniParamCreator = G2IniParams()
+        iniParams = iniParamCreator.getJsonINIParams(ini_file_name)
+
 
     # get the version information
     try:
@@ -977,23 +973,12 @@ if __name__ == '__main__':
         print(err)
         sys.exit(1)
 
+
     # try to initialize the g2engine
     try:
+    
         g2Engine = G2Engine()
-        iniParamCreator = G2IniParams()
-
-        if args.config_file_name:
-
-            iniParams = iniParamCreator.getJsonINIParams(args.config_file_name)
-
-        elif os.getenv("SENZING_ENGINE_CONFIGURATION_JSON"):
-
-            iniParams = os.getenv("SENZING_ENGINE_CONFIGURATION_JSON")
-
-        else:
-
-            iniParams = iniParamCreator.getJsonINIParams(configFileName)
-
+        
         if api_version_major > 2:
             g2Engine.init('pyG2Snapshot', iniParams, False)
         else:
@@ -1001,6 +986,14 @@ if __name__ == '__main__':
     except G2Exception as err:
         print('\n%s\n' % str(err))
         sys.exit(1)
+
+    if not json.loads(iniParams)['SQL']['CONNECTION']:
+        print('')
+        print('CONNECTION parameter not found in [SQL] section of the ini file')
+        print('')
+        sys.exit(1)
+    else:
+        g2dbUri = json.loads(iniParams)['SQL']['CONNECTION']
 
     # get needed config data
     try:

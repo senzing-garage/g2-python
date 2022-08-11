@@ -8,13 +8,13 @@ import textwrap
 if 'SENZING_ETC_PATH' not in os.environ and 'SENZING_ROOT' not in os.environ and 'SENZING_ENGINE_CONFIGURATION_JSON' not in os.environ:
 
     print(textwrap.dedent('''\n\
-    ERROR: Unable to locate a G2Module.ini file or SENZING_ENGINE_CONFIGURATION_JSON environment variable.
+    ERROR: SENZING_ROOT or SENZING_ENGINE_CONFIGURATION_JSON environment variable is not set:
     
-           - If using a Senzing project on a bare metal install, source the setupEnv file for the project
+           - If using a Senzing project on a bare metal install, source the setupEnv file in the project root path. 
                
                 https://senzing.zendesk.com/hc/en-us/articles/115002408867-Introduction-G2-Quickstart
                
-           - If running within a container set the SENZING_ENGINE_CONFIGURATION_JSON environment variable
+           - If running within a container set the SENZING_ENGINE_CONFIGURATION_JSON environment variable.
             
                 https://github.com/Senzing/knowledge-base/blob/main/lists/environment-variables.md#senzing_engine_configuration_json
     '''))

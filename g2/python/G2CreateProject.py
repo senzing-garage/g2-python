@@ -122,7 +122,7 @@ if __name__ == '__main__':
     shutil.copytree(senzing_path, target_path, ignore=get_ignored, symlinks=True)
 
     # Copy resources/templates to etc
-    files_to_ignore = shutil.ignore_patterns('G2C.db', 'setupEnv', '*.template')
+    files_to_ignore = shutil.ignore_patterns('G2C.db', 'setupEnv', '*.template', 'g2config.json')
     shutil.copytree(senzing_path.joinpath('resources', 'templates'), target_path.joinpath('etc'), ignore=files_to_ignore)
 
     # Copy setupEnv

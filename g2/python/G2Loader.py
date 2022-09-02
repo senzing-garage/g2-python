@@ -30,9 +30,9 @@ from G2Project import G2Project
 from senzing import G2Config, G2ConfigMgr, G2Diagnostic, G2Engine, G2Exception, G2Product, G2ModuleLicenseException
 
 __all__ = []
-__version__ = '2.1.1'  # See https://www.python.org/dev/peps/pep-0396/
+__version__ = '2.2.0'  # See https://www.python.org/dev/peps/pep-0396/
 __date__ = '2018-09-18'
-__updated__ = '2022-08-11'
+__updated__ = '2022-08-26'
 
 # -----------------------------------------------------------------------------
 # Exceptions
@@ -738,19 +738,19 @@ def perform_load():
         print(f'\nProcess completed successfully at {time_now()} in {elapsed_mins} minutes')
         if cli_args.noRedo:
             print(textwrap.dedent(f'''\n
-        
+
                     Process Redo Records
                     --------------------
-        
+
                     Loading is complete but the processing of redo records was disabled with --noRedo (-n).
-        
+
                     All source records have been entity resolved, there may be minor clean up of some entities
                     required. Please review: https://senzing.zendesk.com/hc/en-us/articles/360007475133
-        
+
                     If redo records are not being processed separately by another G2Loader instance in redo only
                     mode - or another process you've built to manage redo records - run G2Loader again in redo
                     only mode:
-        
+
                         ./G2Loader.py --redoMode {"--iniFile " + str(ini_file_name) if ini_file_name else ""}
                     '''))
 
@@ -880,7 +880,7 @@ def g2_thread(_, work_queue_, g2_engine_, thread_stop, dsrc_action_args):
                 Data source: {data_source}
                 Record ID: {record_id}
                 Record Type: {"Redo" if is_redo_record else "Ingest"}
-                
+
                 {row if not cli_args.errorsShort else " "}
            ''')
 
@@ -1470,15 +1470,15 @@ if __name__ == '__main__':
                                     help=textwrap.dedent('''\
 
                                            Path and name of a source file to load, such as /data/mydata.json
-                                           
-                                           Optional parameters, generally these should not be required:  
-                                           
+
+                                           Optional parameters, generally these should not be required:
+
                                                /data/mydata/?data_source=TEST
                                                /data/mydata/?data_source=TEST,file_format=PIPE
-                                               
+
                                                data_source = The data source to apply to each record in the file
                                                file_format = If not detected use one of: JSON, CSV, TAB, TSV, PIPE
-                                           
+
                                                Note: A data_source specified here will not override the data_source specified in a record.
                                                      It is recommended to be explicit and specify data_source in the source file records.
 
@@ -1515,8 +1515,8 @@ if __name__ == '__main__':
     g2load_parser.add_argument('-n', '--noRedo', action='store_true', default=False,
                                help=textwrap.dedent('''\
 
-                                      Disable redo processing. 
-                                                                                        
+                                      Disable redo processing.
+
                                       Another instance of G2Loader can be run in redo only mode or redo can be processed after ingestion.
 
                                     '''))
@@ -1525,7 +1525,7 @@ if __name__ == '__main__':
                                help=textwrap.dedent('''\
 
                                       Time in secs to wait between redo processing checks, only used in redo mode.
-                                                                                        
+
                                       Default: %(default)s
 
                                     '''))
@@ -1541,7 +1541,7 @@ if __name__ == '__main__':
                                help=textwrap.dedent('''\
 
                                       Maximum threads per process.
-                                                                                        
+
                                       Default: %(default)s
 
                                     '''))
@@ -1549,8 +1549,8 @@ if __name__ == '__main__':
     g2load_parser.add_argument('-g', '--governor', default=None, metavar='file', nargs=1,
                                help=textwrap.dedent(f'''\
 
-                                       User supplied governor to load and call during processing, used for PostgreSQL databases. 
-                                                                                        
+                                       User supplied governor to load and call during processing, used for PostgreSQL databases.
+
                                        Default: {DEFAULT_POSTGRES_GOVERNOR}
 
                                      '''))
@@ -1587,7 +1587,7 @@ if __name__ == '__main__':
                                help=textwrap.dedent('''\
 
                                       Alternative path to output shuffled file to, useful for performance and device space.
-                                                                                        
+
                                       Default: Same path as original file.
 
                                     '''))
@@ -1605,9 +1605,9 @@ if __name__ == '__main__':
                                   help=textwrap.dedent('''\
 
                                          Path/file to write errors to.
-                                                                                        
+
                                          Default: %(default)s
-                                                                                        
+
                                        '''))
 
     error_file_group.add_argument('-efd', '--errorsFileDisable', action='store_true', default=False,
@@ -1623,7 +1623,7 @@ if __name__ == '__main__':
                                    help=textwrap.dedent('''\
 
                                           Total number of threads to start.
-                                                                                        
+
                                           Default: Calculated based on hardware
 
                                         '''))
@@ -1632,7 +1632,7 @@ if __name__ == '__main__':
                                    help=textwrap.dedent('''\
 
                                           Percentage of memory to use when calculating threads (when -nt not specified).
-                                                                                        
+
                                           Default: %(const)s
 
                                    '''))
@@ -1643,7 +1643,7 @@ if __name__ == '__main__':
                                      help=textwrap.dedent('''\
 
                                             Don\'t shuffle input file(s).
-                                                                                        
+
                                             Shuffling improves performance and shouldn\'t be disabled unless pre-shuffled.
 
                                      '''))
@@ -1651,8 +1651,8 @@ if __name__ == '__main__':
     no_shuf_shuf_no_del.add_argument('-snd', '--shuffleNoDelete', action='store_true', default=False,
                                      help=textwrap.dedent(f'''\
 
-                                            Don\'t delete shuffled source file(s) after G2Loader shuffles them. 
-                                                                                        
+                                            Don\'t delete shuffled source file(s) after G2Loader shuffles them.
+
                                             Adds {SHUF_NO_DEL_TAG} and timestamp to the shuffled file. G2Loader can detect and reuse shuffled files.
 
                                      '''))
@@ -1686,7 +1686,7 @@ if __name__ == '__main__':
                                    help=textwrap.dedent('''\
 
                                           Purge the Senzing repository before loading, confirmation prompt before purging.
-                                          
+
                                           WARNING: This will remove all ingested data and outcomes from the Senzing repository!
                                                    Only use if you wish to start with a clean Senzing system before loading.
                                                    If you are unsure please contact support@senzing.com
@@ -1697,7 +1697,7 @@ if __name__ == '__main__':
                                    help=textwrap.dedent('''\
 
                                           Purge the Senzing repository before loading, NO confirmation prompt before purging.
-                                          
+
                                           WARNING: This will remove all ingested data and outcomes from the Senzing repository!
                                                    Only use if you wish to start with a clean Senzing system before loading.
                                                    If you are unsure please contact support@senzing.com

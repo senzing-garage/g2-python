@@ -499,10 +499,10 @@ def processEntities(threadCount):
 
     print(f"starting {threadCount} threads ...")
     process_list = []
-
+    
+    process_list.append(Process(target=setup_resume_queue, args=(statPack, 99, threadStop, resume_queue)))
     for thread_id in range(threadCount - 1):
         process_list.append(Process(target=setup_entity_queue_db, args=(thread_id, threadStop, entity_queue, resume_queue)))
-    process_list.append(Process(target=setup_resume_queue, args=(statPack, 99, threadStop, resume_queue)))
     for process in process_list:
         process.start()
 
@@ -613,7 +613,8 @@ def processEntities(threadCount):
         queue_write(resume_queue, statData)
         queuesEmpty = wait_for_queues(entity_queue, resume_queue)
 
-    # stop the threads
+   # stop the threads
+
     print('Stopping threads ...')
     with threadStop.get_lock():
         threadStop.value = 1
@@ -765,7 +766,7 @@ def processEntitiesAPIOnly():
                     'DATA_SOURCE',
                     'RECORD_ID']
     try:
-        exportHandle = g2Engine.exportCSVEntityReportV2(",".join(exportFields), exportFlags)
+        exportHandle = g2Engine.exportCSVEntityReport(",".join(exportFields), exportFlags)
         exportHeaders = nextExportRecord(exportHandle)
     except G2Exception as err:
         print('\n%s\n' % str(err))

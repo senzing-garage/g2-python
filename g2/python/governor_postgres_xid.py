@@ -34,8 +34,6 @@ from importlib import import_module
 class G2DBException(Exception):
     """ Base exception for G2 DB related python code """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(self, *args, **kwargs)
 
 # -----------------------------------------------------------------------------
 # Class: Governor

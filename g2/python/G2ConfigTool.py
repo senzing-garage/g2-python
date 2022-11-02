@@ -4089,53 +4089,45 @@ class G2CmdShell(cmd.Cmd, object):
 
         validTemplates = {}
 
-        validTemplates['GLOBAL_ID'] = {
-            'DESCRIPTION': 'globally unique identifier (like an ssn, a credit card, or a medicare_id)',
-            'BEHAVIOR': ['F1', 'F1E', 'F1ES'],
-            'CANDIDATES': ['No'],
-            'STANDARDIZE': ['PARSE_ID'],
-            'EXPRESSION': ['EXPRESS_ID'],
-            'COMPARISON': ['ID_COMP', 'EXACT_COMP'],
-            'FEATURE_CLASS': 'ISSUED_ID',
-            'ATTRIBUTE_CLASS': 'IDENTIFIER',
-            'ELEMENTS': [{'element': 'ID_NUM', 'expressed': 'No', 'compared': 'no', 'display': 'Yes'},
-                         {'element': 'ID_NUM_STD', 'expressed': 'Yes', 'compared': 'yes', 'display': 'No'}],
-            'ATTRIBUTES': [{'attribute': '<feature>', 'element': 'ID_NUM', 'required': 'Yes'}]}
+        validTemplates['GLOBAL_ID'] = {'DESCRIPTION': 'globally unique identifier (like an ssn, a credit card, or a medicare_id)',
+                                       'BEHAVIOR': ['F1', 'F1E', 'F1ES', 'A1', 'A1E', 'A1ES'],
+                                       'CANDIDATES': ['No'],
+                                       'STANDARDIZE': ['PARSE_ID'],
+                                       'EXPRESSION': ['EXPRESS_ID'],
+                                       'COMPARISON': ['ID_COMP', 'EXACT_COMP'],
+                                       'FEATURE_CLASS': 'ISSUED_ID',
+                                       'ATTRIBUTE_CLASS': 'IDENTIFIER',
+                                       'ELEMENTS': [{'element': 'ID_NUM', 'expressed': 'No', 'compared': 'no', 'display': 'Yes'},
+                                                    {'element': 'ID_NUM_STD', 'expressed': 'Yes', 'compared': 'yes', 'display': 'No'}],
+                                       'ATTRIBUTES': [{'attribute': '<feature>', 'element': 'ID_NUM', 'required': 'Yes'}]}
 
         validTemplates['STATE_ID'] = {'DESCRIPTION': 'state issued identifier (like a drivers license)',
-                                      'BEHAVIOR': ['F1', 'F1E', 'F1ES'],
+                                      'BEHAVIOR': ['F1', 'F1E', 'F1ES', 'A1', 'A1E', 'A1ES'],
                                       'CANDIDATES': ['No'],
                                       'STANDARDIZE': ['PARSE_ID'],
                                       'EXPRESSION': ['EXPRESS_ID'],
                                       'COMPARISON': ['ID_COMP'],
                                       'FEATURE_CLASS': 'ISSUED_ID',
                                       'ATTRIBUTE_CLASS': 'IDENTIFIER',
-                                      'ELEMENTS': [
-                                          {'element': 'ID_NUM', 'expressed': 'No', 'compared': 'no', 'display': 'Yes'},
-                                          {'element': 'STATE', 'expressed': 'No', 'compared': 'yes', 'display': 'Yes'},
-                                          {'element': 'ID_NUM_STD', 'expressed': 'Yes', 'compared': 'yes',
-                                           'display': 'No'}],
-                                      'ATTRIBUTES': [
-                                          {'attribute': '<feature>_NUMBER', 'element': 'ID_NUM', 'required': 'Yes'},
-                                          {'attribute': '<feature>_STATE', 'element': 'STATE', 'required': 'No'}]}
+                                      'ELEMENTS': [{'element': 'ID_NUM', 'expressed': 'No', 'compared': 'no', 'display': 'Yes'},
+                                                   {'element': 'STATE', 'expressed': 'No', 'compared': 'yes', 'display': 'Yes'},
+                                                   {'element': 'ID_NUM_STD', 'expressed': 'Yes', 'compared': 'yes', 'display': 'No'}],
+                                      'ATTRIBUTES': [{'attribute': '<feature>_NUMBER', 'element': 'ID_NUM', 'required': 'Yes'},
+                                                     {'attribute': '<feature>_STATE', 'element': 'STATE', 'required': 'No'}]}
 
         validTemplates['COUNTRY_ID'] = {'DESCRIPTION': 'country issued identifier (like a passport)',
-                                        'BEHAVIOR': ['F1', 'F1E', 'F1ES'],
+                                        'BEHAVIOR': ['F1', 'F1E', 'F1ES', 'A1', 'A1E', 'A1ES'],
                                         'CANDIDATES': ['No'],
                                         'STANDARDIZE': ['PARSE_ID'],
                                         'EXPRESSION': ['EXPRESS_ID'],
                                         'COMPARISON': ['ID_COMP'],
                                         'FEATURE_CLASS': 'ISSUED_ID',
                                         'ATTRIBUTE_CLASS': 'IDENTIFIER',
-                                        'ELEMENTS': [{'element': 'ID_NUM', 'expressed': 'No', 'compared': 'no',
-                                                      'display': 'Yes'},
-                                                     {'element': 'COUNTRY', 'expressed': 'No', 'compared': 'yes',
-                                                      'display': 'Yes'},
-                                                     {'element': 'ID_NUM_STD', 'expressed': 'Yes', 'compared': 'yes',
-                                                      'display': 'No'}],
-                                        'ATTRIBUTES': [
-                                            {'attribute': '<feature>_NUMBER', 'element': 'ID_NUM', 'required': 'Yes'},
-                                            {'attribute': '<feature>_COUNTRY', 'element': 'COUNTRY', 'required': 'No'}]}
+                                        'ELEMENTS': [{'element': 'ID_NUM', 'expressed': 'No', 'compared': 'no', 'display': 'Yes'},
+                                                     {'element': 'COUNTRY', 'expressed': 'No', 'compared': 'yes', 'display': 'Yes'},
+                                                     {'element': 'ID_NUM_STD', 'expressed': 'Yes', 'compared': 'yes', 'display': 'No'}],
+                                        'ATTRIBUTES': [{'attribute': '<feature>_NUMBER', 'element': 'ID_NUM', 'required': 'Yes'},
+                                                       {'attribute': '<feature>_COUNTRY', 'element': 'COUNTRY', 'required': 'No'}]}
 
         if arg and arg.upper() == 'LIST':
             print()

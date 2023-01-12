@@ -314,7 +314,8 @@ def process_resume(statPack, resume_rows, csvFileHandle):
             matchCategory = resumeData[relatedID]['matchCategory']
             statPack[categoryTotalStat[matchCategory]] += 1
             for dataSource2 in resumeData[relatedID]['dataSources']:
-                recordCount = resumeData[relatedID]['dataSources'][dataSource2]
+                # commented out to use target entity's record count
+                # recordCount = resumeData[relatedID]['dataSources'][dataSource2]
                 if dataSource2 == dataSource1:
                     dataSource2 = None
 
@@ -454,7 +455,8 @@ def processEntities(threadCount):
             print(f'\nPhysical cores: {logical_cores}, logical cores: {logical_cores}, default threads: {threadCount}')
         except G2Exception as err:
             print('\n%s\n' % str(err))
-            return 1
+            shutDown.value = 1
+            return
 
     newStatPack = True
     if os.path.exists(statsFilePath):
@@ -482,8 +484,7 @@ def processEntities(threadCount):
             if newStatPack:
                 reply = input('\nAre you sure you want to overwrite it (yes/no)? ')
                 if reply not in ['y', 'Y', 'yes', 'YES']:
-                    with shutDown.get_lock():
-                        shutDown.value = 1
+                    shutDown.value = 1
                     return
             print()
 
@@ -492,21 +493,6 @@ def processEntities(threadCount):
 
     if newStatPack:
         statPack = initializeStatPack()
-
-    entity_queue = Queue(threadCount * 10)
-    resume_queue = Queue(threadCount * 10)
-    thread_list = []
-
-    print(f"starting {threadCount} threads ...")
-    process_list = []
-    
-    process_list.append(Process(target=setup_resume_queue, args=(statPack, 99, threadStop, resume_queue)))
-    for thread_id in range(threadCount - 1):
-        process_list.append(Process(target=setup_entity_queue_db, args=(thread_id, threadStop, entity_queue, resume_queue)))
-    for process in process_list:
-        process.start()
-
-    procStartTime = time.time()
 
     if not datasourceFilter:
         maxEntityId = g2Dbo.fetchRow(g2Dbo.sqlExec('select max(RES_ENT_ID) from RES_ENT'))[0]
@@ -521,7 +507,7 @@ def processEntities(threadCount):
               'where a.DSRC_ID = ' + str(datasourceFilterID)
         minEntityId, maxEntityId = g2Dbo.fetchRow(g2Dbo.sqlExec(sql))
         print(f'from {minEntityId} to {maxEntityId}\n')
-        if newStatPack:
+        if minEntityId and newStatPack:
             statPack['PROCESS']['LAST_ENTITY_ID'] = minEntityId - 1
 
         sql0 = 'select distinct' \
@@ -530,11 +516,33 @@ def processEntities(threadCount):
                'join OBS_ENT b on b.OBS_ENT_ID = a.OBS_ENT_ID ' \
                'where a.RES_ENT_ID between ? and ? and b.DSRC_ID = ' + str(datasourceFilterID)
 
+    if not maxEntityId:
+        if not datasourceFilter:
+            print('\nRepository is empty!\n')
+        else:
+            print('\nNo entities found for data source filter!\n')
+        shutDown.value = 1
+        return
+
     if api_version_major > 2:
         sql0 = g2Dbo.sqlPrep(sql0)
     elif g2Dbo.dbType == 'POSTGRESQL':
         sql0 = sql0.replace('?', '%s')
 
+    entity_queue = Queue(threadCount * 10)
+    resume_queue = Queue(threadCount * 10)
+    thread_list = []
+
+    print(f"starting {threadCount} threads ...")
+    process_list = []
+
+    process_list.append(Process(target=setup_resume_queue, args=(statPack, 99, threadStop, resume_queue)))
+    for thread_id in range(threadCount - 1):
+        process_list.append(Process(target=setup_entity_queue_db, args=(thread_id, threadStop, entity_queue, resume_queue)))
+    for process in process_list:
+        process.start()
+
+    procStartTime = time.time()
     batchStartTime = time.time()
     entityCount = 0
     batchEntityCount = 0

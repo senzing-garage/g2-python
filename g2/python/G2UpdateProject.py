@@ -260,7 +260,7 @@ if __name__ == '__main__':
         os.remove(os.path.join(target_path, 'data'))
 
     try:        
-        os.symlink('/opt/senzing/data/3.0.0', os.path.join(target_path, 'data'))
+        os.symlink(os.path.join(os.sep, 'opt', 'senzing', 'data', end_version_info['DATA_VERSION']), os.path.join(target_path, 'data'))
     except Exception as e:
         print(e)
 

@@ -22,10 +22,8 @@ def find_replace_in_file(filename, old_string, new_string):
         raise ex
 
 
-def get_version():
-    ''' Return version of currently installed Senzing  '''
-
-    version = build_version = None
+def get_version_details():
+    ''' Return version details as json of currently installed Senzing  '''
 
     try:
         build_version_file = senzing_path.joinpath('g2BuildVersion.json')
@@ -37,11 +35,35 @@ def get_version():
         # Exit if version details can't be read. g2BuildVersion.json should be available and is copied to project
         return False
 
+    return version_details
+
+
+def get_version():
+    ''' Return version of currently installed Senzing  '''
+
+    version = build_version = None
+
+    version_details = get_version_details()
+    if not version_details:
+        sys.exit(1)
+
     version = version_details.get('VERSION', None)
     build_version = version_details.get('BUILD_VERSION', None)
 
     return f'{version} - ({build_version})' if version and build_version else 'Unable to determine version!'
 
+
+def get_data_version():
+    ''' Return data version of currently installed data files  '''
+
+    data_version = None
+
+    version_details = get_version_details()
+    if not version_details:
+        sys.exit(1)
+
+    data_version = version_details.get('DATA_VERSION', None)
+    return data_version if data_version else 'Unable to determine data version!'
 
 def get_ignored(path, filenames):
     '''  Return list of paths/files to ignore for copying '''
@@ -95,6 +117,10 @@ if __name__ == '__main__':
     if not version:
         sys.exit(1)
 
+    data_version = get_data_version()
+    if not data_version:
+        sys.exit(1)
+
     # Example: paths_to_exclude = [senzing_path.joinpath('python')]
     paths_to_exclude = []
     files_to_exclude = ['G2CreateProject.py', 'G2UpdateProject.py']
@@ -116,6 +142,7 @@ if __name__ == '__main__':
     print(textwrap.dedent(f'''\n\
         Creating Senzing instance at: {target_path}
         Senzing version: {version}
+        Data version: {data_version}
     '''))
 
     # Copy senzing_path to new project path
@@ -133,7 +160,7 @@ if __name__ == '__main__':
     shutil.copyfile(senzing_path.joinpath('resources', 'templates', 'G2C.db'), target_path.joinpath('var', 'sqlite', 'G2C.db'))
 
     # Soft link data
-    target_path.joinpath('data').symlink_to(senz_install_root.joinpath('data', '3.0.0'))
+    target_path.joinpath('data').symlink_to(senz_install_root.joinpath('data', data_version))
 
     # Files & strings to modify in new project
     files_to_update = [

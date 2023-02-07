@@ -1,13 +1,14 @@
 #! /usr/bin/env python3
 
+import json
 import optparse
 import os
 import sys
-import json
 import textwrap
+import urllib.parse
 from importlib import import_module
-
 from senzing import G2Exception
+
 
 # -----------------------------------------------------------------------------
 # Exceptions
@@ -214,12 +215,12 @@ class G2Database:
             # if parmList:
             #    print('PARMS:', type(parmList), parmList)
             raise err
-        else:
-            if exec_cursor:
-                cursorData['OBJECT'] = exec_cursor
-                cursorData['ROWS_AFFECTED'] = exec_cursor.rowcount
-                if exec_cursor.description:
-                    cursorData['COLUMN_HEADERS'] = [columnData[0].upper() for columnData in exec_cursor.description]
+
+        if exec_cursor:
+            cursorData['OBJECT'] = exec_cursor
+            cursorData['ROWS_AFFECTED'] = exec_cursor.rowcount
+            if exec_cursor.description:
+                cursorData['COLUMN_HEADERS'] = [columnData[0].upper() for columnData in exec_cursor.description]
         return cursorData
 
     # ----------------------------------------
@@ -385,8 +386,8 @@ class G2Database:
         self.dsn = uri_dict['DSN'] if 'DSN' in uri_dict else None
         self.host = uri_dict['HOST'] if 'HOST' in uri_dict else None
         self.port = uri_dict['PORT'] if 'PORT' in uri_dict else None
-        self.userId = uri_dict['USERID'] if 'USERID' in uri_dict else None
-        self.password = uri_dict['PASSWORD'] if 'PASSWORD' in uri_dict else None
+        self.userId = urllib.parse.unquote(uri_dict['USERID']) if 'USERID' in uri_dict else None
+        self.password = urllib.parse.unquote(uri_dict['PASSWORD']) if 'PASSWORD' in uri_dict else None
         self.table = uri_dict['TABLE'] if 'TABLE' in uri_dict else None
         self.schema = uri_dict['SCHEMA'] if 'SCHEMA' in uri_dict else None
 

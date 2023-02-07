@@ -22,7 +22,7 @@ class G2IniParams:
     def getJsonINIParams(self, iniFileName, *args, **kwargs):
         ''' Creates a JSON INI parameter string from an INI file. '''
 
-        iniParser = configparser.ConfigParser(empty_lines_in_values=False)
+        iniParser = configparser.ConfigParser(empty_lines_in_values=False, interpolation=None)
         iniParser.read(iniFileName)
 
         paramDict = {}
@@ -39,7 +39,7 @@ class G2IniParams:
     def getINIParam(self, iniFileName, requestedGroupName, requestedParamName, *args, **kwargs):
         ''' Gets an INI parameter string from an INI file. '''
 
-        iniParser = configparser.ConfigParser(empty_lines_in_values=False)
+        iniParser = configparser.ConfigParser(empty_lines_in_values=False, interpolation=None)
         iniParser.read(iniFileName)
 
         paramDict = {}
@@ -61,7 +61,7 @@ class G2IniParams:
     def hasINIParam(self, iniFileName, requestedGroupName, requestedParamName, *args, **kwargs):
         ''' Determines whether an INI parameter exists in an INI file. '''
 
-        iniParser = configparser.ConfigParser(empty_lines_in_values=False)
+        iniParser = configparser.ConfigParser(empty_lines_in_values=False, interpolation=None)
         iniParser.read(iniFileName)
 
         paramDict = {}

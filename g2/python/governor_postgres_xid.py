@@ -20,9 +20,11 @@
 
 import json
 import logging
+import sys
 import textwrap
 import threading
 import time
+import urllib.parse
 from datetime import datetime
 from importlib import import_module
 
@@ -71,9 +73,9 @@ class Governor:
         # frequency = row or source. The frequency the governor runs at, this must be specfied
         # interval = Governor called every row x number of records - used for per record or redo governor not per source
         # check_time = In addition to checking every interval, check every x seconds too
-        # xid_age = Value of Postgres XID age to pause at for a vacuum to be completed (high water mark to pause at)
+        # xid_age = Value of Postgres XID age to pause at for a vacuum to be completed (highwater mark to pause at)
         # wait_time = Period in seconds to pause processing for between each check of XID age once triggered
-        # resume_age = XID age to resume processing at (low water mark lower than xid_age)
+        # resume_age = XID age to resume processing at (lowwater mark lower than xid_age)
         # govern_debug = To call debug functions (if used)
         # use_logging = Future use
         # pre_post_msgs = Show pre and post messages?
@@ -170,15 +172,17 @@ class Governor:
         if len(self.connect_strs) > 1 and not self.connect_hybrid:
             print(f'\nWARNING: Multiple ({len(self.connect_strs)}) connection strings found without BACKEND=HYBRID. Please check your G2Module INI file\n')
 
-        # Build data structure for each connection, a cursor to use against the connection and it's DSN (for messages)
+        # Build data structure for each connection, a cursor to use against the connection, and it's DSN (for messages)
         for connect_str in self.connect_strs:
             try:
+                # Today: {'TABLE': None, 'SCHEMA': None, 'PORT': '5432', 'DBTYPE': 'POSTGRESQL', 'USERID': 'senzing', 'PASSWORD': 'pass%25word', 'DSN': 'g2', 'HOST': 'ant76'}
+                # New: {'dbname': 'g2', 'host': 'ant76', 'password': 'pass%2bword', 'port': 5432, 'user': 'senzing'}
                 connect_parsed = self.dburi_parse(connect_str)
             except G2DBException as ex:
                 raise ex
             else:
                 (dbo, cursor) = self.connect_cursor(connect_parsed)
-                self.connect_dict[connect_str] = [dbo, cursor, connect_parsed['DSN']]
+                self.connect_dict[connect_str] = [dbo, cursor, connect_parsed['dbname']]
 
                 # String of all the DB names without other connection details. k[2] is the dsn
                 self.db_names = ', '.join(k[2] for k in self.connect_dict.values())
@@ -301,12 +305,7 @@ class Governor:
         """ For each DB return connection and cursor """
 
         try:
-            dbo = self.psycopg2.connect(host=parsed_uri['HOST'],
-                                        port=parsed_uri['PORT'],
-                                        dbname=parsed_uri['DSN'],
-                                        user=parsed_uri['USERID'],
-                                        password=parsed_uri['PASSWORD'])
-
+            dbo = self.psycopg2.connect(**parsed_uri)
             dbo.set_session(autocommit=True, isolation_level='READ UNCOMMITTED', readonly=True)
             cursor = dbo.cursor()
         except self.psycopg2.Error as ex:
@@ -324,53 +323,57 @@ class Governor:
     def dburi_parse(self, dburi):
         """ Parse the database uri string """
 
-        uri_dict = {}
+        def parse_error_msg(parse):
+            print(textwrap.dedent(f'''\n\
+
+                  ERROR: parsing database connection string, this is usually caused by special characters being
+                  used in the password field without being percent encoded. For example @ was specified instead
+                  of %40.
+
+                  Parse result: {parse}
+                  '''))
+
+        # Split main URI and schema if schema is present
+        if '/?schema' in dburi:
+            first_half, schema_str = dburi.split('/?')
+        else:
+            first_half = dburi
+            schema_str = ''
+
+        # Replace the last : with / for urlparse to work
+        last_colon = first_half.rfind(':')
+        first_half_list = list(first_half)
+        first_half_list[last_colon] = '/'
+        first_half = ''.join(first_half_list)
+
+        conn_string_parsed = urllib.parse.urlparse(first_half)
 
         try:
+            result = {
+                'dbname': conn_string_parsed.path.strip('/'),
+                'host': conn_string_parsed.hostname,
+                'password': urllib.parse.unquote(conn_string_parsed.password),
+                'port': conn_string_parsed.port,
+                'user': urllib.parse.unquote(conn_string_parsed.username)
+            }
+        except TypeError:
+            parse_error_msg(conn_string_parsed)
+            sys.exit(-1)
 
-            # Pull off the table parameter if supplied
-            uri_dict['TABLE'] = uri_dict['SCHEMA'] = uri_dict['PORT'] = None
+        dbtype = conn_string_parsed.scheme
 
-            if '/?' in dburi:
-                (dburi, parm) = tuple(dburi.split('/?'))
-                for item in parm.split('&'):
-                    (parm_type, parm_value) = tuple(item.split('='))
-                    uri_dict['TABLE'] = parm_value if parm_type.upper() == 'TABLE' else None
-                    uri_dict['SCHEMA'] = parm_value if parm_type.upper() == 'SCHEMA' else None
+        # Reconstruct the URI and test if it matches input URI, if it doesn't something went wrong parsing
+        # and likely percent encoding issue
+        reconstruct = dbtype + '://' + conn_string_parsed.netloc + ':' + conn_string_parsed.path.strip('/')
+        if schema_str:
+            reconstruct += '/?' + schema_str
 
-            # Get database type
-            (uri_dict['DBTYPE'], db_uri_data) = dburi.split('://') if '://' in dburi else ('UNKNOWN', dburi)
-            uri_dict['DBTYPE'] = uri_dict['DBTYPE'].upper()
+        if reconstruct != dburi:
+            result['password'] = 'REDACTED'
+            parse_error_msg(result)
+            sys.exit(-1)
 
-            # Separate login and dsn info
-            (just_uid_pwd, just_dsn_sch) = db_uri_data.split('@') if '@' in db_uri_data else (':', db_uri_data)
-            just_dsn_sch = just_dsn_sch.rstrip('/')
-
-            # Separate uid and password
-            (uri_dict['USERID'], uri_dict['PASSWORD']) = just_uid_pwd.split(':') if ':' in just_uid_pwd else (just_uid_pwd, '')
-
-            # Separate dsn and port
-            if just_dsn_sch[1:3] == ":\\":
-                uri_dict['DSN'] = just_dsn_sch
-            elif ':' in just_dsn_sch:
-                uri_dict['DSN'] = just_dsn_sch.split(':')[0]
-                uri_dict['PORT'] = just_dsn_sch.split(':')[1]
-                # PostgreSQL & MySQL use a slightly different connection string
-                # e.g. CONNECTION=postgresql://userid:password@localhost:5432:postgres
-                # postgres == odbc.ini datasource entry
-                if uri_dict['DBTYPE'] in ('POSTGRESQL', 'MYSQL'):
-                    uri_dict['HOST'] = uri_dict['DSN']
-                    uri_dict['DSN'] = just_dsn_sch.split(':')[2]
-            else:  # Just dsn with no port
-                uri_dict['DSN'] = just_dsn_sch
-
-        except (IndexError, ValueError):
-            raise G2DBException(f'Failed to parse database URI, check the connection string(s) in your G2Module INI file.') from None
-
-        if not uri_dict['DSN']:
-            raise G2DBException(f'Missing database DSN. \n{self.show_connection(uri_dict, False, False)}')
-
-        return uri_dict
+        return result
 
     def show_connection(self, uri_dict, show_pwd=False, print_not_return=True):
         """ Show connection details and redact password if requested. Print directly or return only the parsed URI dict """

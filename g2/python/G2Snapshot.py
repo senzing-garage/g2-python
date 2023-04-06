@@ -10,15 +10,14 @@ import sys
 import time
 import math
 from datetime import datetime, timedelta
-import configparser
 import textwrap
 
+import json
 try:
-    import orjson as json
-    import json as old_json
+    import orjson
+    use_orjson = True
 except:
-    import json
-    old_json = None
+    use_orjson = False
 
 # concurrency
 from multiprocessing import Process, Queue, Value
@@ -27,32 +26,14 @@ import threading
 import concurrent.futures
 import itertools
 
-# Import from Senzing
 try:
     import G2Paths
+    from G2IniParams import G2IniParams
+    from senzing import G2ConfigMgr, G2Diagnostic, G2Engine, G2EngineFlags, G2Exception, G2Product
     from G2Database import G2Database
-    try:
-        from G2IniParams import G2IniParams
-        from senzing import G2ConfigMgr, G2Diagnostic, G2Engine, G2EngineFlags, G2Exception, G2Product
-    except:
-        from senzing import G2ConfigMgr, G2Diagnostic, G2Engine, G2EngineFlags, G2Exception, G2Product, G2IniParams
 except Exception as err:
-
-    # Fall back to pre-Senzing-Python-SDK style of imports.
-    try:
-        import G2Paths
-        from G2Database import G2Database
-        from G2IniParams import G2IniParams
-        from G2Product import G2Product
-        from G2Config import G2Config
-        from G2ConfigMgr import G2ConfigMgr
-        from G2Diagnostic import G2Diagnostic
-        from G2Engine import G2Engine
-        from G2Exception import G2Exception
-    except:
-        print(f"\nCould not import Senzing modules:\n{err}\n")
-        sys.exit(1)
-    G2EngineFlags = G2Engine
+    print(f"\n{err}\n")
+    sys.exit(1)
 
 
 # -----------------------------------
@@ -159,14 +140,22 @@ def get_resume_db(local_dbo, resolved_id):
         resume_rows.append(rowData)
     # print('   fetching entities took %s seconds' % str(round(time.time() - queryStartTime,2)))
 
-    # get relationships if not an orphaned entity_id
+    # abondoned hack to only count the ambiguous entity
+    #ambiguousCount = 0
     if resume_rows and relationshipFilter in (2, 3):
+        # queryStartTime = time.time()
         queryStartTime = time.time()
         cursor1 = local_dbo.sqlExec(sqlRelations, [resolved_id, ])
         for rowData in local_dbo.fetchAllDicts(cursor1):
             rowData = complete_resume_db(rowData)
+    #        if rowData['IS_AMBIGUOUS'] > 0:
+    #            ambiguousCount += 1
             resume_rows.append(rowData)
         # print('   fetching relationships took %s seconds' % str(round(time.time() - queryStartTime,2)))
+
+    # abndoned hack to determine if this is an ambiguous entity
+    #if ambiguousCount and len(local_dbo.fetchAllRows(local_dbo.sqlExec(sqlAmbiguous, [resolved_id, ]))) > 0:
+    #    resume_rows[0]['IS_AMBIGUOUS'] = 1
 
     return resume_rows
 
@@ -230,10 +219,10 @@ def process_resume(statPack, resume_rows, csvFileHandle):
         return statPack
 
     categoryTotalStat = {}
-    categoryTotalStat['AMBIGUOUS_MATCH'] = 'TOTAL_AMBIGUOUS_MATCHES'
-    categoryTotalStat['POSSIBLE_MATCH'] = 'TOTAL_POSSIBLE_MATCHES'
-    categoryTotalStat['POSSIBLY_RELATED'] = 'TOTAL_POSSIBLY_RELATEDS'
-    categoryTotalStat['DISCLOSED_RELATION'] = 'TOTAL_DISCLOSED_RELATIONS'
+    categoryTotalStat['AMBIGUOUS_MATCH'] = 'TOTAL_AMBIGUOUS_MATCH'
+    categoryTotalStat['POSSIBLE_MATCH'] = 'TOTAL_POSSIBLE_MATCH'
+    categoryTotalStat['POSSIBLY_RELATED'] = 'TOTAL_POSSIBLY_RELATED'
+    categoryTotalStat['DISCLOSED_RELATION'] = 'TOTAL_DISCLOSED_RELATION'
 
     # for updating the stat pack samples
     randomIndex = randomSampleIndex()
@@ -242,8 +231,10 @@ def process_resume(statPack, resume_rows, csvFileHandle):
     recordList = []
     resumeData = {}
 
+
     # summarize entity resume
     entityID = resume_rows[0]['RESOLVED_ENTITY_ID']
+    # isAmbiguousEntity = resume_rows[0]['IS_AMBIGUOUS'] # abandoned hack: first record will have flag for the whole entity
     for rowData in resume_rows:
         relatedID = str(rowData['RELATED_ENTITY_ID'])
         dataSource = rowData['DATA_SOURCE']
@@ -290,38 +281,53 @@ def process_resume(statPack, resume_rows, csvFileHandle):
     # resolved entity stats
     statPack['TOTAL_ENTITY_COUNT'] += 1
     statPack['TOTAL_RECORD_COUNT'] += entitySize
+
+    # summarize relationships by data source
+    relSummary = {}
+    for relatedID in resumeData:
+        if relatedID == '0':
+            continue
+        matchCategory = resumeData[relatedID]['matchCategory']
+        if matchCategory not in relSummary:
+            relSummary[matchCategory] = {}
+        for dataSource in resumeData[relatedID]['dataSources']:
+            if dataSource not in relSummary[matchCategory]:
+                relSummary[matchCategory][dataSource] = [relatedID]
+            else:
+                relSummary[matchCategory][dataSource].append(relatedID)
+
+    # resolved entity stats
     for dataSource1 in resumeData['0']['dataSources']:
         recordCount = resumeData['0']['dataSources'][dataSource1]
 
         # this just updates entity and record count for the data source
-        statPack = updateStatpack(statPack, dataSource1, None, None, 1, recordCount, None, randomIndex)
+        statPack = updateStatpack(statPack, dataSource1, None, None, 1, recordCount, 0, None, randomIndex)
 
         if recordCount == 1:
-            statPack = updateStatpack(statPack, dataSource1, None, 'SINGLE', 1, 0, entityID, randomIndex)
+            statPack = updateStatpack(statPack, dataSource1, None, 'SINGLE', 1, 0, 0, entityID, randomIndex)
         else:
-            statPack = updateStatpack(statPack, dataSource1, None, 'DUPLICATE', 1, recordCount, entityID, randomIndex)
+            statPack = updateStatpack(statPack, dataSource1, None, 'DUPLICATE', 1, recordCount, 0, entityID, randomIndex)
 
         # cross matches
         for dataSource2 in resumeData['0']['dataSources']:
             if dataSource2 == dataSource1:
                 continue
-            statPack = updateStatpack(statPack, dataSource1, dataSource2, 'MATCH', 1, recordCount, entityID, randomIndex)
+            statPack = updateStatpack(statPack, dataSource1, dataSource2, 'MATCH', 1, recordCount, 0, entityID, randomIndex)
 
         # related entity stats
-        for relatedID in resumeData:
-            if relatedID == '0':
-                continue
-            matchCategory = resumeData[relatedID]['matchCategory']
-            statPack[categoryTotalStat[matchCategory]] += 1
-            for dataSource2 in resumeData[relatedID]['dataSources']:
-                # commented out to use target entity's record count
-                # recordCount = resumeData[relatedID]['dataSources'][dataSource2]
-                if dataSource2 == dataSource1:
-                    dataSource2 = None
+        for matchCategory in relSummary:
+            for dataSource2 in relSummary[matchCategory]:
+                relationshipCount = len(relSummary[matchCategory][dataSource2])
+                relationshipSample = ' '.join(str(x) for x in [entityID] + sorted(relSummary[matchCategory][dataSource2], key=lambda x: int(x)))
+                # if matchCategory == 'AMBIGUOUS_MATCH' and not isAmbiguousEntity:  # abandoned hack!
+                #    continue
+                statPack[categoryTotalStat[matchCategory]+'_ENTITIES'] += 1
+                statPack[categoryTotalStat[matchCategory]+'_RELATIONSHIPS'] += relationshipCount
+                if dataSource2 == dataSource1: # same data source relation
+                    statPack = updateStatpack(statPack, dataSource1, None, matchCategory, 1, recordCount, relationshipCount, relationshipSample, randomIndex)
+                else:
+                    statPack = updateStatpack(statPack, dataSource1, dataSource2, matchCategory, 1, recordCount, relationshipCount, relationshipSample, randomIndex)
 
-                # avoid double counting within data source (can't be avoided across data sources)
-                if entityID < int(relatedID) or dataSource2:
-                    statPack = updateStatpack(statPack, dataSource1, dataSource2, matchCategory, 1, recordCount, str(entityID) + ' ' + relatedID, randomIndex)
     return statPack
 
 
@@ -342,16 +348,20 @@ def initializeStatPack():
     statPack['PROCESS']['LAST_ENTITY_ID'] = 0
     statPack['TOTAL_RECORD_COUNT'] = 0
     statPack['TOTAL_ENTITY_COUNT'] = 0
-    statPack['TOTAL_AMBIGUOUS_MATCHES'] = 0
-    statPack['TOTAL_POSSIBLE_MATCHES'] = 0
-    statPack['TOTAL_POSSIBLY_RELATEDS'] = 0
-    statPack['TOTAL_DISCLOSED_RELATIONS'] = 0
+    statPack['TOTAL_AMBIGUOUS_MATCH_ENTITIES'] = 0
+    statPack['TOTAL_AMBIGUOUS_MATCH_RELATIONSHIPS'] = 0
+    statPack['TOTAL_POSSIBLE_MATCH_ENTITIES'] = 0
+    statPack['TOTAL_POSSIBLE_MATCH_RELATIONSHIPS'] = 0
+    statPack['TOTAL_POSSIBLY_RELATED_ENTITIES'] = 0
+    statPack['TOTAL_POSSIBLY_RELATED_RELATIONSHIPS'] = 0
+    statPack['TOTAL_DISCLOSED_RELATION_ENTITIES'] = 0
+    statPack['TOTAL_DISCLOSED_RELATION_RELATIONSHIPS'] = 0
     statPack['DATA_SOURCES'] = {}
     statPack['TEMP_ESB_STATS'] = {}
     return statPack
 
 # -------------------------------------
-def updateStatpack(statPack, dataSource1, dataSource2, statPrefix, entityCount, recordCount, sampleValue, randomIndex):
+def updateStatpack(statPack, dataSource1, dataSource2, statPrefix, entityCount, recordCount, relationCount, sampleValue, randomIndex):
 
     if datasourceFilter and dataSource1 != datasourceFilter:
         return statPack
@@ -369,13 +379,13 @@ def updateStatpack(statPack, dataSource1, dataSource2, statPrefix, entityCount, 
 
     # within data source
     if not dataSource2:
-        # count
         if recordCount == 0:
             statPack['DATA_SOURCES'][dataSource1][statPrefix + '_COUNT'] += entityCount
         else:
             statPack['DATA_SOURCES'][dataSource1][statPrefix + '_ENTITY_COUNT'] += entityCount
             statPack['DATA_SOURCES'][dataSource1][statPrefix + '_RECORD_COUNT'] += recordCount
-        # sample
+        if relationCount:
+            statPack['DATA_SOURCES'][dataSource1][statPrefix + '_RELATION_COUNT'] += recordCount
         if len(statPack['DATA_SOURCES'][dataSource1][statPrefix + '_SAMPLE']) < sampleSize:
             statPack['DATA_SOURCES'][dataSource1][statPrefix + '_SAMPLE'].append(sampleValue)
         elif randomIndex != 0:
@@ -383,13 +393,13 @@ def updateStatpack(statPack, dataSource1, dataSource2, statPrefix, entityCount, 
 
     # across data sources
     else:
-        # count
         if recordCount == 0:
             statPack['DATA_SOURCES'][dataSource1]['CROSS_MATCHES'][dataSource2][statPrefix + '_COUNT'] += entityCount
         else:
             statPack['DATA_SOURCES'][dataSource1]['CROSS_MATCHES'][dataSource2][statPrefix + '_ENTITY_COUNT'] += entityCount
             statPack['DATA_SOURCES'][dataSource1]['CROSS_MATCHES'][dataSource2][statPrefix + '_RECORD_COUNT'] += recordCount
-        # sample
+        if relationCount:
+            statPack['DATA_SOURCES'][dataSource1]['CROSS_MATCHES'][dataSource2][statPrefix + '_RELATION_COUNT'] += recordCount
         if len(statPack['DATA_SOURCES'][dataSource1]['CROSS_MATCHES'][dataSource2][statPrefix + '_SAMPLE']) < sampleSize:
             statPack['DATA_SOURCES'][dataSource1]['CROSS_MATCHES'][dataSource2][statPrefix + '_SAMPLE'].append(sampleValue)
         elif randomIndex != 0:
@@ -410,6 +420,8 @@ def initDataSourceStats(statPack, dataSource1, dataSource2=None):
         for statType in ['DUPLICATE', 'AMBIGUOUS_MATCH', 'POSSIBLE_MATCH', 'POSSIBLY_RELATED', 'DISCLOSED_RELATION']:
             statPack['DATA_SOURCES'][dataSource1][statType + '_ENTITY_COUNT'] = 0
             statPack['DATA_SOURCES'][dataSource1][statType + '_RECORD_COUNT'] = 0
+            if statType != 'DUPLICATE':
+                statPack['DATA_SOURCES'][dataSource1][statType + '_RELATION_COUNT'] = 0
             statPack['DATA_SOURCES'][dataSource1][statType + '_SAMPLE'] = []
         statPack['DATA_SOURCES'][dataSource1]['CROSS_MATCHES'] = {}
     else:
@@ -418,6 +430,8 @@ def initDataSourceStats(statPack, dataSource1, dataSource2=None):
             statPack['DATA_SOURCES'][dataSource1]['CROSS_MATCHES'][dataSource2][statType + '_ENTITY_COUNT'] = 0
             statPack['DATA_SOURCES'][dataSource1]['CROSS_MATCHES'][dataSource2][statType + '_RECORD_COUNT'] = 0
             statPack['DATA_SOURCES'][dataSource1]['CROSS_MATCHES'][dataSource2][statType + '_SAMPLE'] = []
+            if statType != 'MATCH':
+                statPack['DATA_SOURCES'][dataSource1]['CROSS_MATCHES'][dataSource2][statType + '_RELATION_COUNT'] = 0
     return statPack
 
 
@@ -444,10 +458,7 @@ def processEntities(threadCount):
     if not threadCount:
         try:
             g2Diag = G2Diagnostic()
-            if api_version_major > 2:
-                g2Diag.init('pyG2Diagnostic', iniParams, False)
-            else:
-                g2Diag.initV2('pyG2Diagnostic', iniParams, False)
+            g2Diag.init('pyG2Diagnostic', iniParams, False)
             physical_cores = g2Diag.getPhysicalCores()
             logical_cores = g2Diag.getLogicalCores()
             calc_cores_factor = 4  # if physical_cores != logical_cores else 1.2
@@ -460,10 +471,9 @@ def processEntities(threadCount):
 
     newStatPack = True
     if os.path.exists(statsFilePath):
-        if old_json:
-            statPack = old_json.load(open(statsFilePath))
-        else:
-            statPack = json.load(open(statsFilePath))
+        with open(statsFilePath, 'r') as f:
+            statData = f.read()
+            statPack = json.loads(statData) if statData else {}
 
         if 'PROCESS' in statPack:
             priorStatus = statPack['PROCESS']['STATUS']
@@ -524,10 +534,7 @@ def processEntities(threadCount):
         shutDown.value = 1
         return
 
-    if api_version_major > 2:
-        sql0 = g2Dbo.sqlPrep(sql0)
-    elif g2Dbo.dbType == 'POSTGRESQL':
-        sql0 = sql0.replace('?', '%s')
+    sql0 = g2Dbo.sqlPrep(sql0)
 
     entity_queue = Queue(threadCount * 10)
     resume_queue = Queue(threadCount * 10)
@@ -643,14 +650,11 @@ def processEntities(threadCount):
 def get_entity_features(g2Engine, esb_data):
     try:
         response = bytearray()
-        if api_version_major > 2:
-            retcode = g2Engine.getEntityByEntityID(esb_data[2], response, G2EngineFlags.G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES)
-        else:
-            retcode = g2Engine.getEntityByEntityIDV2(esb_data[2], G2EngineFlags.G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES, response)
+        retcode = g2Engine.getEntityByEntityID(esb_data[2], response, G2EngineFlags.G2_ENTITY_INCLUDE_REPRESENTATIVE_FEATURES)
         response = response.decode() if response else ''
     except G2Exception as err:
         return {}
-    jsonData = json.loads(response)
+    jsonData = orjson.loads(response) if use_orjson else json.loads(response)
     featureInfo = {}
     for ftypeCode in jsonData['RESOLVED_ENTITY']['FEATURES']:
         distinctFeatureCount = 0
@@ -722,10 +726,7 @@ def write_stat_pack(statPack, statData):
         del statPack['ENTITY_SIZE_BREAKDOWN']
 
     with open(statsFileName, 'w') as outfile:
-        if old_json:
-            old_json.dump(statPack, outfile, indent=4)
-        else:
-            json.dump(statPack, outfile, indent=4)
+        json.dump(statPack, outfile, indent=4)
 
     return statPack
 
@@ -822,11 +823,10 @@ def processEntitiesAPIOnly():
 
 # --------------------------------------
 def calculateESBStats():
+    with open(statsFilePath, 'r') as f:
+        statData = f.read()
+        statPack = json.loads(statData) if statData else {}
 
-    if old_json:
-        statPack = old_json.load(open(statsFilePath))
-    else:
-        statPack = json.load(open(statsFilePath))
     esb_entities = []
     for str_entitySize in statPack['TEMP_ESB_STATS']:
         if str_entitySize == '1':
@@ -839,10 +839,7 @@ def calculateESBStats():
 
     try:
         g2Engine = G2Engine()
-        if api_version_major > 2:
-            g2Engine.init('pyG2SnapshotEsb', iniParams, False)
-        else:
-            g2Engine.initV2('pyG2SnapshotEsb', iniParams, False)
+        g2Engine.init('pyG2SnapshotEsb', iniParams, False)
     except G2Exception as ex:
         print(f"\nG2Exception: {ex}\n")
         with shutDown.get_lock():
@@ -892,10 +889,7 @@ def calculateESBStats():
     print()
 
     with open(statsFilePath, 'w') as outfile:
-        if old_json:
-            old_json.dump(statPack, outfile, indent=4)
-        else:
-            json.dump(statPack, outfile, indent=4)
+        json.dump(statPack, outfile, indent=4)
 
     g2Engine.destroy()
 
@@ -985,21 +979,14 @@ if __name__ == '__main__':
 
     # try to initialize the g2engine
     try:
-    
         g2Engine = G2Engine()
-        
-        if api_version_major > 2:
-            g2Engine.init('pyG2Snapshot', iniParams, False)
-        else:
-            g2Engine.initV2('pyG2Snapshot', iniParams, False)
+        g2Engine.init('pyG2Snapshot', iniParams, False)
     except G2Exception as err:
         print('\n%s\n' % str(err))
         sys.exit(1)
 
     if not json.loads(iniParams)['SQL']['CONNECTION']:
-        print('')
-        print('CONNECTION parameter not found in [SQL] section of the ini file')
-        print('')
+        print('\nCONNECTION parameter not found in [SQL] section of the ini file\n')
         sys.exit(1)
     else:
         g2dbUri = json.loads(iniParams)['SQL']['CONNECTION']
@@ -1007,10 +994,7 @@ if __name__ == '__main__':
     # get needed config data
     try:
         g2ConfigMgr = G2ConfigMgr()
-        if api_version_major > 2:
-            g2ConfigMgr.init('pyG2ConfigMgr', iniParams, False)
-        else:
-            g2ConfigMgr.initV2('pyG2ConfigMgr', iniParams, False)
+        g2ConfigMgr.init('pyG2ConfigMgr', iniParams, False)
         defaultConfigID = bytearray()
         g2ConfigMgr.getDefaultConfigID(defaultConfigID)
         defaultConfigDoc = bytearray()
@@ -1028,10 +1012,13 @@ if __name__ == '__main__':
         for cfgRecord in cfgData['G2_CONFIG']['CFG_ERRULE']:
             erruleLookup[cfgRecord['ERRULE_ID']] = cfgRecord
 
+        ambiguousFtypeID = 0
         esbFtypeLookup = {}
         for cfgRecord in cfgData['G2_CONFIG']['CFG_FTYPE']:
             if cfgRecord['DERIVED'] == 'No':
                 esbFtypeLookup[cfgRecord['FTYPE_ID']] = cfgRecord
+            if cfgRecord['FTYPE_CODE'] == 'AMBIGUOUS_ENTITY':
+                ambiguousFtypeID = cfgRecord['FTYPE_ID']
 
     except G2Exception as err:
         print('\n%s\n' % str(err))
@@ -1105,47 +1092,29 @@ if __name__ == '__main__':
                       'join DSRC_RECORD c on c.ENT_SRC_KEY = b.ENT_SRC_KEY and c.DSRC_ID = b.DSRC_ID and c.ETYPE_ID = b.ETYPE_ID '\
                       'where a.RES_ENT_ID = ?'
 
-        if not exportCsv:  # don't need related record_id
-            sqlRelations = 'select '\
-                           ' a.RES_ENT_ID as RESOLVED_ENTITY_ID, '\
-                           ' a.REL_ENT_ID as RELATED_ENTITY_ID, '\
-                           ' b.LAST_ERRULE_ID as ERRULE_ID, '\
-                           ' b.IS_DISCLOSED, '\
-                           ' b.IS_AMBIGUOUS, '\
-                           ' b.MATCH_KEY, '\
-                           ' d.DSRC_ID '\
-                           'from RES_REL_EKEY a '\
-                           'join RES_RELATE b on b.RES_REL_ID = a.RES_REL_ID '\
-                           'join RES_ENT_OKEY c on c.RES_ENT_ID = a.REL_ENT_ID '\
-                           'join OBS_ENT d on d.OBS_ENT_ID = c.OBS_ENT_ID '\
-                           'where a.RES_ENT_ID = ?'
-        else:
-            sqlRelations = 'select '\
-                           ' a.RES_ENT_ID as RESOLVED_ENTITY_ID, '\
-                           ' a.REL_ENT_ID as RELATED_ENTITY_ID, '\
-                           ' b.LAST_ERRULE_ID as ERRULE_ID, '\
-                           ' b.IS_DISCLOSED, '\
-                           ' b.IS_AMBIGUOUS, '\
-                           ' b.MATCH_KEY, '\
-                           ' d.DSRC_ID, '\
-                           ' e.RECORD_ID '\
-                           'from RES_REL_EKEY a '\
-                           'join RES_RELATE b on b.RES_REL_ID = a.RES_REL_ID '\
-                           'join RES_ENT_OKEY c on c.RES_ENT_ID = a.REL_ENT_ID '\
-                           'join OBS_ENT d on d.OBS_ENT_ID = c.OBS_ENT_ID '\
-                           'join DSRC_RECORD e on e.ENT_SRC_KEY = d.ENT_SRC_KEY and e.DSRC_ID = d.DSRC_ID and e.ETYPE_ID = d.ETYPE_ID '\
-                           'where a.RES_ENT_ID = ?'
+        sqlRelations = 'select '\
+                       ' a.RES_ENT_ID as RESOLVED_ENTITY_ID, '\
+                       ' a.REL_ENT_ID as RELATED_ENTITY_ID, '\
+                       ' b.LAST_ERRULE_ID as ERRULE_ID, '\
+                       ' b.IS_DISCLOSED, '\
+                       ' b.IS_AMBIGUOUS, '\
+                       ' b.MATCH_KEY, '\
+                       ' d.DSRC_ID '\
+                       'from RES_REL_EKEY a '\
+                       'join RES_RELATE b on b.RES_REL_ID = a.RES_REL_ID '\
+                       'join RES_ENT_OKEY c on c.RES_ENT_ID = a.REL_ENT_ID '\
+                       'join OBS_ENT d on d.OBS_ENT_ID = c.OBS_ENT_ID '\
+                       'where a.RES_ENT_ID = ?'
+
 
         #--adjusts the parameter syntax based on the database type
-        if api_version_major > 2:
-            sqlEntities = g2Dbo.sqlPrep(sqlEntities)
-        elif g2Dbo.dbType == 'POSTGRESQL':
-            sqlEntities = sqlEntities.replace('?', '%s')
+        sqlEntities = g2Dbo.sqlPrep(sqlEntities)
+        sqlRelations = g2Dbo.sqlPrep(sqlRelations)
 
-        if api_version_major > 2:
-            sqlRelations = g2Dbo.sqlPrep(sqlRelations)
-        elif g2Dbo.dbType == 'POSTGRESQL':
-            sqlRelations = sqlRelations.replace('?', '%s')
+        # # abandoned hack to determine if this is an ambiguous entity
+        # sqlAmbiguous = f'select 1 from RES_FEAT_EKEY where RES_ENT_ID = ? and FTYPE_ID = {ambiguousFtypeID}'
+        # sqlAmbiguous = g2Dbo.sqlPrep(sqlAmbiguous)
+
 
         processEntities(threadCount)
 

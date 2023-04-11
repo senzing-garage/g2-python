@@ -15,16 +15,13 @@ except:
     import ConfigParser as configparser
 
 senzing_path = '/opt/senzing/g2'
-jre_dir_name = 'jdk-11.0.10+9-jre'
-past_jre_dir_names = [
-    'jdk-11.0.10+9-jre'
-]
 files_to_exclude = ['G2CreateProject.py', 'G2UpdateProject.py']
 paths_to_remove = [
     os.path.join('extras', 'poc'),
     os.path.join('extras'),
     os.path.join('sdk', 'python', 'old'),
     os.path.join('python', 'demo', 'ofac'),
+    os.path.join('lib', 'jdk-11.0.10+9-jre')
 ]
 files_to_remove = [
     os.path.join('extras', 'poc', 'poc_audit.py'),
@@ -55,6 +52,7 @@ files_to_remove = [
     os.path.join('resources', 'config', 'g2core-config-upgrade-1.14-to-1.15.gtc'),
     os.path.join('resources', 'config', 'g2core-config-upgrade-1.15-to-2.0.gtc'),
     os.path.join('resources', 'config', 'g2core-config-upgrade-2.0-to-2.5.gtc'),
+    os.path.join('lib', 'jre')
 ]
 paths_to_move = [
     (os.path.join('sdk', 'python'), os.path.join('sdk', 'python_prior_to_3.0')),
@@ -76,7 +74,6 @@ symlinks = [
     os.path.join(senzing_path, 'data')
 ]
 folders_to_ignore = [
-    pathlib.Path(os.path.join(senzing_path, 'lib', 'jdk-11.0.10+9-jre'))
 ]
 
 
@@ -235,25 +232,8 @@ if __name__ == '__main__':
         with suppress(FileNotFoundError, OSError):
             shutil.move(os.path.join(target_path, f[1], f[0]), os.path.join(target_path, f[2], f[0]))
 
-    # Remove JRE (if it exists)
-    jre_to_remove = None
-    for jre in past_jre_dir_names:
-        test_path = os.path.join(target_path, 'lib', jre)
-        if os.path.exists(test_path):
-            jre_to_remove = test_path
-            break
-
-    if jre_to_remove is not None:
-        shutil.rmtree(jre_to_remove)
-
     # Update most of the files from opt
     overlayFiles(senzing_path, target_path)
-
-    # copy over new JRE
-    jre_source_path = os.path.join(senzing_path, 'lib', jre_dir_name)
-    jre_target_path = os.path.join(target_path, 'lib', jre_dir_name)
-
-    shutil.copytree(jre_source_path, jre_target_path)
 
     # soft link in data
     with suppress(FileNotFoundError, OSError):
@@ -311,7 +291,7 @@ if __name__ == '__main__':
     # End of fixups
 
     # Folder permissions
-    set_folder_permissions_recursive(target_path, 0o770, folders_to_ignore=['jdk-11.0.10+9-jre'])
+    set_folder_permissions_recursive(target_path, 0o770)
 
     # root
     set_permissions_on_files_in_folder(target_path, 0o660)

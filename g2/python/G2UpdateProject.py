@@ -239,8 +239,15 @@ if __name__ == '__main__':
     with suppress(FileNotFoundError, OSError):
         os.remove(os.path.join(target_path, 'data'))
 
-    try:        
-        os.symlink(os.path.join(os.sep, 'opt', 'senzing', 'data', end_version_info['DATA_VERSION']), os.path.join(target_path, 'data'))
+    try:
+        target = os.path.join(os.sep, 'opt', 'senzing', 'data', end_version_info['DATA_VERSION'])
+        location = os.path.join(target_path, 'data')
+        
+        if not os.path.exists(target):
+            shortened_end_version = '.'.join(end_version_info['DATA_VERSION'].split('.')[:-1])
+            target = os.path.join(os.sep, 'opt', 'senzing', 'data', shortened_end_version)
+
+        os.symlink(target, location)
     except Exception as e:
         print(e)
 

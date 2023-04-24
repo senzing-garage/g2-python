@@ -1,72 +1,55 @@
 [submodule "compressedfile"]
   path = compressedfile
   url = https://github.com/Senzing/compressedfile.git
-  branch = develop-g2v40__test
 [submodule "dumpstack"]
   path = dumpstack
   url = https://github.com/Senzing/dumpstack.git
-  branch = develop-g2v40__test
 [submodule "g2audit"]
   path = g2audit
   url = https://github.com/Senzing/g2audit.git
-  branch = develop-g2v40__test
+  branch = .
 [submodule "g2command"]
   path = g2command
   url = https://github.com/Senzing/g2command.git
-  branch = develop-g2v40__test
 [submodule "g2configtables"]
   path = g2configtables
   url = https://github.com/Senzing/g2configtables.git
-  branch = develop-g2v40__test
 [submodule "g2database"]
   path = g2database
   url = https://github.com/Senzing/g2database.git
-  branch = develop-g2v40__test
 [submodule "g2export"]
   path = g2export
   url = https://github.com/Senzing/g2export.git
-  branch = develop-g2v40__test
 [submodule "g2loader"]
   path = g2loader
   url = https://github.com/Senzing/g2loader.git
-  branch = develop-g2v40__test
 [submodule "g2project"]
   path = g2project
   url = https://github.com/Senzing/g2project.git
-  branch = develop-g2v40__test
 [submodule "g2configtool"]
   path = g2configtool
   url = https://github.com/Senzing/g2configtool.git
-  branch = develop-g2v40__test
 [submodule "g2s3"]
   path = g2s3
   url = https://github.com/Senzing/g2s3.git
-  branch = develop-g2v40__test
 [submodule "g2paths"]
   path = g2paths
   url = https://github.com/Senzing/g2paths.git
-  branch = develop-g2v40__test
 [submodule "g2createproject"]
   path = g2createproject
   url = https://github.com/Senzing/g2createproject.git
-  branch = develop-g2v40__test
 [submodule "g2updateproject"]
   path = g2updateproject
   url = https://github.com/Senzing/g2updateproject.git
-  branch = develop-g2v40__test
 [submodule "g2setupconfig"]
   path = g2setupconfig
   url = https://github.com/Senzing/g2setupconfig.git
-  branch = develop-g2v40__test
 [submodule "g2snapshot"]
   path = g2snapshot
   url = https://github.com/Senzing/g2snapshot.git
-  branch = develop-g2v40__test
 [submodule "g2explorer"]
   path = g2explorer
   url = https://github.com/Senzing/g2explorer.git
-  branch = develop-g2v40__test
 [submodule "g2iniparams"]
   path = g2iniparams
   url = https://github.com/Senzing/g2iniparams.git
-  branch = develop-g2v40__test

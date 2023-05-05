@@ -127,7 +127,7 @@ The following instructions are used when modifying and building the Docker image
 These are "one-time tasks" which may already have been completed.
 
 1. The following software programs need to be installed:
-    1. [git](https://github.com/Senzing/knowledge-base/blob/main/HOWTO/install-git.md)
+    1. [git](https://github.com/Senzing/knowledge-base/blob/main/WHATIS/git.md)
 
 ### Clone repository
 

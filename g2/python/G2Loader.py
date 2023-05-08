@@ -27,12 +27,13 @@ from G2ConfigTables import G2ConfigTables
 from G2IniParams import G2IniParams
 from G2Project import G2Project
 
-from senzing import G2Config, G2ConfigMgr, G2Diagnostic, G2Engine, G2Exception, G2Product, G2ModuleLicenseException
+from senzing import G2Config, G2ConfigMgr, G2Diagnostic, G2Engine, G2Exception, G2Product, \
+    G2ModuleLicenseException, G2NotFoundException
 
 __all__ = []
-__version__ = '2.2.2'  # See https://www.python.org/dev/peps/pep-0396/
+__version__ = '2.2.4'  # See https://www.python.org/dev/peps/pep-0396/
 __date__ = '2018-09-18'
-__updated__ = '2022-10-11'
+__updated__ = '2023-05-08'
 
 # -----------------------------------------------------------------------------
 # Exceptions
@@ -983,6 +984,12 @@ def g2_thread(_, work_queue_, g2_engine_, thread_stop, dsrc_action_args):
             with thread_stop.get_lock():
                 thread_stop.value = 1
             return
+        except G2NotFoundException as ex:
+            # Don't error if record for redo can't be located
+            if is_redo_record:
+                pass
+            else:
+                g2thread_error(ex, dsrc_action_str)
         except G2Exception as ex:
             g2thread_error(ex, dsrc_action_str)
 

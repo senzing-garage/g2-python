@@ -236,6 +236,11 @@ class G2CmdShell(cmd.Cmd, object):
         searchByAttributes_parser.add_argument('jsonData')
         searchByAttributes_parser.add_argument('-f', '--flags', required=False, nargs='+')
 
+        searchByAttributesV3_parser = self.subparsers.add_parser('searchByAttributesV3', usage=argparse.SUPPRESS)
+        searchByAttributesV3_parser.add_argument('jsonData')
+        searchByAttributesV3_parser.add_argument('searchProfile')
+        searchByAttributesV3_parser.add_argument('-f', '--flags', required=False, nargs='+')
+
         processFile_parser = self.subparsers.add_parser('processFile', usage=argparse.SUPPRESS)
         processFile_parser.add_argument('inputFile')
 
@@ -1412,6 +1417,33 @@ class G2CmdShell(cmd.Cmd, object):
 
         self.g2_engine.searchByAttributes(
             kwargs['parsed_args'].jsonData,
+            kwargs['response'],
+            **kwargs['flags_int'])
+        self.printResponse(kwargs['response'])
+
+    @cmd_decorator()
+    def do_searchByAttributesV3(self, **kwargs):
+        """
+        Search for entities
+
+        Syntax:
+            searchByAttributesV3 JSON_DATA SEARCH_PROFILE [-f FLAG ...]
+
+        Example:
+            searchByAttributesV3 '{"name_full":"Robert Smith", "date_of_birth":"11/12/1978"}' SEARCH
+            searchByAttributesV3 '{"name_full":"Robert Smith", "date_of_birth":"11/12/1978"}' SEARCH -f G2_SEARCH_BY_ATTRIBUTES_MINIMAL_ALL
+
+        Arguments:
+            JSON_DATA = Senzing mapped JSON containing the attributes to search on
+            SEARCH_PROFILE = Search profile to use
+            FLAG = Space separated list of engine flag(s) to determine output (don't specify for defaults)
+
+        Notes:
+            - Engine flag details https://docs.senzing.com/flags/index.html"""
+
+        self.g2_engine.searchByAttributesV3(
+            kwargs['parsed_args'].jsonData,
+            kwargs['parsed_args'].searchProfile,
             kwargs['response'],
             **kwargs['flags_int'])
         self.printResponse(kwargs['response'])

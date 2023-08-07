@@ -282,7 +282,7 @@ class Governor:
 
                     # Wait for a manual vacuum to lower XID age < resume_age
                     while current_age > self.resume_age:
-                        
+
                         self.print_or_log(f'\t{datetime.now().strftime("%I:%M%p")} - Database: {db_objs[2]}, Current XID age: {current_age}, Target age: {self.resume_age} - Sleeping for {self.wait_time}s...', 'WARN')
                         time.sleep(self.wait_time)
                         db_objs[1].execute(self.sql_stmt, [db_objs[2]])
@@ -332,6 +332,9 @@ class Governor:
 
                   Parse result: {parse}
                   '''))
+
+        # Right strip to handle incorrect use of a / at end of URI
+        dburi = dburi.rstrip('/')
 
         # Split main URI and schema if schema is present
         if '/?schema' in dburi:

@@ -2954,11 +2954,15 @@ class G2CmdShell(cmd.Cmd, object):
 def get_engine_flags(flags_list):
     """Detect if int or named flags are used and convert to int ready to send to API call"""
 
+    # For Senzing support team
+    if flags_list[0] == '-1':
+        return int(flags_list[0])
+
     # An int is used for the engine flags - old method still support
     if len(flags_list) == 1 and flags_list[0].isnumeric():
         return int(flags_list[0])
-    # Named engine flag(s) were used, combine when > 1
 
+    # Named engine flag(s) were used, combine when > 1
     try:
         engine_flags_int = int(G2EngineFlags.combine_flags(flags_list))
     except KeyError as err:

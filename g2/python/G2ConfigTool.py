@@ -937,6 +937,7 @@ class G2CmdShell(cmd.Cmd, object):
         except ValueError as err:
             colorize_msg(err, 'error')
         else:
+            self.configUpdated = True
             colorize_msg('Successfully imported!', 'success')
 
 

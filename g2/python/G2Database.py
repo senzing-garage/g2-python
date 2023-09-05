@@ -20,6 +20,7 @@ class G2Database:
 
         self.connections = {'MAIN': {}}
         self.tables_by_connection = {}
+        self.statement_cache = {}
 
         self.Connect('MAIN', param_data['SQL']['CONNECTION'])
 
@@ -29,8 +30,6 @@ class G2Database:
                 self.connections[node] = {}
                 self.Connect(node, param_data[node]['DB_1'])
             self.tables_by_connection[table_name] = node
-
-        self.statement_cache = {}
 
         self.success = True
 

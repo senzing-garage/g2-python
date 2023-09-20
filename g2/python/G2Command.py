@@ -277,7 +277,7 @@ class G2CmdShell(cmd.Cmd, object):
         replaceRecordWithInfo_parser.add_argument('dataSourceCode')
         replaceRecordWithInfo_parser.add_argument('recordID')
         replaceRecordWithInfo_parser.add_argument('jsonData')
-        replaceRecordWithInfo_parser.add_argument('-f', '--flags', required=False, nargs='*')
+        replaceRecordWithInfo_parser.add_argument('-f', '--flags', required=False, nargs='+')
 
         addRecord_parser = self.subparsers.add_parser('addRecord', usage=argparse.SUPPRESS)
         addRecord_parser.add_argument('dataSourceCode')
@@ -289,12 +289,6 @@ class G2CmdShell(cmd.Cmd, object):
         addRecordWithInfo_parser.add_argument('recordID')
         addRecordWithInfo_parser.add_argument('jsonData')
         addRecordWithInfo_parser.add_argument('-f', '--flags', required=False, nargs='+')
-
-        replaceRecordWithInfo_parser = self.subparsers.add_parser('replaceRecordWithInfo', usage=argparse.SUPPRESS)
-        replaceRecordWithInfo_parser.add_argument('dataSourceCode')
-        replaceRecordWithInfo_parser.add_argument('recordID')
-        replaceRecordWithInfo_parser.add_argument('jsonData')
-        replaceRecordWithInfo_parser.add_argument('-f', '--flags', required=False, nargs='+')
 
         addRecordWithReturnedRecordID_parser = self.subparsers.add_parser('addRecordWithReturnedRecordID', usage=argparse.SUPPRESS)
         addRecordWithReturnedRecordID_parser.add_argument('dataSourceCode')

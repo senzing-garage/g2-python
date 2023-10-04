@@ -2,19 +2,17 @@
 # - https://docs.github.com/en/actions/guides/adding-labels-to-issues
 # - https://github.com/andymckay/labeler
 
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
+name: add-triage-label.yaml
 
-name: Simple Issue Labeler
 on:
   issues:
     types:
       - reopened
       - opened
+
 jobs:
-  automate-issues-labels:
+  add-triage-label:
+    name: Add triage label to issue
     runs-on: ubuntu-latest
     steps:
       - name: initial labeling

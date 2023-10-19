@@ -442,6 +442,11 @@ class G2CmdShell(cmd.Cmd, object):
         findNetworkByRecordID_parser.add_argument('maxEntities', type=int)
         findNetworkByRecordID_parser.add_argument('-f', '--flags', required=False, nargs='+')
 
+        whyRecordInEntity_parser = self.subparsers.add_parser('whyRecordInEntity', usage=argparse.SUPPRESS)
+        whyRecordInEntity_parser.add_argument('dataSourceCode')
+        whyRecordInEntity_parser.add_argument('recordID')
+        whyRecordInEntity_parser.add_argument('-f', '--flags', required=False, nargs='+')
+
         whyEntityByRecordID_parser = self.subparsers.add_parser('whyEntityByRecordID', usage=argparse.SUPPRESS)
         whyEntityByRecordID_parser.add_argument('dataSourceCode')
         whyEntityByRecordID_parser.add_argument('recordID')
@@ -1811,6 +1816,34 @@ class G2CmdShell(cmd.Cmd, object):
         self.printResponse(kwargs["response"])
 
     @cmd_decorator()
+    def do_whyRecordInEntity(self, **kwargs):
+        """
+        Determine why a particular record resolved to an entity
+
+        Syntax:
+            whyRecordInEntity DSRC_CODE RECORD_ID [-f FLAG ...]
+
+        Example:
+            whyRecordInEntity reference 2121
+            whyRecordInEntity reference 2121 -f G2_WHY_ENTITY_DEFAULT_FLAGS G2_ENTITY_INCLUDE_RECORD_JSON_DATA
+
+        Arguments:
+            DSRC_CODE = Data source code
+            RECORD_ID = Record identifier
+            FLAG = Space separated list of engine flag(s) to determine output (don't specify for defaults)
+
+        Notes:
+            - Engine flag details https://docs.senzing.com/flags/index.html"""
+
+        self.g2_engine.whyRecordInEntity(
+            kwargs["parsed_args"].dataSourceCode,
+            kwargs["parsed_args"].recordID,
+            kwargs["response"],
+            **kwargs["flags_int"]
+        )
+        self.printResponse(kwargs["response"])
+
+    @cmd_decorator()
     def do_whyEntityByRecordID(self, **kwargs):
         """
         Determine why a record resolved to an entity
@@ -2858,6 +2891,9 @@ class G2CmdShell(cmd.Cmd, object):
         return self.flags_completes(text, line)
 
     def complete_findNetworkByRecordID(self, text, line, begidx, endidx):
+        return self.flags_completes(text, line)
+
+    def complete_whyRecordInEntity(self, text, line, begidx, endidx):
         return self.flags_completes(text, line)
 
     def complete_whyEntityByRecordID(self, text, line, begidx, endidx):

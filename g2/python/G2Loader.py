@@ -28,12 +28,12 @@ from G2IniParams import G2IniParams
 from G2Project import G2Project
 
 from senzing import G2Config, G2ConfigMgr, G2Diagnostic, G2Engine, G2Exception, G2Product, \
-    G2ModuleLicenseException, G2NotFoundException
+    G2LicenseException, G2NotFoundException
 
 __all__ = []
-__version__ = '2.2.4'  # See https://www.python.org/dev/peps/pep-0396/
+__version__ = '2.2.6'  # See https://www.python.org/dev/peps/pep-0396/
 __date__ = '2018-09-18'
-__updated__ = '2023-05-08'
+__updated__ = '2023-12-14'
 
 # -----------------------------------------------------------------------------
 # Exceptions
@@ -978,7 +978,7 @@ def g2_thread(_, work_queue_, g2_engine_, thread_stop, dsrc_action_args):
                 dsrc_action_str = 'reevaluateRecord()'
                 g2_engine_.reevaluateRecord(data_source, record_id, 0)
 
-        except G2ModuleLicenseException as ex:
+        except G2LicenseException as ex:
             print('\nERROR: G2Engine licensing error!')
             print(f'       {ex}')
             with thread_stop.get_lock():

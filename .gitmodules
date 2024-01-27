@@ -1,54 +1,54 @@
 [submodule "compressedfile"]
   path = compressedfile
-  url = https://github.com/Senzing/compressedfile.git
+  url = https://github.com/senzing-garage/compressedfile.git
 [submodule "dumpstack"]
   path = dumpstack
-  url = https://github.com/Senzing/dumpstack.git
+  url = https://github.com/senzing-garage/dumpstack.git
 [submodule "g2audit"]
   path = g2audit
-  url = https://github.com/Senzing/g2audit.git
+  url = https://github.com/senzing-garage/g2audit.git
 [submodule "g2command"]
   path = g2command
-  url = https://github.com/Senzing/g2command.git
+  url = https://github.com/senzing-garage/g2command.git
 [submodule "g2configtables"]
   path = g2configtables
-  url = https://github.com/Senzing/g2configtables.git
+  url = https://github.com/senzing-garage/g2configtables.git
 [submodule "g2database"]
   path = g2database
-  url = https://github.com/Senzing/g2database.git
+  url = https://github.com/senzing-garage/g2database.git
 [submodule "g2export"]
   path = g2export
-  url = https://github.com/Senzing/g2export.git
+  url = https://github.com/senzing-garage/g2export.git
 [submodule "g2loader"]
   path = g2loader
-  url = https://github.com/Senzing/g2loader.git
+  url = https://github.com/senzing-garage/g2loader.git
 [submodule "g2project"]
   path = g2project
-  url = https://github.com/Senzing/g2project.git
+  url = https://github.com/senzing-garage/g2project.git
 [submodule "g2configtool"]
   path = g2configtool
-  url = https://github.com/Senzing/g2configtool.git
+  url = https://github.com/senzing-garage/g2configtool.git
 [submodule "g2s3"]
   path = g2s3
-  url = https://github.com/Senzing/g2s3.git
+  url = https://github.com/senzing-garage/g2s3.git
 [submodule "g2paths"]
   path = g2paths
-  url = https://github.com/Senzing/g2paths.git
+  url = https://github.com/senzing-garage/g2paths.git
 [submodule "g2createproject"]
   path = g2createproject
-  url = https://github.com/Senzing/g2createproject.git
+  url = https://github.com/senzing-garage/g2createproject.git
 [submodule "g2updateproject"]
   path = g2updateproject
-  url = https://github.com/Senzing/g2updateproject.git
+  url = https://github.com/senzing-garage/g2updateproject.git
 [submodule "g2setupconfig"]
   path = g2setupconfig
-  url = https://github.com/Senzing/g2setupconfig.git
+  url = https://github.com/senzing-garage/g2setupconfig.git
 [submodule "g2snapshot"]
   path = g2snapshot
-  url = https://github.com/Senzing/g2snapshot.git
+  url = https://github.com/senzing-garage/g2snapshot.git
 [submodule "g2explorer"]
   path = g2explorer
-  url = https://github.com/Senzing/g2explorer.git
+  url = https://github.com/senzing-garage/g2explorer.git
 [submodule "g2iniparams"]
 	path = g2iniparams
-	url = https://github.com/Senzing/g2iniparams.git
+	url = https://github.com/senzing-garage/g2iniparams.git

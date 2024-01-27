@@ -20,7 +20,7 @@ if 'SENZING_ETC_PATH' not in os.environ and 'SENZING_ROOT' not in os.environ:
 
                - If running within a container set the SENZING_ENGINE_CONFIGURATION_JSON environment variable.
 
-                    https://github.com/Senzing/knowledge-base/blob/main/lists/environment-variables.md#senzing_engine_configuration_json
+                    https://github.com/senzing-garage/knowledge-base/blob/main/lists/environment-variables.md#senzing_engine_configuration_json
         '''))
         sys.exit(1)
 

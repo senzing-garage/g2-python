@@ -1,5 +1,17 @@
 # g2-python
 
+If you are beginning your journey with
+[Senzing](https://senzing.com/),
+please start with
+[Senzing Quick Start guides](https://docs.senzing.com/quickstart/).
+
+You are in the
+[Senzing Garage](https://github.com/senzing-garage)
+where projects are "tinkered" on.
+Although this GitHub repository may help you understand an approach to using Senzing,
+it's not considered to be "production ready" and is not considered to be part of the Senzing product.
+Heck, it may not even be appropriate for your application of Senzing!
+
 ## Synopsis
 
 The aggregation of repositories that comprise `g2/python` in the Senzing SDK API.
@@ -80,12 +92,12 @@ These files are packaged in `senzingapi-M.m.P-00000.x86_64.rpm` and `senzingapi_
 
 At [Senzing](http://senzing.com),
 we strive to create GitHub documentation in a
-"[don't make me think](https://github.com/Senzing/knowledge-base/blob/main/WHATIS/dont-make-me-think.md)" style.
+"[don't make me think](https://github.com/senzing-garage/knowledge-base/blob/main/WHATIS/dont-make-me-think.md)" style.
 For the most part, instructions are copy and paste.
 Whenever thinking is needed, it's marked with a "thinking" icon :thinking:.
 Whenever customization is needed, it's marked with a "pencil" icon :pencil2:.
 If the instructions are not clear, please let us know by opening a new
-[Documentation issue](https://github.com/Senzing/template-python/issues/new?template=documentation_request.md)
+[Documentation issue](https://github.com/senzing-garage/template-python/issues/new?template=documentation_request.md)
 describing where we can improve.   Now on with the show...
 
 ### Legend
@@ -100,10 +112,10 @@ describing where we can improve.   Now on with the show...
 
 ### View a specific release of g2/python
 
-1. Visit [github.com/Senzing/g2-python](https://github.com/Senzing/g2-python)
+1. Visit [github.com/senzing-garage/g2-python](https://github.com/senzing-garage/g2-python)
 1. In upper-left dropdown, probably set to "main", select the dropdown and choose the "Tags" tab.
 1. Choose the Senzing SDK API version of interest.
-1. The new URL will look like [https://github.com/Senzing/g2-python/tree/2.8.0](https://github.com/Senzing/g2-python/tree/2.8.0),
+1. The new URL will look like [https://github.com/senzing-garage/g2-python/tree/2.8.0](https://github.com/senzing-garage/g2-python/tree/2.8.0),
    where `2.8.0` is the version of Senzing SDK API.
 1. In addition to the `g2/python` directory being at the specified Senzing SDK API version,
    the GitHub submodule references will also be at that version.
@@ -111,7 +123,7 @@ describing where we can improve.   Now on with the show...
 ### Compare releases
 
 1. :pencil2: To compare the differences between Senzing versions, use a URL like the following:
-   [https://github.com/Senzing/g2-python/compare/2.7.0...2.8.0](https://github.com/Senzing/g2-python/compare/2.7.0...2.8.0)
+   [https://github.com/senzing-garage/g2-python/compare/2.7.0...2.8.0](https://github.com/senzing-garage/g2-python/compare/2.7.0...2.8.0)
    Where:
     1. `2.7.0` can be replaced with the earliest release in the comparison.
     1. `2.8.0` can be replaced with the latest release  in the comparison.
@@ -127,12 +139,12 @@ The following instructions are used when modifying and building the Docker image
 These are "one-time tasks" which may already have been completed.
 
 1. The following software programs need to be installed:
-    1. [git](https://github.com/Senzing/knowledge-base/blob/main/WHATIS/git.md)
+    1. [git](https://github.com/senzing-garage/knowledge-base/blob/main/WHATIS/git.md)
 
 ### Clone repository
 
 For more information on environment variables,
-see [Environment Variables](https://github.com/Senzing/knowledge-base/blob/main/lists/environment-variables.md).
+see [Environment Variables](https://github.com/senzing-garage/knowledge-base/blob/main/lists/environment-variables.md).
 
 1. Set these environment variable values:
 
@@ -143,11 +155,11 @@ see [Environment Variables](https://github.com/Senzing/knowledge-base/blob/main/
     export GIT_REPOSITORY_DIR="${GIT_ACCOUNT_DIR}/${GIT_REPOSITORY}"
     ```
 
-1. Using the environment variables values just set, follow steps in [clone-repository](https://github.com/Senzing/knowledge-base/blob/main/HOWTO/clone-repository.md) to install the Git repository.
+1. Using the environment variables values just set, follow steps in [clone-repository](https://github.com/senzing-garage/knowledge-base/blob/main/HOWTO/clone-repository.md) to install the Git repository.
 
 ### Create branch
 
-1. :pencil2: Using [github.com/Senzing/g2-python](https://github.com/Senzing/g2-python), create a branch.
+1. :pencil2: Using [github.com/senzing-garage/g2-python](https://github.com/senzing-garage/g2-python), create a branch.
    Then, identify the name of the branch created.
    Example:
 
@@ -210,4 +222,4 @@ see [Environment Variables](https://github.com/Senzing/knowledge-base/blob/main/
 
 ### Create versioned release
 
-1. [Create a new versioned release](https://github.com/Senzing/g2-python/releases) that matches the `senzingapi` release.
+1. [Create a new versioned release](https://github.com/senzing-garage/g2-python/releases) that matches the `senzingapi` release.

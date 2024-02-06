@@ -11,6 +11,7 @@ import time
 import math
 from datetime import datetime, timedelta
 import textwrap
+from contextlib import suppress
 
 import json
 try:
@@ -27,14 +28,17 @@ import concurrent.futures
 import itertools
 
 try:
-    import G2Paths
-    from G2IniParams import G2IniParams
     from senzing import G2ConfigMgr, G2Diagnostic, G2Engine, G2EngineFlags, G2Exception, G2Product
-    from G2Database import G2Database
 except Exception as err:
     print(f"\n{err}\n")
     sys.exit(1)
 
+with suppress(Exception): 
+    import G2Paths
+    from G2IniParams import G2IniParams
+
+with suppress(Exception): 
+    from G2Database import G2Database
 
 # -----------------------------------
 def queue_read(queue):
@@ -181,35 +185,35 @@ def complete_resume_db(rowData):
 
     if rowData['RELATED_ENTITY_ID'] == 0:
         rowData['MATCH_LEVEL'] = 1 if rowData['ERRULE_CODE'] else 0
-        rowData['MATCH_CATEOGRY'] = 'RESOLVED'
     elif rowData['IS_DISCLOSED'] != 0:
         rowData['MATCH_LEVEL'] = 11
-        rowData['MATCH_CATEGORY'] = 'DISCLOSED_RELATION'
-    elif rowData['IS_AMBIGUOUS'] != 0:
-        rowData['MATCH_LEVEL'] = 11
-        rowData['MATCH_CATEGORY'] = 'AMBIGUOUS_MATCH'
     else:
         try:
             rowData['MATCH_LEVEL'] = erruleLookup[rowData['ERRULE_ID']]['RTYPE_ID']
         except:
             rowData['MATCH_LEVEL'] = 3
-        if rowData['MATCH_LEVEL'] == 2:
-            rowData['MATCH_CATEGORY'] = 'POSSIBLE_MATCH'
-        else:
-            rowData['MATCH_CATEGORY'] = 'POSSIBLY_RELATED'
-
     return rowData
 
 
 # -------------------------------------
 def complete_resume_api(rowData):
 
+
+#{'RESOLVED_ENTITY_ID': 1, 'RELATED_ENTITY_ID': 0, 'MATCH_LEVEL': 1, 'MATCH_KEY': '+NAME+DOB+EMAIL', 'IS_DISCLOSED': 0, 'IS_AMBIGUOUS': 0, 'DATA_SOURCE': 'CUSTOMERS', 'RECORD_ID': '1003', 'ERRULE_CODE': 'SF1_PNAME_CSTAB'}
+#{'RESOLVED_ENTITY_ID': 1, 'RELATED_ENTITY_ID': 5, 'MATCH_LEVEL': 2, 'MATCH_KEY': '+NAME+ADDRESS-DOB', 'IS_DISCLOSED': 0, 'IS_AMBIGUOUS': 0, 'DATA_SOURCE': 'CUSTOMERS', 'RECORD_ID': '1005', 'ERRULE_CODE': 'CNAME_CFF_DEXCL'}
+
     rowData['RESOLVED_ENTITY_ID'] = int(rowData['RESOLVED_ENTITY_ID'])
     rowData['RELATED_ENTITY_ID'] = int(rowData['RELATED_ENTITY_ID'])
     rowData['IS_DISCLOSED'] = int(rowData['IS_DISCLOSED'])
     rowData['IS_AMBIGUOUS'] = int(rowData['IS_AMBIGUOUS'])
     rowData['MATCH_LEVEL'] = int(rowData['MATCH_LEVEL'])
+    if rowData['IS_DISCLOSED'] != 0:
+        rowData['MATCH_LEVEL'] = 11
 
+    try:
+        rowData['ERRULE_ID'] = erruleLookup2[rowData['ERRULE_CODE']]['ERRULE_ID']
+    except:
+        rowData['ERRULE_ID'] = 0
     return rowData
 
 # -------------------------------------
@@ -231,7 +235,6 @@ def process_resume(statPack, resume_rows, csvFileHandle):
     recordList = []
     resumeData = {}
 
-
     # summarize entity resume
     entityID = resume_rows[0]['RESOLVED_ENTITY_ID']
     # isAmbiguousEntity = resume_rows[0]['IS_AMBIGUOUS'] # abandoned hack: first record will have flag for the whole entity
@@ -239,13 +242,16 @@ def process_resume(statPack, resume_rows, csvFileHandle):
         relatedID = str(rowData['RELATED_ENTITY_ID'])
         dataSource = rowData['DATA_SOURCE']
         recordID = rowData['RECORD_ID']
+        principle = f"{rowData['ERRULE_ID']}: {rowData['ERRULE_CODE']}" if rowData['ERRULE_ID'] else ''
+        matchKey = rowData['MATCH_KEY']
 
         if relatedID == '0':
-            matchCategory = 'RESOLVED'
+            matchCategory = 'MATCH'
             entitySize += 1
             recordList.append(dataSource + ':' + recordID)
         elif rowData['IS_DISCLOSED'] != 0:
             matchCategory = 'DISCLOSED_RELATION'
+            principle = 'DISCLOSURE'
         elif rowData['IS_AMBIGUOUS'] != 0:
             matchCategory = 'AMBIGUOUS_MATCH'
         elif rowData['MATCH_LEVEL'] == 2:
@@ -257,16 +263,29 @@ def process_resume(statPack, resume_rows, csvFileHandle):
             resumeData[relatedID] = {}
             resumeData[relatedID]['matchCategory'] = matchCategory
             resumeData[relatedID]['dataSources'] = {}
+            if relatedID != '0' and entityID < rowData['RELATED_ENTITY_ID']:
+                statUpdate = {'PRINCIPLES_USED': {matchCategory: {principle: {matchKey: {'COUNT': 1, 'SAMPLE': [f'{entityID} {relatedID}']}}}}}
+                updateStatpack2(statPack, statUpdate, sampleSize, randomIndex)
 
         if dataSource not in resumeData[relatedID]['dataSources']:
-            resumeData[relatedID]['dataSources'][dataSource] = 1
+            resumeData[relatedID]['dataSources'][dataSource] = {'count': 1, 'principles': []}
         else:
-            resumeData[relatedID]['dataSources'][dataSource] += 1
+            resumeData[relatedID]['dataSources'][dataSource]['count'] += 1
+
+        principle_matchkey = f'{principle}||{matchKey}'
+        if principle and principle_matchkey not in resumeData[relatedID]['dataSources'][dataSource]['principles']:
+            resumeData[relatedID]['dataSources'][dataSource]['principles'].append(principle_matchkey)
+
+        if relatedID == '0' and principle:
+            statUpdate = {'PRINCIPLES_USED': {matchCategory: {principle: {matchKey: {'COUNT': 1, 'SAMPLE': [entityID]}}}}}
+            updateStatpack2(statPack, statUpdate, sampleSize, randomIndex)
 
         if csvFileHandle:
             writeCsvRecord(rowData, csvFileHandle)
 
     # update entity size breakdown
+    #statUpdate = {'TEMP_ESB_STATS': {str(entitySize): {'COUNT': 1, 'SAMPLE': [{'ENTITY_SIZE': entitySize, 'ENTITY_ID': entityID}]}}}
+    #updateStatpack2(statPack, statUpdate, sampleSize, randomIndex)
     str_entitySize = str(entitySize)
     if str_entitySize not in statPack['TEMP_ESB_STATS']:
         statPack['TEMP_ESB_STATS'][str_entitySize] = {}
@@ -278,11 +297,17 @@ def process_resume(statPack, resume_rows, csvFileHandle):
     elif entityID % 10 == 0 and randomIndex != 0:
         statPack['TEMP_ESB_STATS'][str_entitySize]['SAMPLE'][randomIndex] = {'ENTITY_SIZE': entitySize, 'ENTITY_ID': entityID}
 
+    # update multi-source report
+    if len(resumeData['0']['dataSources'].keys()) > 1:
+        multiSourceKey = '|'.join(sorted(resumeData['0']['dataSources'].keys()))
+        statUpdate = {'MULTI_SOURCE': {multiSourceKey: {'COUNT': 1, 'SAMPLE': [entityID]}}}
+        updateStatpack2(statPack, statUpdate, sampleSize, randomIndex)
+
     # resolved entity stats
     statPack['TOTAL_ENTITY_COUNT'] += 1
     statPack['TOTAL_RECORD_COUNT'] += entitySize
 
-    # summarize relationships by data source
+    # summarize relationships by data source (now just for total)
     relSummary = {}
     for relatedID in resumeData:
         if relatedID == '0':
@@ -290,6 +315,9 @@ def process_resume(statPack, resume_rows, csvFileHandle):
         matchCategory = resumeData[relatedID]['matchCategory']
         if matchCategory not in relSummary:
             relSummary[matchCategory] = {}
+            statPack[categoryTotalStat[matchCategory]+'_ENTITIES'] += 1
+        if int(relatedID) > entityID: # only count relationship once
+            statPack[categoryTotalStat[matchCategory]+'_RELATIONSHIPS'] += 1
         for dataSource in resumeData[relatedID]['dataSources']:
             if dataSource not in relSummary[matchCategory]:
                 relSummary[matchCategory][dataSource] = [relatedID]
@@ -298,7 +326,8 @@ def process_resume(statPack, resume_rows, csvFileHandle):
 
     # resolved entity stats
     for dataSource1 in resumeData['0']['dataSources']:
-        recordCount = resumeData['0']['dataSources'][dataSource1]
+        recordCount = resumeData['0']['dataSources'][dataSource1]['count']
+        principle_matchkey = resumeData['0']['dataSources'][dataSource1]['principles'][0] if len(resumeData['0']['dataSources'][dataSource1]['principles']) == 1 else 'multiple||multiple'
 
         # this just updates entity and record count for the data source
         statPack = updateStatpack(statPack, dataSource1, None, None, 1, recordCount, 0, None, randomIndex)
@@ -306,27 +335,38 @@ def process_resume(statPack, resume_rows, csvFileHandle):
         if recordCount == 1:
             statPack = updateStatpack(statPack, dataSource1, None, 'SINGLE', 1, 0, 0, entityID, randomIndex)
         else:
-            statPack = updateStatpack(statPack, dataSource1, None, 'DUPLICATE', 1, recordCount, 0, entityID, randomIndex)
+            statPack = updateStatpack(statPack, dataSource1, None, 'DUPLICATE', 1, recordCount, 0, entityID, randomIndex, principle_matchkey=principle_matchkey)
 
         # cross matches
         for dataSource2 in resumeData['0']['dataSources']:
             if dataSource2 == dataSource1:
                 continue
-            statPack = updateStatpack(statPack, dataSource1, dataSource2, 'MATCH', 1, recordCount, 0, entityID, randomIndex)
+            if len(resumeData['0']['dataSources'][dataSource2]['principles']) == 1:
+                principle_matchkey = resumeData['0']['dataSources'][dataSource2]['principles'][0] 
+            elif len(resumeData['0']['dataSources'][dataSource2]['principles']) > 1:
+                principle_matchkey = 'multiple||multiple'
+            elif len(resumeData['0']['dataSources'][dataSource1]['principles']) == 1: # maybe the matchkey is on data source1
+                principle_matchkey = resumeData['0']['dataSources'][dataSource1]['principles'][0] 
+            else:
+                continue
+            statPack = updateStatpack(statPack, dataSource1, dataSource2, 'MATCH', 1, recordCount, 0, entityID, randomIndex, principle_matchkey=principle_matchkey)
 
         # related entity stats
-        for matchCategory in relSummary:
-            for dataSource2 in relSummary[matchCategory]:
-                relationshipCount = len(relSummary[matchCategory][dataSource2])
-                relationshipSample = ' '.join(str(x) for x in [entityID] + sorted(relSummary[matchCategory][dataSource2], key=lambda x: int(x)))
-                # if matchCategory == 'AMBIGUOUS_MATCH' and not isAmbiguousEntity:  # abandoned hack!
-                #    continue
-                statPack[categoryTotalStat[matchCategory]+'_ENTITIES'] += 1
-                statPack[categoryTotalStat[matchCategory]+'_RELATIONSHIPS'] += relationshipCount
-                if dataSource2 == dataSource1: # same data source relation
-                    statPack = updateStatpack(statPack, dataSource1, None, matchCategory, 1, recordCount, relationshipCount, relationshipSample, randomIndex)
-                else:
-                    statPack = updateStatpack(statPack, dataSource1, dataSource2, matchCategory, 1, recordCount, relationshipCount, relationshipSample, randomIndex)
+        for relatedID in resumeData:
+            if relatedID == '0':
+                continue
+            matchCategory = resumeData[relatedID]['matchCategory']
+            #statPack[categoryTotalStat[matchCategory]] += 1
+            for dataSource2 in resumeData[relatedID]['dataSources']:
+                principle_matchkey = resumeData[relatedID]['dataSources'][dataSource2]['principles'][0]
+                # commented out to use target entity's record count
+                # recordCount = resumeData[relatedID]['dataSources'][dataSource2]
+                if dataSource2 == dataSource1:
+                    dataSource2 = None
+
+                # avoid double counting within data source (can't be avoided across data sources)
+                if entityID < int(relatedID) or dataSource2:
+                    statPack = updateStatpack(statPack, dataSource1, dataSource2, matchCategory, 1, recordCount, 1, str(entityID) + ' ' + relatedID, randomIndex, principle_matchkey=principle_matchkey)
 
     return statPack
 
@@ -361,10 +401,12 @@ def initializeStatPack():
     return statPack
 
 # -------------------------------------
-def updateStatpack(statPack, dataSource1, dataSource2, statPrefix, entityCount, recordCount, relationCount, sampleValue, randomIndex):
+def updateStatpack(statPack, dataSource1, dataSource2, statPrefix, entityCount, recordCount, relationCount, sampleValue, randomIndex, **kwargs):
 
     if datasourceFilter and dataSource1 != datasourceFilter:
         return statPack
+
+    principle_matchkey = kwargs.get('principle_matchkey')
 
     if dataSource1 not in statPack['DATA_SOURCES']:
         statPack = initDataSourceStats(statPack, dataSource1)
@@ -379,17 +421,23 @@ def updateStatpack(statPack, dataSource1, dataSource2, statPrefix, entityCount, 
 
     # within data source
     if not dataSource2:
-        if recordCount == 0:
+        if recordCount == 0: #--this is for single count
             statPack['DATA_SOURCES'][dataSource1][statPrefix + '_COUNT'] += entityCount
         else:
             statPack['DATA_SOURCES'][dataSource1][statPrefix + '_ENTITY_COUNT'] += entityCount
             statPack['DATA_SOURCES'][dataSource1][statPrefix + '_RECORD_COUNT'] += recordCount
         if relationCount:
-            statPack['DATA_SOURCES'][dataSource1][statPrefix + '_RELATION_COUNT'] += recordCount
+            statPack['DATA_SOURCES'][dataSource1][statPrefix + '_RELATION_COUNT'] += relationCount
+    
         if len(statPack['DATA_SOURCES'][dataSource1][statPrefix + '_SAMPLE']) < sampleSize:
             statPack['DATA_SOURCES'][dataSource1][statPrefix + '_SAMPLE'].append(sampleValue)
         elif randomIndex != 0:
             statPack['DATA_SOURCES'][dataSource1][statPrefix + '_SAMPLE'][randomIndex] = sampleValue
+
+        if principle_matchkey:
+            p, m = principle_matchkey.split('||')
+            statUpdate = {'DATA_SOURCES': {dataSource1: {statPrefix+'_PRINCIPLES': {p: {m: {'COUNT': 1, 'SAMPLE': [sampleValue]}}}}}}
+            updateStatpack2(statPack, statUpdate, sampleSize, randomIndex)
 
     # across data sources
     else:
@@ -399,18 +447,40 @@ def updateStatpack(statPack, dataSource1, dataSource2, statPrefix, entityCount, 
             statPack['DATA_SOURCES'][dataSource1]['CROSS_MATCHES'][dataSource2][statPrefix + '_ENTITY_COUNT'] += entityCount
             statPack['DATA_SOURCES'][dataSource1]['CROSS_MATCHES'][dataSource2][statPrefix + '_RECORD_COUNT'] += recordCount
         if relationCount:
-            statPack['DATA_SOURCES'][dataSource1]['CROSS_MATCHES'][dataSource2][statPrefix + '_RELATION_COUNT'] += recordCount
+            statPack['DATA_SOURCES'][dataSource1]['CROSS_MATCHES'][dataSource2][statPrefix + '_RELATION_COUNT'] += relationCount
         if len(statPack['DATA_SOURCES'][dataSource1]['CROSS_MATCHES'][dataSource2][statPrefix + '_SAMPLE']) < sampleSize:
             statPack['DATA_SOURCES'][dataSource1]['CROSS_MATCHES'][dataSource2][statPrefix + '_SAMPLE'].append(sampleValue)
         elif randomIndex != 0:
             statPack['DATA_SOURCES'][dataSource1]['CROSS_MATCHES'][dataSource2][statPrefix + '_SAMPLE'][randomIndex] = sampleValue
 
+        if principle_matchkey:
+            p, m = principle_matchkey.split('||')
+            statUpdate = {'DATA_SOURCES': {dataSource1: {'CROSS_MATCHES': {dataSource2: {statPrefix+'_PRINCIPLES': {p: {m: {'COUNT': 1, 'SAMPLE': [sampleValue]}}}}}}}}
+            updateStatpack2(statPack, statUpdate, sampleSize, randomIndex)
+
     return statPack
 
 
 # -------------------------------------
+def updateStatpack2(d, u, lmax, rsi):
+    for k, v in u.items():
+        if isinstance(v, dict):
+            d[k] = updateStatpack2(d.get(k, {}), v, lmax, rsi)
+        elif isinstance(v, list):
+            if not d.get(k):
+                d[k] = []
+            if len(d[k]) < lmax:
+                d[k].append(v[0])
+            elif rsi != 0:
+                d[k][rsi] = v[0]
+        elif isinstance(v, int):
+            if not d.get(k):
+                d[k] = 0
+            d[k] += (v)
+    return d
+           
+# -------------------------------------
 def initDataSourceStats(statPack, dataSource1, dataSource2=None):
-
     if not dataSource2:
         statPack['DATA_SOURCES'][dataSource1] = {}
         statPack['DATA_SOURCES'][dataSource1]['ENTITY_COUNT'] = 0
@@ -782,6 +852,8 @@ def processEntitiesAPIOnly():
         return 1
 
     statPack = initializeStatPack()
+    if os.path.exists(csvFilePath):
+        os.remove(csvFilePath)
     csvFileHandle = openCSVFile(exportCsv, csvFilePath)
 
     entityCount = 0
@@ -1009,8 +1081,10 @@ if __name__ == '__main__':
             dsrcLookupByCode[cfgRecord['DSRC_CODE']] = cfgRecord
 
         erruleLookup = {}
+        erruleLookup2 = {}
         for cfgRecord in cfgData['G2_CONFIG']['CFG_ERRULE']:
             erruleLookup[cfgRecord['ERRULE_ID']] = cfgRecord
+            erruleLookup2[cfgRecord['ERRULE_CODE']] = cfgRecord
 
         ambiguousFtypeID = 0
         esbFtypeLookup = {}
@@ -1029,9 +1103,11 @@ if __name__ == '__main__':
     if not outputFileRoot:
         print('\nPlease use -o to select and output path and root file name such as /project/audit/snap1\n')
         sys.exit(1)
-    if os.path.splitext(outputFileRoot)[1]:
-        print("\nPlease don't use a file extension as both a .json and a .csv file will be created\n")
-        sys.exit(1)
+    if os.path.splitext(outputFileRoot)[1] == '.json':
+        outputFileRoot = os.path.splitext(outputFileRoot)[0]
+    #else:
+    #    print("\nPlease don't use a file extension as both a .json and a .csv file will be created\n")
+    #    sys.exit(1)
 
     statsFilePath = outputFileRoot + '.json'
     csvFilePath = outputFileRoot + '.csv'

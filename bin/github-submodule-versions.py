@@ -28,7 +28,7 @@ __version__ = "1.0.0"  # See https://www.python.org/dev/peps/pep-0396/
 __date__ = '2021-08-14'
 __updated__ = '2022-01-27'
 
-# See https://github.com/Senzing/knowledge-base/blob/main/lists/senzing-product-ids.md
+# See https://github.com/senzing-garage/knowledge-base/blob/main/lists/senzing-product-ids.md
 SENZING_PRODUCT_ID = "5023"
 log_format = '%(asctime)s %(message)s'
 
@@ -203,7 +203,7 @@ def get_parser():
                     subcommands[subcommand]['arguments'][argument] = argument_value
 
     parser = argparse.ArgumentParser(
-        description="Reports from GitHub. For more information, see https://github.com/Senzing/github-util")
+        description="Reports from GitHub. For more information, see https://github.com/senzing-factory/github-util")
     subparsers = parser.add_subparsers(
         dest='subcommand', help='Subcommands (SENZING_SUBCOMMAND):')
 
@@ -238,7 +238,7 @@ message_dictionary = {
     "102": "Updated Repository: {0} Label: {1}",
     "103": "Deleted Repository: {0} Label: {1}",
     "104": "Repository '{0}' has been archived.  Not modifying its labels.",
-    "293": "For information on warnings and errors, see https://github.com/Senzing/github-util",
+    "293": "For information on warnings and errors, see https://github.com/senzing-factory/github-util",
     "294": "Version: {0}  Updated: {1}",
     "295": "Sleeping infinitely.",
     "296": "Sleeping {0} seconds.",

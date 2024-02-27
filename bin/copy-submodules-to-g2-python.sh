@@ -9,8 +9,6 @@ TARGET_PYTHON_DIR=${GIT_REPOSITORY_DIR}/g2/python
 # Read metadata.
 
 SUBMODULES=(
-    "compressedfile;CompressedFile.py"
-    "dumpstack;DumpStack.py"
     "g2audit;G2Audit.py"
     "g2command;G2Command.py"
     "g2configtables;G2ConfigTables.py"
@@ -23,10 +21,10 @@ SUBMODULES=(
     "g2loader;G2Loader.py"
     "g2paths;G2Paths.py"
     "g2project;G2Project.py"
-    "g2s3;G2S3.py"
     "g2setupconfig;G2SetupConfig.py"
     "g2snapshot;G2Snapshot.py"
     "g2updateproject;G2UpdateProject.py"
+    "governor-postgresql-transaction-id;senzing_governor.py"
 )
 
 # Copy artifacts from submodules to g2/python.

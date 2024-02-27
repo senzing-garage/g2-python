@@ -69,12 +69,6 @@ keys_to_redact = [
 ]
 
 repositories = {
-    "compressedfile": {
-        "artifacts": ["CompressedFile.py"]
-    },
-    "dumpstack": {
-        "artifacts": ["DumpStack.py"]
-    },
     "g2audit": {
         "artifacts": ["G2Audit.py"]
     },
@@ -132,9 +126,6 @@ repositories = {
     "g2project": {
         "artifacts": ["G2Project.py"]
     },
-    "g2s3": {
-        "artifacts": ["G2S3.py"]
-    },
     "g2setupconfig": {
         "artifacts": ["G2SetupConfig.py"]
     },
@@ -143,6 +134,9 @@ repositories = {
     },
     "g2updateproject": {
         "artifacts": ["G2UpdateProject.py"]
+    },
+    "governor-postgresql-transaction-id": {
+        "artifacts": ["senzing_governor.py"]
     }
 }
 

@@ -3,8 +3,6 @@
 # Format: repository;version;artifact
 
 SUBMODULES=(
-    "compressedfile;1.3.0;CompressedFile.py"
-    "dumpstack;1.0.0;DumpStack.py"
     "g2audit;1.10.0;G2Audit.py"
     "g2command;1.19.0;G2Command.py"
     "g2config;1.10.0;G2Config.py"
@@ -25,8 +23,8 @@ SUBMODULES=(
     "g2paths;1.3.0;G2Paths.py"
     "g2product;1.6.0;G2Product.py"
     "g2project;1.13.0;G2Project.py"
-    "g2s3;1.0.0;G2S3.py"
     "g2setupconfig;1.2.0;G2SetupConfig.py"
     "g2snapshot;1.3.0;G2Snapshot.py"
     "g2updateproject;1.7.0;G2UpdateProject.py"
+    "governor-postgresql-transaction-id;1.0.10;senzing_governor.py"
 )

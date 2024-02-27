@@ -23,7 +23,6 @@ The aggregated files look like this:
 ```console
 $ tree g2/python
 
-├── CompressedFile.py
 ├── demo
 │   ├── sample
 │   │   ├── project.csv
@@ -41,7 +40,6 @@ $ tree g2/python
 │       ├── truthset-person-v1-set2-data.csv
 │       ├── truthset-person-v1-set2-key.csv
 │       └── truthset-person-v1-set2.sh
-├── DumpStack.py
 ├── G2Audit.py
 ├── G2Command.py
 ├── G2ConfigMgr.py
@@ -62,11 +60,10 @@ $ tree g2/python
 ├── G2Paths.py
 ├── G2Product.py
 ├── G2Project.py
-├── G2S3.py
 ├── G2SetupConfig.py
 ├── G2Snapshot.py
 ├── G2UpdateProject.py
-└── governor_postgres_xid.py
+└── senzing_governor.py
 ```
 
 These files are packaged in `senzingapi-M.m.P-00000.x86_64.rpm` and `senzingapi_M.m.P-00000_amd64.deb`

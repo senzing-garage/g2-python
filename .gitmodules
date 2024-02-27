@@ -1,9 +1,3 @@
-[submodule "compressedfile"]
-  path = compressedfile
-  url = https://github.com/senzing-garage/compressedfile.git
-[submodule "dumpstack"]
-  path = dumpstack
-  url = https://github.com/senzing-garage/dumpstack.git
 [submodule "g2audit"]
   path = g2audit
   url = https://github.com/senzing-garage/g2audit.git
@@ -28,9 +22,6 @@
 [submodule "g2configtool"]
   path = g2configtool
   url = https://github.com/senzing-garage/g2configtool.git
-[submodule "g2s3"]
-  path = g2s3
-  url = https://github.com/senzing-garage/g2s3.git
 [submodule "g2paths"]
   path = g2paths
   url = https://github.com/senzing-garage/g2paths.git
@@ -52,3 +43,6 @@
 [submodule "g2iniparams"]
 	path = g2iniparams
 	url = https://github.com/senzing-garage/g2iniparams.git
+[submodule "governor-postgresql-transaction-id"]
+	path = governor-postgresql-transaction-id
+	url = git@github.com:Senzing/governor-postgresql-transaction-id.git

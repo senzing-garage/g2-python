@@ -43,3 +43,6 @@
 [submodule "g2iniparams"]
 	path = g2iniparams
 	url = https://github.com/senzing-garage/g2iniparams.git
+[submodule "governor-postgresql-transaction-id"]
+	path = governor-postgresql-transaction-id
+	url = https://github.com/Senzing/governor-postgresql-transaction-id.git

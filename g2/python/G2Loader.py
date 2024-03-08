@@ -976,7 +976,16 @@ def g2_thread(_, work_queue_, g2_engine_, thread_stop, dsrc_action_args):
 
             if dsrc_action == 'X':
                 dsrc_action_str = 'reevaluateRecord()'
-                g2_engine_.reevaluateRecord(data_source, record_id, 0)
+                # Check if the redo record is a REPAIR_ENTITY one, call reevaluateEntity() if so
+                # {'UMF_PROC': {'NAME': 'REPAIR_ENTITY', 'PARAMS': [{'PARAM': {'NAME': 'ENTITY_ID', 'VALUE': '32705738'}}]}}
+                if not data_source and not record_id:
+                    entity_id = row.get("UMF_PROC", {}).get("PARAMS", {})[0].get("PARAM", {}).get("VALUE", None)
+                    if entity_id:
+                        g2_engine_.reevaluateEntity(entity_id)
+                    else:
+                        g2thread_error("Unable to process redo record format!", dsrc_action_str)
+                else:
+                    g2_engine_.reevaluateRecord(data_source, record_id, 0)
 
         except G2LicenseException as ex:
             print('\nERROR: G2Engine licensing error!')
@@ -1741,7 +1750,8 @@ if __name__ == '__main__':
             * applications, process and systems. G2Loader is a demonstrable application using some of the ingestion APIs. *
             *                                                                                                             *
             * Typically, the Senzing APIs are embedded in and called by streaming systems to provide real time entity     *
-            * resolution capabilities. Example of a streaming ingest utility: https://github.com/Senzing/stream-loader    *
+            * resolution capabilities. Example of a streaming ingest utility: https://github.com/senzing-garage/stream-   *
+            * loader                                                                                                      *
             *                                                                                                             *
             ***************************************************************************************************************
             '''))
@@ -1762,8 +1772,8 @@ if __name__ == '__main__':
 
             For appropriate ingestion infrastructure please check:
 
-                https://github.com/Senzing/stream-producer
-                https://github.com/Senzing/stream-loader
+                https://github.com/senzing-garage/stream-producer
+                https://github.com/senzing-garage/stream-loader
 
             *****************************
             '''))

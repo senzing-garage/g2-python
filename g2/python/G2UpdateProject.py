@@ -52,7 +52,8 @@ files_to_remove = [
     os.path.join('resources', 'config', 'g2core-config-upgrade-1.14-to-1.15.gtc'),
     os.path.join('resources', 'config', 'g2core-config-upgrade-1.15-to-2.0.gtc'),
     os.path.join('resources', 'config', 'g2core-config-upgrade-2.0-to-2.5.gtc'),
-    os.path.join('lib', 'jre')
+    os.path.join('lib', 'jre'),
+    os.path.join('lib', 'libpostal.so.1')
 ]
 paths_to_move = [
     (os.path.join('sdk', 'python'), os.path.join('sdk', 'python_prior_to_3.0')),

@@ -86,7 +86,7 @@ def fileRowParser(line, fileData, rowNum=0, errors_file=None, errors_short=False
         return None
 
     # Its a JSON string
-    if fileData['FILE_FORMAT'] == 'JSON':
+    if fileData['FILE_FORMAT'] in ('JSON', 'JSONL'):
         try:
             rowData = json.loads(line)
         except Exception:

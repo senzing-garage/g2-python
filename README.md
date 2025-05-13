@@ -1,13 +1,9 @@
 # g2-python
 
-If you are beginning your journey with
-[Senzing](https://senzing.com/),
-please start with
-[Senzing Quick Start guides](https://docs.senzing.com/quickstart/).
+If you are beginning your journey with [Senzing],
+please start with [Senzing Quick Start guides].
 
-You are in the
-[Senzing Garage](https://github.com/senzing-garage)
-where projects are "tinkered" on.
+You are in the [Senzing Garage] where projects are "tinkered" on.
 Although this GitHub repository may help you understand an approach to using Senzing,
 it's not considered to be "production ready" and is not considered to be part of the Senzing product.
 Heck, it may not even be appropriate for your application of Senzing!
@@ -73,32 +69,29 @@ These files are packaged in `senzingapi-M.m.P-00000.x86_64.rpm` and `senzingapi_
 
 ### Contents
 
-1. [Preamble](#preamble)
-    1. [Legend](#legend)
-1. [Tips](#tips)
-    1. [View a specific release of g2/python](#view-a-specific-release-of-g2python)
-    1. [Compare releases](#compare-releases)
-1. [Develop](#develop)
-    1. [Prerequisites for development](#prerequisites-for-development)
-    1. [Clone repository](#clone-repository)
-    1. [Create branch](#create-branch)
-    1. [Update files from submodules](#update-files-from-submodules)
-    1. [Update CHANGELOG.md](#update-changelog.md)
-    1. [Verify changes](#verify-changes)
-    1. [Pull branch into main](#pull-branch-into-main)
-    1. [Create versioned release](#crate-versioned-release)
+1. [Preamble]
+   1. [Legend]
+1. [Tips]
+   1. [View a specific release of g2/python]
+   1. [Compare releases]
+1. [Develop]
+   1. [Prerequisites for development]
+   1. [Clone repository]
+   1. [Create branch]
+   1. [Update files from submodules]
+   1. [Update CHANGELOG.md]
+   1. [Verify changes]
+   1. [Pull branch into main]
+   1. [Create versioned release]
 
 ## Preamble
 
-At [Senzing](http://senzing.com),
-we strive to create GitHub documentation in a
-"[don't make me think](https://github.com/senzing-garage/knowledge-base/blob/main/WHATIS/dont-make-me-think.md)" style.
-For the most part, instructions are copy and paste.
+At [Senzing], we strive to create GitHub documentation in a
+"[don't make me think]" style. For the most part, instructions are copy and paste.
 Whenever thinking is needed, it's marked with a "thinking" icon :thinking:.
 Whenever customization is needed, it's marked with a "pencil" icon :pencil2:.
 If the instructions are not clear, please let us know by opening a new
-[Documentation issue](https://github.com/senzing-garage/template-python/issues/new?template=documentation_request.md)
-describing where we can improve.   Now on with the show...
+[Documentation issue] describing where we can improve. Now on with the show...
 
 ### Legend
 
@@ -112,10 +105,10 @@ describing where we can improve.   Now on with the show...
 
 ### View a specific release of g2/python
 
-1. Visit [github.com/senzing-garage/g2-python](https://github.com/senzing-garage/g2-python)
+1. Visit [github.com/senzing-garage/g2-python]
 1. In upper-left dropdown, probably set to "main", select the dropdown and choose the "Tags" tab.
 1. Choose the Senzing SDK API version of interest.
-1. The new URL will look like [https://github.com/senzing-garage/g2-python/tree/2.8.0](https://github.com/senzing-garage/g2-python/tree/2.8.0),
+1. The new URL will look like [https://github.com/senzing-garage/g2-python/tree/2.8.0],
    where `2.8.0` is the version of Senzing SDK API.
 1. In addition to the `g2/python` directory being at the specified Senzing SDK API version,
    the GitHub submodule references will also be at that version.
@@ -123,11 +116,11 @@ describing where we can improve.   Now on with the show...
 ### Compare releases
 
 1. :pencil2: To compare the differences between Senzing versions, use a URL like the following:
-   [https://github.com/senzing-garage/g2-python/compare/2.7.0...2.8.0](https://github.com/senzing-garage/g2-python/compare/2.7.0...2.8.0)
+   [https://github.com/senzing-garage/g2-python/compare/2.7.0...2.8.0]
    Where:
-    1. `2.7.0` can be replaced with the earliest release in the comparison.
-    1. `2.8.0` can be replaced with the latest release  in the comparison.
-    1. `main` can be used to replace `2.7.0` or `2.8.0` to indicate current head of main branch.
+   1. `2.7.0` can be replaced with the earliest release in the comparison.
+   1. `2.8.0` can be replaced with the latest release in the comparison.
+   1. `main` can be used to replace `2.7.0` or `2.8.0` to indicate current head of main branch.
 
 ## Develop
 
@@ -139,62 +132,61 @@ The following instructions are used when modifying and building the Docker image
 These are "one-time tasks" which may already have been completed.
 
 1. The following software programs need to be installed:
-    1. [git](https://github.com/senzing-garage/knowledge-base/blob/main/WHATIS/git.md)
+   1. [git]
 
 ### Clone repository
 
-For more information on environment variables,
-see [Environment Variables](https://github.com/senzing-garage/knowledge-base/blob/main/lists/environment-variables.md).
+For more information on environment variables, see [Environment Variables].
 
 1. Set these environment variable values:
 
-    ```console
-    export GIT_ACCOUNT=senzing
-    export GIT_REPOSITORY=g2-python
-    export GIT_ACCOUNT_DIR=~/${GIT_ACCOUNT}.git
-    export GIT_REPOSITORY_DIR="${GIT_ACCOUNT_DIR}/${GIT_REPOSITORY}"
-    ```
+   ```console
+   export GIT_ACCOUNT=senzing
+   export GIT_REPOSITORY=g2-python
+   export GIT_ACCOUNT_DIR=~/${GIT_ACCOUNT}.git
+   export GIT_REPOSITORY_DIR="${GIT_ACCOUNT_DIR}/${GIT_REPOSITORY}"
+   ```
 
-1. Using the environment variables values just set, follow steps in [clone-repository](https://github.com/senzing-garage/knowledge-base/blob/main/HOWTO/clone-repository.md) to install the Git repository.
+1. Using the environment variables values just set, follow steps in [clone-repository] to install the Git repository.
 
 ### Create branch
 
-1. :pencil2: Using [github.com/senzing-garage/g2-python](https://github.com/senzing-garage/g2-python), create a branch.
+1. :pencil2: Using [github.com/senzing-garage/g2-python], create a branch.
    Then, identify the name of the branch created.
    Example:
 
-    ```console
-    export GIT_BRANCH=my-test-branch
-    ```
+   ```console
+   export GIT_BRANCH=my-test-branch
+   ```
 
 1. Checkout branch.
    Example:
 
-    ```console
-    cd ${GIT_REPOSITORY_DIR}
-    git checkout main
-    git pull
-    git checkout ${GIT_BRANCH}
-    ```
+   ```console
+   cd ${GIT_REPOSITORY_DIR}
+   git checkout main
+   git pull
+   git checkout ${GIT_BRANCH}
+   ```
 
 ### Update files from submodules
 
 1. :pencil2: Set `GITHUB_ACCESS_TOKEN`.
    This is needed to access GitHub above the "public" limit.
    For information on how to obtain an access token, see
-   [Creating a personal access token](https://docs.github.com/en/github/authenticating-to-github/keeping-your-account-and-data-secure/creating-a-personal-access-token).
+   [Creating a personal access token].
 
-    ```console
-    export GITHUB_ACCESS_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-    ```
+   ```console
+   export GITHUB_ACCESS_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   ```
 
 1. Update submodules and copy files from submodules.
    Example:
 
-    ```console
-    cd ${GIT_REPOSITORY_DIR}/bin
-    ./update-submodules.sh
-    ```
+   ```console
+   cd ${GIT_REPOSITORY_DIR}/bin
+   ./update-submodules.sh
+   ```
 
 ### Update CHANGELOG.md
 
@@ -205,9 +197,9 @@ see [Environment Variables](https://github.com/senzing-garage/knowledge-base/blo
 1. If a new version of Senzing is installed into `/opt/senzing/g2`, then files can be compared.
    Example:
 
-    ```console
-    diff -r /opt/senzing/g2/python ${GIT_REPOSITORY_DIR}/g2/python
-    ```
+   ```console
+   diff -r /opt/senzing/g2/python ${GIT_REPOSITORY_DIR}/g2/python
+   ```
 
 1. Opening, but not creating, pull request can be made for the `GIT_BRANCH` branch to determine
    if the changes seen are the expected.
@@ -216,10 +208,38 @@ see [Environment Variables](https://github.com/senzing-garage/knowledge-base/blo
 
 1. Follow a standard process for pulling into main branch.
    Example:
-    1. Create a Pull Request for the `GIT_BRANCH` branch.
-    1. Have Pull Request approved.
-    1. Merge Pull request into "main" branch.
+   1. Create a Pull Request for the `GIT_BRANCH` branch.
+   1. Have Pull Request approved.
+   1. Merge Pull request into "main" branch.
 
 ### Create versioned release
 
-1. [Create a new versioned release](https://github.com/senzing-garage/g2-python/releases) that matches the `senzingapi` release.
+1. [Create a new versioned release] that matches the `senzingapi` release.
+
+[Clone repository]: #clone-repository
+[clone-repository]: https://github.com/senzing-garage/knowledge-base/blob/main/HOWTO/clone-repository.md
+[Compare releases]: #compare-releases
+[Create a new versioned release]: https://github.com/senzing-garage/g2-python/releases
+[Create branch]: #create-branch
+[Create versioned release]: #crate-versioned-release
+[Creating a personal access token]: https://docs.github.com/en/github/authenticating-to-github/keeping-your-account-and-data-secure/creating-a-personal-access-token
+[Develop]: #develop
+[Documentation issue]: https://github.com/senzing-garage/template-python/issues/new?template=documentation_request.md
+[don't make me think]: https://github.com/senzing-garage/knowledge-base/blob/main/WHATIS/dont-make-me-think.md
+[Environment Variables]: https://github.com/senzing-garage/knowledge-base/blob/main/lists/environment-variables.md
+[git]: https://github.com/senzing-garage/knowledge-base/blob/main/WHATIS/git.md
+[github.com/senzing-garage/g2-python]: https://github.com/senzing-garage/g2-python
+[https://github.com/senzing-garage/g2-python/compare/2.7.0...2.8.0]: https://github.com/senzing-garage/g2-python/compare/2.7.0...2.8.0
+[https://github.com/senzing-garage/g2-python/tree/2.8.0]: https://github.com/senzing-garage/g2-python/tree/2.8.0
+[Legend]: #legend
+[Preamble]: #preamble
+[Prerequisites for development]: #prerequisites-for-development
+[Pull branch into main]: #pull-branch-into-main
+[Senzing Garage]: https://github.com/senzing-garage
+[Senzing Quick Start guides]: https://docs.senzing.com/quickstart/
+[Senzing]: https://senzing.com/
+[Tips]: #tips
+[Update CHANGELOG.md]: #update-changelog.md
+[Update files from submodules]: #update-files-from-submodules
+[Verify changes]: #verify-changes
+[View a specific release of g2/python]: #view-a-specific-release-of-g2python

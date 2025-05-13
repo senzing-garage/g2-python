@@ -29,7 +29,7 @@ def pause(question='PRESS ENTER TO CONTINUE ...'):
 
 # ----------------------------------------
 def signal_handler(signal, frame):
-    print('USER INTERUPT! Shutting down ... (please wait)')
+    print('USER INTERRUPT! Shutting down ... (please wait)')
     global shutDown
     shutDown = True
     return
@@ -61,7 +61,7 @@ def makeKeytable(fileName, tableName):
     columnNames = [x.upper() for x in columnNames]
 
     fileMap = {}
-    fileMap['algorithmName'] = '<name of the algorthm that produced the entity map>'
+    fileMap['algorithmName'] = '<name of the algorithm that produced the entity map>'
     fileMap['clusterField'] = '<csvFieldName> for unique ID'
     fileMap['recordField'] = '<csvFieldName> for the record ID'
     fileMap['sourceField'] = '<csvFieldName> for the data source (only required if multiple)'

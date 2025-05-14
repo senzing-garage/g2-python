@@ -144,7 +144,7 @@ def get_resume_db(local_dbo, resolved_id):
         resume_rows.append(rowData)
     # print('   fetching entities took %s seconds' % str(round(time.time() - queryStartTime,2)))
 
-    # abondoned hack to only count the ambiguous entity
+    # abandoned hack to only count the ambiguous entity
     #ambiguousCount = 0
     if resume_rows and relationshipFilter in (2, 3):
         # queryStartTime = time.time()
@@ -157,7 +157,7 @@ def get_resume_db(local_dbo, resolved_id):
             resume_rows.append(rowData)
         # print('   fetching relationships took %s seconds' % str(round(time.time() - queryStartTime,2)))
 
-    # abndoned hack to determine if this is an ambiguous entity
+    # abandoned hack to determine if this is an ambiguous entity
     #if ambiguousCount and len(local_dbo.fetchAllRows(local_dbo.sqlExec(sqlAmbiguous, [resolved_id, ]))) > 0:
     #    resume_rows[0]['IS_AMBIGUOUS'] = 1
 
@@ -659,7 +659,7 @@ def processEntities(threadCount):
             # get out if errors hit or out of records
             if shutDown.value:
                 if shutDown.value == 9:
-                    print('USER INTERUPT! Shutting down ... ')
+                    print('USER INTERRUPT! Shutting down ... ')
                 break
 
         # get out if errors hit
@@ -1004,7 +1004,7 @@ if __name__ == '__main__':
     argParser.add_argument('-c', '--config_file_name', dest='config_file_name', default=None, help='Path and name of optional G2Module.ini file to use.')
     argParser.add_argument('-o', '--output_file_root', default=outputFileRoot, help='root name for files created such as "/project/snapshots/snapshot1"')
     argParser.add_argument('-s', '--sample_size', type=int, default=sampleSize, help='defaults to %s' % sampleSize)
-    argParser.add_argument('-d', '--datasource_filter', help='data source code to analayze, defaults to all')
+    argParser.add_argument('-d', '--datasource_filter', help='data source code to analyze, defaults to all')
     argParser.add_argument('-f', '--relationship_filter', type=int, default=relationshipFilter, help='filter options 1=No Relationships, 2=Include possible matches, 3=Include possibly related and disclosed. Defaults to %s' % relationshipFilter)
     argParser.add_argument('-a', '--for_audit', action='store_true', default=False, help='export csv file for audit')
     argParser.add_argument('-k', '--chunk_size', type=int, default=chunkSize, help='defaults to %s' % chunkSize)

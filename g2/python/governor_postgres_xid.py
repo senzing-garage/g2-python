@@ -70,12 +70,12 @@ class Governor:
 
         # Set defaults, override at governor init if required
         #
-        # frequency = row or source. The frequency the governor runs at, this must be specfied
+        # frequency = row or source. The frequency the governor runs at, this must be specified
         # interval = Governor called every row x number of records - used for per record or redo governor not per source
         # check_time = In addition to checking every interval, check every x seconds too
-        # xid_age = Value of Postgres XID age to pause at for a vacuum to be completed (highwater mark to pause at)
+        # xid_age = Value of Postgres XID age to pause at for a vacuum to be completed (high water mark to pause at)
         # wait_time = Period in seconds to pause processing for between each check of XID age once triggered
-        # resume_age = XID age to resume processing at (lowwater mark lower than xid_age)
+        # resume_age = XID age to resume processing at (low water mark lower than xid_age)
         # govern_debug = To call debug functions (if used)
         # use_logging = Future use
         # pre_post_msgs = Show pre and post messages?
@@ -91,7 +91,7 @@ class Governor:
         self.use_logging = kwargs.get('use_logging', False)
         self.pre_post_msgs = kwargs.get('pre_post_msgs', True)
 
-        # Required parms
+        # Required params
         self.g2module_params = kwargs.get('g2module_params', None)
 
         # Perform any pre tasks
@@ -153,7 +153,7 @@ class Governor:
         # Track number of per record calls when governor is frequency = row
         self.record_num = 1
 
-        # Check G2Module parms, are we configured for running a Senzing clustered DB instance?
+        # Check G2Module params, are we configured for running a Senzing clustered DB instance?
         self.sql_backend = self.g2module_params.get("SQL", {}).get("BACKEND", False)
         self.connect_hybrid = True if self.sql_backend and self.sql_backend.strip() == 'HYBRID' else False
 

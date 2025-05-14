@@ -167,7 +167,7 @@ def check_resources_and_startup(return_queue, thread_count, do_purge):
         ini_db_types.append(db['Type'].upper())
 
     if len(set(ini_db_types)) != 1:
-        print('\nERROR: No database detected in init parms or mixed databases in a hybrid setup!')
+        print('\nERROR: No database detected in init params or mixed databases in a hybrid setup!')
         print(f'       {ini_db_types}')
         return_queue.put(-1)
         return
@@ -1035,7 +1035,7 @@ def dump_workload_stats(engine):
     print(f'\n{json.dumps(json.loads(response.decode()))}\n', flush=True)
 
 
-def init_engine(name, config_parms, debug_trace, prime_engine=True, add_start_time=False):
+def init_engine(name, config_params, debug_trace, prime_engine=True, add_start_time=False):
     """  Initialize an engine. add_start_time is for redo engines only """
 
     if add_start_time:
@@ -1043,7 +1043,7 @@ def init_engine(name, config_parms, debug_trace, prime_engine=True, add_start_ti
 
     try:
         engine = G2Engine()
-        engine.init(name, config_parms, debug_trace)
+        engine.init(name, config_params, debug_trace)
         if prime_engine:
             engine.primeEngine()
     except G2Exception:
@@ -1399,7 +1399,7 @@ def governor_setup():
 
         # Init governors for each record, each source. Governor creation sets defaults, can override. See sample governor-postgresXID.py
         # Minimum keyword args: g2module_params, frequency
-        # Example of overriding governor init parms
+        # Example of overriding governor init params
         # rec_governor = governor.Governor(type='Ingest per source record', g2module_params=g2module_params, frequency='record', wait_time=20, resume_age=5000, xid_age=1500000)
         rec_governor = gov.Governor(thread_stop, type='Ingest per source record', g2module_params=g2module_params, frequency='record')
         src_governor = gov.Governor(thread_stop, type='Ingest per source', g2module_params=g2module_params, frequency='source')

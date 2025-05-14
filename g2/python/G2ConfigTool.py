@@ -1263,7 +1263,7 @@ class G2CmdShell(cmd.Cmd, object):
             colorize_msg(message, 'error')
             return
 
-        parmData['CONVERSATIONAL'], message = self.validateDomain('Coversational', parmData.get('CONVERSATIONAL', 'No'), ['Yes', 'No'])
+        parmData['CONVERSATIONAL'], message = self.validateDomain('Conversational', parmData.get('CONVERSATIONAL', 'No'), ['Yes', 'No'])
         if not parmData['CONVERSATIONAL']:
             colorize_msg(message, 'error')
             return
@@ -2888,7 +2888,7 @@ class G2CmdShell(cmd.Cmd, object):
 
     def do_getStandardizeCall(self, arg):
         """
-        Returns a single standarization call
+        Returns a single standardization call
 
         Syntax:
             getStandardizeCall id or feature [table|json|jsonl]
@@ -3566,7 +3566,7 @@ class G2CmdShell(cmd.Cmd, object):
 
     def do_deleteDistinctCall(self, arg):
         """
-        Deletes a distintness call
+        Deletes a distinct call
 
         Syntax:
             deleteDistinctCall id
@@ -4750,7 +4750,7 @@ class G2CmdShell(cmd.Cmd, object):
         Returns the list of expression functions
 
         Syntax:
-            listExpressionFuncstions [filter_expression] [table|json|jsonl]
+            listExpressionFunctions [filter_expression] [table|json|jsonl]
         """
         arg = self.check_arg_for_output_format('list', arg)
         json_lines = []
@@ -5015,7 +5015,7 @@ class G2CmdShell(cmd.Cmd, object):
 
     def do_deleteComparisonThreshold(self, arg):
         """
-        Deletes a comparision threshold
+        Deletes a comparison threshold
 
         Syntax:
            deleteComparisonThreshold id
@@ -5148,7 +5148,7 @@ class G2CmdShell(cmd.Cmd, object):
 
     def do_updateCompatibilityVersion(self, arg):
         """
-        Update the compatiblilty version of this configuration
+        Update the compatibility version of this configuration
 
         Examples:
             updateCompatibilityVersion {"fromVersion": "1", "toVersion": "2"}
@@ -5173,7 +5173,7 @@ class G2CmdShell(cmd.Cmd, object):
 
     def do_getCompatibilityVersion(self, arg):
         """
-        Retrieve the compatiblity version of this configuration
+        Retrieve the compatibility version of this configuration
 
         Syntax:
             getCompatibilityVersion
